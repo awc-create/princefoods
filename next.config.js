@@ -1,0 +1,1 @@
+module.exports = { reactStrictMode: true, trailingSlash: true, images: { domains: ['cdn.example.com'] } };
