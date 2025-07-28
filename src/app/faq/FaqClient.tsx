@@ -1,69 +1,38 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import styles from "./Faq.module.scss";
+import { useState } from 'react';
+import styles from './Faq.module.scss';
 
 const faqs = [
   {
-    question: "What services do you offer?",
-    answer: "We offer full-stack web development, e-commerce solutions, SEO, and branding."
-  },
-  {
-    question: "How long does it take to build a site?",
-    answer: "It depends on complexity, but typically between 2-6 weeks."
-  },
-  {
-    question: "Do you provide support after launch?",
-    answer: "Absolutely. We offer maintenance plans and technical support."
-  },
-  {
-    question: "Can I request custom features?",
-    answer: "Yes, we specialize in tailored solutions that meet your unique needs."
-  },
-  {
-    question: "What does the Web Dev Wizard CLI actually generate?",
+    question: 'WHAT IS YOUR RETURN POLICY?',
     answer:
-      "It scaffolds a full Next.js 15 project with TypeScript, SCSS, a modern responsive layout, a navbar, footer, optional e-commerce components, and a sitemap. It also installs all required dependencies like react-icons, sass, and lottie-react."
+      "We want you to be completely satisfied with your order. If you receive a damaged or incorrect item, please contact us within 48 hours of receiving your shipment. Please provide photographic evidence, and we'll promptly arrange a replacement or refund. Due to the perishable nature of our frozen goods, returns for reasons other than damages or errors are typically not accepted."
   },
   {
-    question: "How do I add more navigation links during setup?",
+    question: 'HOW MUCH IS THE MINIMUM ORDER?',
     answer:
-      "When prompted during the wizard, you can enter additional page names separated by commas. These will be auto-created with boilerplate content and added to the navigation config."
+      'The minimum order for free delivery across the UK is just £30. Orders below this amount will incur a shipping fee.'
   },
   {
-    question: "Why is `Cart` and `Login` not in the menu config?",
+    question: 'HOW MUCH DOES SHIPPING COST?',
     answer:
-      "They are intentionally excluded from the navigation menu because they are rendered as icons when `isEcommerce` is enabled. Their functionality lives in the Navbar component logic."
+      'For orders of £30 or more, delivery is free across the UK. Orders below £30 will have a shipping fee clearly indicated at checkout. We dispatch orders on the next working day, with delivery typically within 2-3 working days. All frozen items are shipped via next-day delivery service, carefully packaged in food-grade rigifoam cartons with ice gel packs to maintain optimum temperature and freshness.\nFor any special delivery requirements or further information, please contact our customer service team directly.'
   },
   {
-    question: "Can I run this CLI from anywhere?",
+    question: 'CAN I TRACK MY ORDER?',
     answer:
-      "Yes. As long as Node.js and Yarn are installed, you can run it from any terminal using `node web-dev-wizard.mjs`. Just make sure the `template/` folder exists beside it."
+      'Yes, once your order ships, we’ll email you a tracking link so you can follow its journey from our warehouse to your door, whether you’re in England, Scotland, Wales or Ireland.'
   },
   {
-    question: "What happens if I choose E-commerce mode?",
+    question: 'WHAT PAYMENT METHODS DO YOU ACCEPT?',
     answer:
-      "The CLI will copy e-commerce specific components and pages (like CartIcon, LoginButton, and checkout templates) into your project. These are lazily loaded and don’t interfere with static sites."
+      'We accept all major credit and debit cards (Visa, Mastercard, American Express) processed securely via Stripe—so your card details are never stored on our servers.'
   },
   {
-    question: "I got a module not found error after setup. What do I do?",
+    question: 'WHICH AREAS DO YOU DELIVER TO?',
     answer:
-      "This usually happens if a dependency like `sass` or `lottie-react` wasn’t installed properly. Just run `yarn` or `yarn add` manually in your project folder to fix it."
-  },
-  {
-    question: "Can I re-run the wizard inside an existing project?",
-    answer:
-      "It's recommended to use the wizard in a clean directory. It deletes and overwrites certain folders, so running it in an existing project might cause data loss."
-  },
-  {
-    question: "Where can I customize the generated layout?",
-    answer:
-      "You can modify `src/app/layout.tsx` for the layout structure, or tweak SCSS styles in `src/styles/Global.scss` and component-specific modules."
-  },
-  {
-    question: "How are the navigation links managed?",
-    answer:
-      "They are auto-generated into `src/config/menu.config.ts` based on your wizard choices. This config is consumed by the Navbar to render links."
+      'We deliver across all of Great Britain (England, Scotland & Wales), Northern Ireland and the Republic of Ireland. Check our Delivery page for region-specific minimum orders and packing fees.'
   }
 ];
 
@@ -71,22 +40,25 @@ export default function FaqClient() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const toggle = (index: number) => {
-    setOpenIndex(prev => (prev === index ? null : index));
+    setOpenIndex((prev) => (prev === index ? null : index));
   };
 
   return (
     <div className={styles.wrapper}>
-      <h1>Frequently Asked Questions</h1>
+      <h1>FAQS AND THEIR ANSWERS</h1>
+      <p className={styles.sub}>Browse Some of Our Most Asked Questions</p>
       <div className={styles.accordion}>
         {faqs.map((item, index) => (
           <div key={index} className={styles.item}>
             <button className={styles.question} onClick={() => toggle(index)}>
               {item.question}
-              <span className={styles.icon}>{openIndex === index ? "−" : "+"}</span>
+              <span className={styles.icon}>{openIndex === index ? '−' : '›'}</span>
             </button>
-            <div className={`${styles.answer} ${openIndex === index ? styles.open : ""}`}>
-              <p>{item.answer}</p>
-            </div>
+            {openIndex === index && (
+              <div className={styles.answer}>
+                <p>{item.answer}</p>
+              </div>
+            )}
           </div>
         ))}
       </div>

@@ -1,10 +1,16 @@
-import ContactClient from "./ContactClient";
+import ContactClient from './ContactClient';
+import ContactOffices from '@/components/contact/ContactOffice';
 
 export const metadata = {
-  title: "Contact Us",
-  description: "Get in touch with our team",
+  title: 'Contact Us',
+  description: 'Get in touch with Prince Foods for assistance or inquiries.'
 };
 
 export default function ContactPage() {
-  return <ContactClient />;
+  return (
+    <>
+      <ContactClient />
+      <ContactOffices />
+    </>
+  );
 }

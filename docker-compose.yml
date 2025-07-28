@@ -1,0 +1,17 @@
+
+services:
+  db:
+    image: postgres:15
+    container_name: postgres-princefoods
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: princefoods
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

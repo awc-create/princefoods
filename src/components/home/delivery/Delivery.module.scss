@@ -1,0 +1,35 @@
+.deliveryWrapper {
+  background: #ccc;
+  padding: 3rem 2rem;
+  text-align: center;
+}
+
+.container {
+  display: flex;
+  justify-content: center;
+  gap: 5rem;
+  flex-wrap: wrap;
+}
+
+.block {
+  max-width: 300px;
+  color: white;
+
+  svg {
+    margin-bottom: 1rem;
+    color: white;
+  }
+
+  h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+    letter-spacing: 1px;
+  }
+
+  p {
+    font-size: 0.95rem;
+    margin: 0.25rem 0;
+  }
+}

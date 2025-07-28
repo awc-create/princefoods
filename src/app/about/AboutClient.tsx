@@ -1,25 +1,24 @@
-"use client";
+'use client';
 
-import styles from "./About.module.scss";
-import dynamic from "next/dynamic";
-const Lottie = dynamic(() => import("lottie-react"), { ssr: false });
-import developerAnim from "../../assets/lottie/developer.json"; // adjust path if needed
+import styles from './About.module.scss';
+import Image from 'next/image';
 
 export default function AboutClient() {
   return (
-    <div className={styles.wrapper}>
-      <div className={styles.left}>
-        <h1>About Us</h1>
-        <p>We're a team of passionate developers turning ideas into reality.</p>
-        <ul>
-          <li>🚀 Fast & scalable</li>
-          <li>🎨 Design-driven</li>
-          <li>🤝 Client-focused</li>
-        </ul>
+    <section className={styles.hero}>
+      <div className={styles.overlay}>
+        <div className={styles.content}>
+          <h1>Your Favourite South Asian Grocery—A Reminder of Home</h1>
+          <p className={styles.subtitle}>Quality, value & nostalgia in every bite</p>
+          <p className={styles.description}>
+            Since 2007, Prince Foods has connected the South Asian community in England, Scotland,
+            Wales and Ireland with authentic staples—from premium spices and pulses to snacks and
+            frozen delicacies—at unbeatable everyday prices. Our curated collections, intuitive
+            online store and reliable UK- & Ireland-wide delivery make it easy to stock your pantry
+            with the flavours you love.
+          </p>
+        </div>
       </div>
-      <div className={styles.right}>
-        <Lottie animationData={developerAnim} loop autoplay style={{ height: 300 }} />
-      </div>
-    </div>
+    </section>
   );
 }

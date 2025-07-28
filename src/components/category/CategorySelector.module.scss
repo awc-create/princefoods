@@ -1,0 +1,104 @@
+.wrapper {
+  padding: 1.5rem;
+  border: 1px solid #d8e1e8;
+  border-radius: 10px;
+  background: #f6faff;
+}
+
+.heading {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: #0070f3;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tree {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.parentBlock {
+  margin-bottom: 1rem;
+  border-left: 4px solid #0070f3;
+  padding-left: 1rem;
+}
+
+.parentLabel,
+.childLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: #333;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.parentLabel input[type="checkbox"],
+.childLabel input[type="checkbox"] {
+  transform: scale(1.1);
+  cursor: pointer;
+}
+
+.parentLabel:hover,
+.childLabel:hover {
+  color: #005dc1;
+}
+
+.childGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-left: 1.75rem;
+  margin-top: 0.5rem;
+}
+
+.emoji {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.selected {
+  color: #0070f3;
+  font-weight: 600;
+}
+
+.create {
+  margin-top: 2rem;
+
+  p {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  input {
+    width: 100%;
+    padding: 0.5rem;
+    margin-top: 0.25rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 0.95rem;
+  }
+
+  button {
+    background: #0070f3;
+    color: white;
+    border: none;
+    padding: 0.5rem 1.25rem;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background 0.2s ease;
+
+    &:hover {
+      background: #005dc1;
+    }
+  }
+}

@@ -1,0 +1,87 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.label {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.maxSize {
+  font-size: 0.85rem;
+  color: #777;
+  margin-left: 0.5rem;
+}
+
+/* UploadThing Dropzone Custom Appearance */
+.uploadCard {
+  border: 2px dashed #3399ff !important;
+  border-radius: 12px !important;
+  background: #f0f8ff !important;
+  padding: 2rem !important;
+  text-align: center !important;
+  color: #1d5aa7 !important;
+  font-weight: 500;
+  transition: border 0.2s ease;
+  cursor: pointer;
+
+  &:hover {
+    border-color: #0077cc !important;
+  }
+}
+
+.uploadIcon {
+  color: #1d5aa7 !important;
+  font-size: 2rem !important;
+  margin-bottom: 0.5rem;
+}
+
+.uploadLabel {
+  font-size: 1rem !important;
+  color: #1d5aa7 !important;
+}
+
+.uploadButton {
+  background: none !important;
+  border: none !important;
+  color: #0077cc !important;
+  font-weight: bold !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+}
+
+/* Image gallery below the uploader */
+.gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.thumb {
+  position: relative;
+
+  img {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+  }
+
+  button {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #e53935;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+}
