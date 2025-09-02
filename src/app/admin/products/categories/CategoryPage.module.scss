@@ -1,0 +1,110 @@
+.wrap { padding: 24px; }
+
+.headerRow {
+  display: flex; gap: 12px; align-items: center; margin: 12px 0 20px; flex-wrap: wrap;
+
+  form {
+    display: flex; gap: 10px; flex: 1; min-width: 420px;
+    input[type="text"] {
+      padding: 12px 14px; border: 1px solid #ddd; border-radius: 12px; flex: 1; font-size: 15px;
+      background: #fff;
+    }
+    button {
+      padding: 12px 16px; border-radius: 12px; border: 1px solid #ddd; background: #fafafa; cursor: pointer; font-weight: 600;
+    }
+  }
+
+  .right {
+    display: inline-flex; gap: 12px; align-items: center;
+    /* localize the label instead of bare `label {}` */
+    > label { display: inline-flex; gap: 6px; font-size: 14px; color: #444; }
+    button { padding: 12px 16px; border-radius: 12px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-weight: 600; }
+  }
+}
+
+.inlineMsg { margin-bottom: 8px; font-size: 13px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
+
+.card {
+  border: 1px solid #eee; border-radius: 14px; background: #fff; overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: flex; flex-direction: column;
+}
+
+.fileHidden { display: none; }
+
+.thumb {
+  display: block;           /* ensure the link fills the card width */
+  aspect-ratio: 16 / 9;
+  background: #f6f6f6;
+  position: relative;
+  overflow: hidden;
+  /* cursor can stay pointer since it navigates */
+}
+
+.body { padding: 12px; }
+.title {
+  font-weight: 700; font-size: 16px; margin-bottom: 6px;
+  display: flex; justify-content: space-between; gap: 8px;
+  a { color: #5b3df6; text-decoration: none; }
+}
+
+.actionsTop { margin-top: 8px; }
+
+.notice { color: #666; font-size: 14px; padding: 8px 0; }
+
+/* -------- Edit panel ---------- */
+.editPanel {
+  margin: 14px 0 6px; padding: 16px;
+  border: 1px dashed #ddd; border-radius: 14px; background: linear-gradient(180deg,#fafafa, #fff);
+  display: grid; gap: 14px;
+}
+
+.field { display: grid; gap: 8px; }
+
+/* style these labels locally instead of bare `label` */
+.field > label,
+.fieldInline > label {
+  color: #2a2a2a; font-weight: 600;
+}
+
+.fieldInline { display: flex; align-items: center; }
+.hstack { display: flex; gap: 10px; align-items: center; }
+
+.input {
+  padding: 12px 14px; border: 1px solid #d9d9d9; border-radius: 12px; font-size: 15px; background: #fff; width: 100%;
+}
+
+.checkbox {
+  display: inline-flex; align-items: center; gap: 10px; color: #333; font-weight: 600;
+  input { width: 18px; height: 18px; }
+}
+
+.preview {
+  position: relative; border: 1px solid #eee; border-radius: 12px; overflow: hidden;
+  img { width: 100%; height: auto; display: block; }
+}
+.removePreview {
+  position: absolute; top: 8px; right: 8px;
+  width: 28px; height: 28px; border-radius: 999px; border: none; cursor: pointer;
+  background: rgba(0,0,0,.5); color: #fff; font-size: 18px; line-height: 28px; text-align: center;
+}
+
+.dropZone {
+  border: 2px dashed #d9d9d9; border-radius: 12px; min-height: 140px;
+  display: flex; align-items: center; justify-content: center;
+  color: #666; font-size: 14px; background: #fefefe; text-align: center; padding: 16px;
+}
+.dropZoneOver { border-color: #5b3df6; background: #f7f4ff; color: #4a34e6; }
+
+.actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+.primaryBtn {
+  padding: 12px 16px; border-radius: 12px; background: #111; color: #fff; border: 1px solid #111; font-weight: 700; cursor: pointer;
+}
+.secondaryBtn {
+  padding: 8px 10px; border-radius: 10px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-size: 13px;
+}
+.ghostBtn {
+  padding: 12px 16px; border-radius: 12px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-weight: 600;
+}

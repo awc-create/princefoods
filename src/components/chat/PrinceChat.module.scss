@@ -1,0 +1,269 @@
+:root {
+  --pf-red: #d62828;
+  --pf-red-dark: #ab1f1f;
+  --pf-ink: #111111;
+  --pf-card: #ffffff;
+  --pf-muted: #707070;
+  --pf-bg: #f8f8f8;
+}
+
+/* Floating Action Button (bubble) */
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--pf-red), #ff4a4a);
+  color: #fff;
+  border: none;
+  box-shadow: 0 10px 28px rgba(214, 40, 40, 0.35);
+  cursor: pointer;
+  z-index: 9999;
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+
+.fab:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 34px rgba(214, 40, 40, 0.45);
+  filter: brightness(1.03);
+}
+
+.fabIconWrap {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+}
+
+.fabIcon {
+  width: 24px;
+  height: 24px;
+  color: #fff;
+}
+
+.fabLabel {
+  font-weight: 700;
+  letter-spacing: .2px;
+}
+
+.badge {
+  background: #fff;
+  color: var(--pf-red);
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 1;
+  margin-left: 2px;
+}
+
+/* subtle attention animation when unread */
+@keyframes pingy {
+  0% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-2px) scale(1.02); }
+  100% { transform: translateY(0) scale(1); }
+}
+.fabNotify {
+  animation: pingy 1s ease-in-out infinite;
+}
+
+/* Panel */
+.panel {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: min(380px, calc(100vw - 24px));
+  height: 520px;
+  background: var(--pf-card);
+  border: 1px solid #eaeaea;
+  border-radius: 18px;
+  overflow: hidden;
+  z-index: 10000;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  box-shadow: 0 18px 48px rgba(0,0,0,.18);
+}
+
+.header {
+  background: linear-gradient(135deg, var(--pf-red), var(--pf-red-dark));
+  color: #fff;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.headerIcon {
+  width: 28px;
+  height: 28px;
+  color: #fff;
+}
+
+.title {
+  font-weight: 800;
+  letter-spacing: .2px;
+}
+
+.subtitle {
+  font-size: 12px;
+  color: #ffdede;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  background: #3be281;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.3);
+}
+
+.close {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  opacity: .9;
+}
+.close:hover { opacity: 1; }
+
+.history {
+  background: var(--pf-bg);
+  padding: 12px;
+  overflow: auto;
+}
+
+.welcome {
+  background: #fff;
+  border: 1px dashed #e6e6e6;
+  border-radius: 12px;
+  padding: 12px;
+  color: var(--pf-ink);
+  font-size: 14px;
+}
+
+.row {
+  display: flex;
+  margin-top: 10px;
+}
+
+.left { justify-content: flex-start; }
+.right { justify-content: flex-end; }
+
+.bubble {
+  max-width: 80%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.4;
+  word-break: break-word;
+  white-space: pre-wrap;
+  box-shadow: 0 2px 10px rgba(0,0,0,.04);
+}
+
+.me {
+  background: #111;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.them {
+  background: #fff;
+  color: #111;
+  border-bottom-left-radius: 4px;
+  border: 1px solid #eee;
+}
+
+.inputBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid #eee;
+  background: #fff;
+}
+
+.input {
+  flex: 1;
+  border: 1px solid #e6e6e6;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--pf-red);
+  box-shadow: 0 0 0 3px rgba(214, 40, 40, 0.12);
+}
+
+.send {
+  border: none;
+  background: var(--pf-red);
+  color: #fff;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.send:hover {
+  filter: brightness(1.05);
+}
+
+/* TEASER tooltip anchored above the FAB */
+.teaser {
+  position: fixed;
+  right: 24px;
+  bottom: 78px; /* sits just above the bubble */
+  max-width: 220px;
+  background: #ffffff;
+  color: #111;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  box-shadow: 0 12px 24px rgba(0,0,0,.12);
+  z-index: 10001;
+  animation: teaserIn .18s ease-out forwards;
+  cursor: pointer;
+}
+
+.teaser::after {
+  content: "";
+  position: absolute;
+  right: 20px;
+  bottom: -8px;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-left: 1px solid #eee;
+  border-bottom: 1px solid #eee;
+  transform: rotate(45deg);
+  box-shadow: 2px 2px 8px rgba(0,0,0,.06);
+}
+
+@keyframes teaserIn {
+  from { transform: translateY(6px); opacity: 0; }
+  to   { transform: translateY(0);   opacity: 1; }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .teaser, .fabNotify { animation: none !important; }
+}

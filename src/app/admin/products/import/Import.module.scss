@@ -1,0 +1,11 @@
+.wrap { padding: 24px; }
+.card {
+  border:1px solid #e5e7eb; border-radius:14px; background:#fff; padding:16px; margin-bottom:12px;
+  code { background:#f3f4f6; padding:2px 6px; border-radius:6px; }
+}
+.actions { display:flex; gap:10px; align-items:center; margin-top:8px; }
+.link { color:#0366d6; }
+.form { display:flex; gap:10px; align-items:center; margin-top:12px; }
+.primaryBtn { background:#111827; color:#fff; border:0; border-radius:10px; padding:10px 14px; font-weight:800; cursor:pointer; }
+.secondaryBtn { background:#fff; color:#111827; border:1px solid #e5e7eb; border-radius:10px; padding:10px 14px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; }
+.note { margin-top:10px; }

@@ -1,0 +1,57 @@
+.wrapper { padding: 2rem; }
+
+.toolbar {
+  margin: 0 0 1rem;
+  display: flex;
+  gap: .5rem;
+
+  input {
+    padding: .5rem .75rem;
+    width: 320px;
+    max-width: 100%;
+  }
+}
+
+/* NEW: spacing between the two tables */
+.block {
+  margin-bottom: 2rem;
+}
+
+.tableWrap {
+  overflow: auto;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .95rem;
+}
+
+.table th,
+.table td {
+  padding: .75rem;
+  border-bottom: 1px solid #f2f2f2;
+}
+
+.viewLink {
+  color: #0070f3;
+  font-weight: 600;
+}
+
+.pager {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.muted { color: #777; text-align: center; }
+
+.hideSm {
+  @media (max-width: 720px) {
+    display: none;
+  }
+}

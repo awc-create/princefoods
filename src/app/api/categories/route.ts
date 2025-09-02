@@ -1,18 +1,25 @@
 import { prisma } from '@/lib/prisma';
-import { parseCategories } from '@/utils/parseCategories';
+import { NextResponse } from 'next/server';
 
 export async function GET() {
   const products = await prisma.product.findMany({
-    select: { collection: true }
+    select: { collection: true },
+    distinct: ['collection'],
   });
 
-  const collections = products
-    .map(p => p.collection)
-    .filter((val): val is string => typeof val === 'string');
+  const categoryMap: Record<string, string[]> = {};
 
-  const categories = parseCategories(collections);
+  for (const item of products) {
+    if (!item.collection) continue;
 
-  return new Response(JSON.stringify(categories), {
-    headers: { 'Content-Type': 'application/json' }
-  });
+    const [parent, child] = item.collection.split(';').map((str) => str.trim());
+
+    if (!categoryMap[parent]) categoryMap[parent] = [];
+
+    if (child && !categoryMap[parent].includes(child)) {
+      categoryMap[parent].push(child);
+    }
+  }
+
+  return NextResponse.json(categoryMap);
 }

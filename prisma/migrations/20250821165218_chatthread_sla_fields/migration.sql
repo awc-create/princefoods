@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "public"."ChatThread" ADD COLUMN     "emailEscalationSentAt" TIMESTAMP(3),
+ADD COLUMN     "escalatedAt" TIMESTAMP(3),
+ADD COLUMN     "lastAdminAt" TIMESTAMP(3),
+ADD COLUMN     "lastUserAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN     "slaMinutes" INTEGER NOT NULL DEFAULT 10;

@@ -7,6 +7,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/* -------------------------
+   Products (yours + categoryId added)
+-------------------------- */
 model Product {
   id                          String   @id
   fieldType                   String
@@ -66,4 +69,199 @@ model Product {
 
   brand                       String?
   createdAt                   DateTime @default(now())
+
+  // NEW: link products to (child) categories
+  categoryId                  String?
+  category                    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([categoryId])
+}
+
+/* -------------------------
+   Category hierarchy (NEW)
+-------------------------- */
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  parentId  String?
+  parent    Category?  @relation("CategoryToChildren", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryToChildren")
+  position  Int        @default(0)
+  imageUrl  String?
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  products  Product[]
+}
+
+/* -------------------------
+   Users (+ Wix, + OAuth, + Welcome)
+-------------------------- */
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  password     String?          // optional for Wix imports
+  name         String
+  role         Role     @default(VIEWER)
+
+  firstName    String?
+  lastName     String?
+  phoneE164    String?
+  phoneRaw     String?
+  phoneCountry String?
+
+  source              UserSource    @default(LOCAL)
+  wixSubscriberStatus String?
+  wixLanguage         String?
+  wixCreatedAt        DateTime?
+  wixLastActivity     String?
+  wixLastActivityAt   DateTime?
+  wixSource           String?
+  wixImportedAt       DateTime?
+
+  welcomeStatus WelcomeStatus @default(PENDING)
+  welcomedAt    DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // OAuth relations
+  accounts     Account[]
+  sessions     Session[]
+
+  // 🔧 add this:
+  passwordTokens PasswordToken[]
+
+  @@index([email])
+}
+
+enum Role {
+  HEAD
+  STAFF
+  VIEWER
+}
+
+enum UserSource {
+  LOCAL
+  WIX
+}
+
+enum WelcomeStatus {
+  PENDING
+  SENT
+  COMPLETED
+}
+
+/* --- Auth.js adapter tables for Google OAuth & sessions --- */
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+/* One-time password / welcome token */
+model PasswordToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/* -------------------------
+   Knowledge base (yours unchanged)
+-------------------------- */
+model Faq {
+  id        String   @id @default(cuid())
+  question  String   @unique
+  answer    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PolicyDoc {
+  id        String   @id @default(cuid())
+  title     String
+  slug      String   @unique
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/* -------------------------
+   Chat + SLA (yours unchanged)
+-------------------------- */
+model ChatThread {
+  id        String     @id @default(cuid())
+  userKey   String
+  status    String     @default("open") // open | closed
+  createdAt DateTime   @default(now())
+  messages  ChatMessage[]
+
+  // SLA / escalation
+  lastUserAt               DateTime   @default(now())
+  lastAdminAt              DateTime?
+  escalatedAt              DateTime?
+  emailEscalationSentAt    DateTime?
+  slaMinutes               Int        @default(10)
+
+  // (Recommended for email bridge)
+  customerEmail            String?
+}
+
+model ChatMessage {
+  id         String     @id @default(cuid())
+  threadId   String
+  thread     ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  role       String     // "user" | "assistant" | "admin" | "system"
+  content    String
+  confidence Float?
+  createdAt  DateTime   @default(now())
+
+  @@index([threadId, createdAt])
+}
+
+/* -------------------------
+   Admin Push (yours unchanged)
+-------------------------- */
+model PushSubscription {
+  id           String   @id @default(cuid())
+  adminEmail   String?
+  endpointJson String
+  createdAt    DateTime @default(now())
 }

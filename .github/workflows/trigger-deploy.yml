@@ -1,0 +1,39 @@
+name: Trigger CI/CD Deployment
+
+on:
+  push:
+    branches: [ main-hetz, dev, 'feat/**', 'fix/**' ]
+  workflow_dispatch:
+    inputs:
+      override_branch:
+        description: "Branch to send (optional)"
+        required: false
+        default: ""
+
+jobs:
+  notify-cicd-repo:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_REPO: ${{ vars.CICD_REPO || 'awc-create/multi-site-hetz-cicd' }}
+      SEND_BRANCH: ${{ github.ref_name }}
+    steps:
+      - name: Apply override on manual runs
+        if: github.event_name == 'workflow_dispatch' && inputs.override_branch != ''
+        run: echo "SEND_BRANCH=${{ inputs.override_branch }}" >> $GITHUB_ENV
+
+      - name: Debug
+        run: |
+          echo "Branch:      ${{ env.SEND_BRANCH }}"
+          echo "Target CICD: ${{ env.TARGET_REPO }}"
+
+      - name: Send Deployment Trigger
+        run: |
+          curl -sS -X POST \
+            -H "Authorization: token ${{ secrets.PERSONAL_ACCESS_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            --data '{"event_type":"deploy","client_payload":{
+              "repository":"${{ github.repository }}",
+              "repository_name":"${{ github.event.repository.name }}",
+              "branch":"'"${{ env.SEND_BRANCH }}"'"
+            }}' \
+            https://api.github.com/repos/${{ env.TARGET_REPO }}/dispatches

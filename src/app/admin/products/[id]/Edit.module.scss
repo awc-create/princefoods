@@ -1,0 +1,14 @@
+.wrap { padding: 24px; }
+.form { display: grid; gap: 12px; max-width: 700px; }
+.form label { display: grid; gap: 6px; }
+.form input, .form textarea {
+  padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 10px; font: inherit;
+}
+.inline { align-items: center; grid-auto-flow: column; justify-content: start; }
+.actions { margin-top: 14px; display: flex; gap: 10px; }
+.primary {
+  background: #111827; color:#fff; border:0; border-radius:10px; padding:10px 14px; font-weight:800; cursor:pointer;
+}
+.secondary {
+  background: #fff; color:#111827; border:1px solid #e5e7eb; border-radius:10px; padding:10px 14px; font-weight:800; cursor:pointer;
+}

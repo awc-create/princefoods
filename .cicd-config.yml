@@ -1,0 +1,12 @@
+project_type: node
+slug: princefoods
+port: 3000
+
+domains:
+  prod: prince-foods.com
+  admin: admin.prince-foods.com
+
+deploy_targets:
+  main-hetz: hetzner
+  dev: vercel
+  preview: vercel

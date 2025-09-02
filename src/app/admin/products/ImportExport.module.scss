@@ -1,0 +1,13 @@
+.wrap { display: grid; gap: 12px; margin: 12px 0 18px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.primary {
+  background: #111827; color: #fff; border: 0; padding: 10px 14px; border-radius: 10px; font-weight: 800; cursor: pointer;
+}
+.secondary {
+  background: #f3f4f6; color: #111827; border: 1px solid #e5e7eb; padding: 10px 14px; border-radius: 10px; font-weight: 700; cursor: pointer;
+}
+.link { color: #0366d6; text-decoration: underline; }
+.note { margin: 0; font-weight: 600; }
+.card { border: 1px solid #ececec; border-radius: 12px; padding: 10px 12px; background: #fff; }
+.errList { margin: 8px 0 0; padding-left: 18px; }
+.muted { color: #6b7280; }
