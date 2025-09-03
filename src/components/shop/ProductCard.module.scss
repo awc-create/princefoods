@@ -1,4 +1,4 @@
-:root {
+:global(:root) {
   --pf-red: #d62828;
   --pf-red-d: #b91c1c;
   --pf-text: #222;
@@ -180,5 +180,5 @@
 
 /* Responsive tweak */
 @media (max-width: 900px) {
-  :root { --card-img-h: 240px; }
+  :global(:root) { --card-img-h: 240px; }
 }

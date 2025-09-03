@@ -1,6 +1,6 @@
 /* ========== Admin Layout (compact, tidy) ========== */
 
-:root {
+:global(:root) {
   --pf-red: #d62828;
   --pf-fg: #2f2f2f;
   --pf-muted: #6b7280;
