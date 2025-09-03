@@ -1,24 +1,3 @@
-:global(:root) {
-  --pf-red: #d62828;
-  --pf-red-d: #b91c1c;
-  --pf-text: #222;
-  --pf-muted: #6b7280;
-  --pf-border: #e5e7eb;
-  --pf-card: #fff;
-  --pf-price: #c81e1e;
-
-  /* sizes */
-  --sz-title: 14px;
-  --sz-price: 17px;
-  --sz-btn: 14px;
-  --sz-qty: 30px;
-  --sz-qty-input: 40px;
-
-  /* lock alignment */
-  --card-img-h: 300px;     /* shared media height */
-  --title-lines: 2;        /* reserved title lines */
-}
-
 .card {
   display: flex;
   flex-direction: column;
@@ -179,6 +158,4 @@
 }
 
 /* Responsive tweak */
-@media (max-width: 900px) {
-  :global(:root) { --card-img-h: 240px; }
-}
+@media
