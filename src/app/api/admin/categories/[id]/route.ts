@@ -4,9 +4,13 @@ import slugify from '@/utils/slugify';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 
-type Params = { params: { id: string } };
+// ⛔️ remove the alias
+// type Params = { params: { id: string } };
 
-export async function GET(_: Request, { params }: Params) {
+export async function GET(
+  _req: Request,
+  { params }: { params: { id: string } }
+) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as any)?.role as 'HEAD'|'STAFF'|'VIEWER'|undefined;
   if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -24,7 +28,10 @@ export async function GET(_: Request, { params }: Params) {
   return NextResponse.json(parent);
 }
 
-export async function PATCH(req: Request, { params }: Params) {
+export async function PATCH(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as any)?.role as 'HEAD'|'STAFF'|'VIEWER'|undefined;
   if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -48,7 +55,10 @@ export async function PATCH(req: Request, { params }: Params) {
   return NextResponse.json(updated);
 }
 
-export async function DELETE(_: Request, { params }: Params) {
+export async function DELETE(
+  _req: Request,
+  { params }: { params: { id: string } }
+) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as any)?.role as 'HEAD'|'STAFF'|'VIEWER'|undefined;
   if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });

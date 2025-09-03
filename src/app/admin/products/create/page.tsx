@@ -1,16 +1,47 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions */
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styles from './CreateProduct.module.scss';
 import AdditionalInfoModal from './AdditionalInfoModal';
 import AddProductOptionModal from './AddProductOptionModal';
 import ProductImageUpload from '@/components/image/ProductImageUpload';
 import CategorySelector, { CategoryMap } from '@/components/category/CategorySelector';
 
+type DiscountMode = '' | 'PERCENT' | 'AMOUNT';
+
+type ProductOption = {
+  name: string;
+  type: 'List' | 'Color';
+  values: string[];
+};
+
+type AdditionalInfo = Record<string, string | string[]>;
+
+type FormState = {
+  name: string;
+  ribbon: string;
+  description: string;
+  price: number | '';
+  surcharge: number | '';
+  visible: boolean;
+  sku: string;
+  discountMode: DiscountMode;
+  discountValue: number | '';
+  weight: number | '';
+  inventory: 'InStock' | 'OutOfStock' | 'Preorder';
+  trackInventory: boolean;
+  clickCount: number;
+  purchaseCount: number;
+  productImageUrls: string[];
+  collection: string[];
+  additionalInfo: AdditionalInfo;
+  productOptions: ProductOption[];
+};
+
 export default function CreateProductPage() {
   const [categories, setCategories] = useState<CategoryMap>({});
-
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<FormState>({
     name: '',
     ribbon: '',
     description: '',
@@ -25,14 +56,10 @@ export default function CreateProductPage() {
     trackInventory: false,
     clickCount: 0,
     purchaseCount: 0,
-    productImageUrls: [] as string[],
-    collection: [] as string[],
-    additionalInfo: {} as Record<string, string | string[]>,
-    productOptions: [] as {
-      name: string;
-      type: 'List' | 'Color';
-      values: string[];
-    }[]
+    productImageUrls: [],
+    collection: [],
+    additionalInfo: {},
+    productOptions: [],
   });
 
   const [showModal, setShowModal] = useState(false);
@@ -41,21 +68,39 @@ export default function CreateProductPage() {
   useEffect(() => {
     fetch('/api/categories')
       .then((res) => res.json())
-      .then(setCategories);
+      .then((data: CategoryMap) => setCategories(data))
+      .catch(() => setCategories({}));
   }, []);
 
-  const update = (field: string, value: any) => {
+  const update = <K extends keyof FormState>(field: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const num = (v: string) => (v === '' ? '' : Number(v));
+  const isNum = (v: number | ''): v is number => typeof v === 'number' && !Number.isNaN(v);
+
+  const salePrice = useMemo(() => {
+    if (!isNum(form.price) || !isNum(form.discountValue) || !form.discountMode) return null;
+    return form.discountMode === 'PERCENT'
+      ? (form.price * (1 - form.discountValue / 100)).toFixed(2)
+      : (form.price - form.discountValue).toFixed(2);
+  }, [form.price, form.discountMode, form.discountValue]);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const body = {
+      ...form,
+      price: isNum(form.price) ? form.price : 0,
+      surcharge: isNum(form.surcharge) ? form.surcharge : 0,
+      weight: isNum(form.weight) ? form.weight : 0,
+      discountValue: isNum(form.discountValue) ? form.discountValue : 0,
+    };
+
     const res = await fetch('/api/products', {
       method: 'POST',
-      body: JSON.stringify(form),
-      headers: { 'Content-Type': 'application/json' }
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
     });
-
     res.ok ? alert('Product created') : alert('Failed to create product');
   };
 
@@ -120,11 +165,13 @@ export default function CreateProductPage() {
             Price (£)
             <input
               type="number"
+              inputMode="decimal"
               value={form.price}
-              onChange={(e) => update('price', e.target.value)}
+              onChange={(e) => update('price', num(e.target.value))}
               placeholder="e.g., 3.49"
             />
           </label>
+
           <label className={styles.inlineCheckbox}>
             <input
               type="checkbox"
@@ -136,15 +183,17 @@ export default function CreateProductPage() {
             />
             On sale
           </label>
-          {form.discountMode && (
+
+          {form.discountMode !== '' ? (
             <>
               <label>
                 Discount
                 <div className={styles.discountGroup}>
                   <input
                     type="number"
+                    inputMode="decimal"
                     value={form.discountValue}
-                    onChange={(e) => update('discountValue', e.target.value)}
+                    onChange={(e) => update('discountValue', num(e.target.value))}
                   />
                   <div className={styles.discountMode}>
                     <button
@@ -164,18 +213,10 @@ export default function CreateProductPage() {
                   </div>
                 </div>
               </label>
-              {form.price && form.discountValue && (
-                <p className={styles.salePrice}>
-                  Sale price: £
-                  {form.discountMode === 'PERCENT'
-                    ? (parseFloat(form.price) * (1 - parseFloat(form.discountValue) / 100)).toFixed(
-                        2
-                      )
-                    : (parseFloat(form.price) - parseFloat(form.discountValue)).toFixed(2)}
-                </p>
-              )}
+
+              {salePrice ? <p className={styles.salePrice}>Sale price: £{salePrice}</p> : null}
             </>
-          )}
+          ) : null}
         </div>
 
         {/* Inventory */}
@@ -191,7 +232,10 @@ export default function CreateProductPage() {
           </label>
           <label>
             Status
-            <select value={form.inventory} onChange={(e) => update('inventory', e.target.value)}>
+            <select
+              value={form.inventory}
+              onChange={(e) => update('inventory', e.target.value as FormState['inventory'])}
+            >
               <option value="InStock">In stock</option>
               <option value="OutOfStock">Out of stock</option>
               <option value="Preorder">Preorder</option>
@@ -210,8 +254,9 @@ export default function CreateProductPage() {
             <input
               type="number"
               step="0.01"
+              inputMode="decimal"
               value={form.weight}
-              onChange={(e) => update('weight', e.target.value)}
+              onChange={(e) => update('weight', num(e.target.value))}
             />
           </label>
         </div>
@@ -266,7 +311,7 @@ export default function CreateProductPage() {
           onSave={(option) =>
             setForm((prev) => ({
               ...prev,
-              productOptions: [...prev.productOptions, option]
+              productOptions: [...prev.productOptions, option],
             }))
           }
         />

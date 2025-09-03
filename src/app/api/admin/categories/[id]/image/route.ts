@@ -2,16 +2,19 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import prisma from '@/lib/prisma';
-
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import crypto from 'node:crypto';
 
 export const runtime = 'nodejs';
 
-type Params = { params: { id: string } };
+// ⛔️ remove this
+// type Params = { params: { id: string } };
 
-export async function POST(req: Request, { params }: Params) {
+export async function POST(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
   try {
     const session = await getServerSession(authOptions);
     const role = (session?.user as any)?.role as 'HEAD' | 'STAFF' | 'VIEWER' | undefined;
@@ -25,7 +28,6 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json({ ok: false, error: 'Only images are allowed' }, { status: 400 });
     }
 
-    // ensure dir exists
     const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'categories');
     await fs.mkdir(uploadsDir, { recursive: true });
 
@@ -36,7 +38,6 @@ export async function POST(req: Request, { params }: Params) {
     const buf = Buffer.from(await file.arrayBuffer());
     await fs.writeFile(fullPath, buf);
 
-    // URL served by Next from /public
     const url = `/uploads/categories/${name}`;
 
     await prisma.category.update({

@@ -142,8 +142,8 @@ export async function POST(req: Request) {
     }
 
     let productsUpdated = 0;
-    let parentsTouched = new Set<string>();
-    let childrenTouched = new Set<string>();
+    const parentsTouched = new Set<string>();
+    const childrenTouched = new Set<string>();
     const updates: Array<{ id: string; categoryId: string }> = [];
 
     for (const p of products) {

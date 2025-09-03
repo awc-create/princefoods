@@ -63,7 +63,7 @@ async function ensureChildCategory(childName: string, parentId: string, parentSl
   let childSlug = `${parentSlug}-${base}`;
 
   // exact slug?
-  let existing = await prisma.category.findUnique({
+  const existing = await prisma.category.findUnique({
     where: { slug: childSlug },
     select: { id: true, slug: true, parentId: true, name: true, isActive: true },
   });

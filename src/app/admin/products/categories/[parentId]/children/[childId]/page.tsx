@@ -26,7 +26,7 @@ export default function ProductsInChildPage() {
     setPendingAssign([]); setPendingUnassign([]);
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [childId]);
+  useEffect(() => { load();   }, [childId]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

@@ -20,7 +20,7 @@ export default function CategoryChildrenPage() {
     if (res.ok) setParent(await res.json());
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [parentId]);
+  useEffect(() => { load();   }, [parentId]);
 
   const createChild = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -82,7 +82,7 @@ export async function POST(req: Request) {
 
     const base = slugify(name);
     let slug = `${parent.slug}-${base}`;
-    let clash = await prisma.category.findUnique({ where: { slug }, select: { id: true, parentId: true } });
+    const clash = await prisma.category.findUnique({ where: { slug }, select: { id: true, parentId: true } });
     if (clash && clash.parentId !== parent.id) {
       let n = 2;
       while (await prisma.category.findUnique({ where: { slug: `${parent.slug}-${base}-${n}` }, select: { id: true } })) n++;

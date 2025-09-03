@@ -5,14 +5,17 @@ import { authOptions } from '@/lib/auth-options';
 
 export const runtime = 'nodejs';
 
-type Params = { params: { id: string } };
+// ⛔️ remove the alias
+// type Params = { params: { id: string } };
 
-export async function GET(_: Request, { params }: Params) {
+export async function GET(
+  _req: Request,
+  { params }: { params: { id: string } }
+) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as any)?.role as 'HEAD'|'STAFF'|'VIEWER'|undefined;
   if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
-  // quick guard to avoid crashing if client is stale
   if (!(prisma as any)?.category?.findUnique || !(prisma as any)?.product?.findMany) {
     return NextResponse.json({ message: 'Prisma client is stale — run `npx prisma generate`' }, { status: 500 });
   }
@@ -29,7 +32,10 @@ export async function GET(_: Request, { params }: Params) {
   return NextResponse.json(products);
 }
 
-export async function PATCH(req: Request, { params }: Params) {
+export async function PATCH(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as any)?.role as 'HEAD'|'STAFF'|'VIEWER'|undefined;
   if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });

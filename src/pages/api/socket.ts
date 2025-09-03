@@ -4,11 +4,11 @@ import { Server as IOServer } from 'socket.io';
 export const config = { api: { bodyParser: false } };
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  // @ts-ignore
+  // @ts-expect-error: <brief reason>
   if (!res.socket.server.io) {
-    // @ts-ignore
+    // @ts-expect-error: <brief reason>
     const io = new IOServer(res.socket.server, { path: '/api/socket' });
-    // @ts-ignore
+    // @ts-expect-error: <brief reason>
     res.socket.server.io = io;
 
     io.on('connection', (socket) => {

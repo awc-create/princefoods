@@ -24,7 +24,7 @@ export default function PrivacyPolicyPage() {
       </ul>
 
       <h2>GDPR Rights</h2>
-      <p>If you're located in the UK or EU, you have rights under GDPR:</p>
+      <p>If you&apos;re located in the UK or EU, you have rights under GDPR:</p>
       <ul>
         <li>Access your data</li>
         <li>Request corrections</li>
