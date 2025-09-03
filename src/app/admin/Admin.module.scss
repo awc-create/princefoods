@@ -1,15 +1,5 @@
 /* ========== Admin Layout (compact, tidy) ========== */
 
-:root {
-  --pf-red: #d62828;
-  --pf-fg: #2f2f2f;
-  --pf-muted: #6b7280;
-  --pf-border: #e5e7eb;
-  --pf-bg: #fafafa;
-  --pf-chip: #f3f4f6;
-  --pf-chip-active: #fee2e2;
-}
-
 .adminWrapper {
   display: flex;
   min-height: 100vh;
@@ -32,185 +22,65 @@
   overflow-y: auto;
 }
 
-.logo {
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: var(--pf-red);
-  line-height: 1.1;
-  margin: 2px 6px 2px;
-}
+.logo { font-size: 1.35rem; font-weight: 800; color: var(--pf-red); line-height: 1.1; margin: 2px 6px 2px; }
 
-.loggedIn {
-  font-size: 12px;
-  color: var(--pf-muted);
-  margin: 0 6px 4px;
-  line-height: 1.4;
-
+.loggedIn { font-size: 12px; color: var(--pf-muted); margin: 0 6px 4px; line-height: 1.4;
   strong { color: #444; font-weight: 700; }
 }
 
-/* Section label (if you want static headers somewhere else) */
-.sectionTitle {
-  margin: 10px 6px 6px;
-  font-size: 14px;
-  font-weight: 800;
-  color: #3a3a3a;
-  letter-spacing: .2px;
-}
+.sectionTitle { margin: 10px 6px 6px; font-size: 14px; font-weight: 800; color: #3a3a3a; letter-spacing: .2px; }
 
-/* Single-row nav */
-.nav {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-left: 6px;
-}
+.nav { display: flex; flex-direction: column; gap: 6px; padding-left: 6px; }
 
 .navLink {
-  display: inline-block;
-  text-decoration: none;
-  color: var(--pf-fg);
-  font-weight: 700;
-  font-size: 14px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  transition: background .15s ease, color .15s ease;
-
+  display: inline-block; text-decoration: none; color: var(--pf-fg); font-weight: 700; font-size: 14px;
+  padding: 6px 8px; border-radius: 6px; transition: background .15s ease, color .15s ease;
   &:hover { background: #f8fafc; color: var(--pf-red); }
   &:focus-visible { outline: 2px solid var(--pf-red); outline-offset: 2px; }
 }
 
-.active {
-  background: #f8fafc;
-  color: var(--pf-red);
-}
+.active { background: #f8fafc; color: var(--pf-red); }
 
-/* ---------- Collapsible group ---------- */
 .group { margin-top: 4px; }
 
-/* Clickable title row */
 .groupHeaderBtn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 6px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  border-radius: 8px;
-  transition: background .15s ease;
-
+  width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 6px 6px;
+  border: none; background: transparent; cursor: pointer; border-radius: 8px; transition: background .15s ease;
   &:hover { background: #f8fafc; }
   &:focus-visible { outline: 2px solid var(--pf-red); outline-offset: 2px; }
 }
 
-.groupTitle {
-  font-size: 14px;
-  font-weight: 800;
-  color: #3a3a3a;
-}
+.groupTitle { font-size: 14px; font-weight: 800; color: #3a3a3a; }
 
-/* Small + / − badge on the right */
 .groupIcon {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  border: 1px solid var(--pf-border);
-  background: #fff;
-  color: #444;
-  display: inline-grid;
-  place-items: center;
-  line-height: 1;
-  font-weight: 800;
+  width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--pf-border); background: #fff;
+  color: #444; display: inline-grid; place-items: center; line-height: 1; font-weight: 800;
 }
 
-/* (kept for reference if you want a separate toggle button)
-.groupToggle {
-  appearance: none;
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  border: 1px solid var(--pf-border);
-  background: #fff;
-  color: #444;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background .15s ease, border-color .15s ease;
-
-  &:hover { background: #f7f7f7; }
-  &:focus-visible { outline: 2px solid var(--pf-red); outline-offset: 2px; }
-}
-*/
-
-/* “Chips” row (for Products group) */
-.pillBar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 6px 2px;
-}
+.pillBar { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 6px 2px; }
 
 .pill {
-  text-decoration: none;
-  color: #333;
-  background: var(--pf-chip);
-  border: 1px solid var(--pf-border);
-  border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
-  transition: background .15s ease, color .15s ease, border-color .15s ease;
-
+  text-decoration: none; color: #333; background: var(--pf-chip); border: 1px solid var(--pf-border); border-radius: 999px;
+  padding: 6px 10px; font-size: 13px; font-weight: 700; line-height: 1; transition: background .15s ease, color .15s ease, border-color .15s ease;
   &:hover { background: #eaecef; color: var(--pf-red); }
   &:focus-visible { outline: 2px solid var(--pf-red); outline-offset: 2px; }
 }
 
-.pillActive {
-  background: var(--pf-chip-active);
-  border-color: #fecaca;
-  color: var(--pf-red);
-}
+.pillActive { background: var(--pf-chip-active); border-color: #fecaca; color: var(--pf-red); }
 
-/* ---------- Main area ---------- */
-.adminMain {
-  flex: 1;
-  min-width: 0;
-  padding: 28px;
-  background: var(--pf-bg);
-}
+.adminMain { flex: 1; min-width: 0; padding: 28px; background: var(--pf-bg); }
 
-/* Dashboard tiles (kept) */
 .dashboardStats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-  margin-top: 20px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 20px;
 }
 
 .statCard {
-  background: #fff;
-  border: 1px solid var(--pf-border);
-  border-radius: 10px;
-  padding: 14px 16px;
-  text-align: center;
-  box-shadow: 0 2px 6px rgba(0,0,0,.03);
-
+  background: #fff; border: 1px solid var(--pf-border); border-radius: 10px; padding: 14px 16px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,.03);
   h2 { font-size: .95rem; color: #777; margin: 0 0 6px; }
   p { font-size: 1.7rem; font-weight: 800; color: var(--pf-red); margin: 0; }
 }
 
-/* Mobile */
 @media (max-width: 720px) {
   .adminWrapper { flex-direction: column; }
-  .adminSidebar {
-    position: relative;
-    height: auto;
-    width: 100%;
-    border-right: 0;
-    border-bottom: 1px solid var(--pf-border);
-  }
+  .adminSidebar { position: relative; height: auto; width: 100%; border-right: 0; border-bottom: 1px solid var(--pf-border); }
 }
