@@ -1,3 +1,5 @@
+import React from 'react';
+
 import styles from "./Cookies.module.scss";
 
 export const metadata = {

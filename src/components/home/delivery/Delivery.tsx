@@ -1,4 +1,5 @@
 'use client';
+import React from 'react';
 
 import styles from './Delivery.module.scss';
 import { FaTruck } from 'react-icons/fa';

@@ -1,3 +1,5 @@
+import React from 'react';
+
 import ContactClient from './ContactClient';
 import ContactOffices from '@/components/contact/ContactOffice';
 

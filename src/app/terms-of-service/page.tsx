@@ -1,3 +1,5 @@
+import React from 'react';
+
 import styles from "./Terms.module.scss";
 
 export const metadata = {

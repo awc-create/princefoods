@@ -1,5 +1,7 @@
 // app/@modal/(.)signup/page.tsx
 'use client';
+import React from 'react';
+
 import Modal from '@/components/common/Modal';
 import SignupForm from '@/components/auth/SignupForm';
 

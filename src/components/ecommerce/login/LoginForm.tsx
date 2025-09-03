@@ -1,4 +1,6 @@
 "use client";
+import React from 'react';
+
 import styles from "./LoginForm.module.scss";
 
 export default function LoginForm({ onClose }: { onClose: () => void }) {

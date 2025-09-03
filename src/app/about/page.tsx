@@ -1,3 +1,5 @@
+import React from 'react';
+
 import AboutClient from './AboutClient';
 
 export const metadata = {

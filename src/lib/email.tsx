@@ -1,3 +1,5 @@
+import React from 'react';
+
 import { Resend } from 'resend';
 // ⬇️ use renderAsync instead of render
 import { renderAsync } from '@react-email/render';

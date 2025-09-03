@@ -1,4 +1,5 @@
 'use client';
+import React from 'react';
 
 import styles from './Admin.module.scss';
 import SetupPush from './SetupPush';

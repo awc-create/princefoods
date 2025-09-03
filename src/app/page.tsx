@@ -1,3 +1,5 @@
+import React from 'react';
+
 import Hero from '@/components/home/hero/Hero';
 import ProductSlider from '@/components/products/ProductSlider';
 import Delivery from '@/components/home/delivery/Delivery';

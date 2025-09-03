@@ -1,4 +1,5 @@
 'use client';
+import React from 'react';
 
 import '@/styles/Global.scss';
 import { usePathname } from 'next/navigation';

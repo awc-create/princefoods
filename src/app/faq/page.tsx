@@ -1,3 +1,5 @@
+import React from 'react';
+
 import FaqClient from './FaqClient';
 
 export const metadata = {
