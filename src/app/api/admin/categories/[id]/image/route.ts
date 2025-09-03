@@ -2,18 +2,16 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import prisma from '@/lib/prisma';
+
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import crypto from 'node:crypto';
 
 export const runtime = 'nodejs';
 
-// ⛔️ remove this
-// type Params = { params: { id: string } };
-
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Record<string, string | string[]> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -28,26 +26,31 @@ export async function POST(
       return NextResponse.json({ ok: false, error: 'Only images are allowed' }, { status: 400 });
     }
 
+    const id = String(params.id); // <- normalize
+
+    // ensure dir exists
     const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'categories');
     await fs.mkdir(uploadsDir, { recursive: true });
 
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-    const name = `${params.id}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
+    const name = `${id}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
     const fullPath = path.join(uploadsDir, name);
 
     const buf = Buffer.from(await file.arrayBuffer());
     await fs.writeFile(fullPath, buf);
 
+    // URL served by Next from /public
     const url = `/uploads/categories/${name}`;
 
     await prisma.category.update({
-      where: { id: params.id },
+      where: { id },
       data: { imageUrl: url },
       select: { id: true },
     });
 
     return NextResponse.json({ ok: true, url });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || 'Upload failed' }, { status: 500 });
+  } catch (e: unknown) {
+    const err = e as { message?: string };
+    return NextResponse.json({ ok: false, error: err?.message || 'Upload failed' }, { status: 500 });
   }
 }
