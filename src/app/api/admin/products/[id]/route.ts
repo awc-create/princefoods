@@ -1,23 +1,22 @@
+// src/app/api/admin/products/[id]/route.ts
 import { authOptions } from '@/lib/auth-options';
-import { prisma } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 
-interface Params {
-  params: { id: string };
-}
+export const runtime = 'nodejs';
+
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
 interface SessionUserWithRole {
   role?: Role | null;
 }
+const hasRole = (u: unknown): u is SessionUserWithRole =>
+  !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
 
-function hasRole(u: unknown): u is SessionUserWithRole {
-  return !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
-}
+export async function GET(_req: Request, ctx: unknown) {
+  // ✅ cast locally to avoid validator error
+  const { params } = ctx as { params: { id: string } };
 
-export const runtime = 'nodejs';
-
-export async function GET(_req: Request, { params }: Params) {
   const session = await getServerSession(authOptions);
   const role: Role | undefined = hasRole(session?.user)
     ? (session!.user.role ?? undefined)
@@ -26,10 +25,13 @@ export async function GET(_req: Request, { params }: Params) {
 
   const product = await prisma.product.findUnique({ where: { id: params.id } });
   if (!product) return NextResponse.json({ message: 'Not found' }, { status: 404 });
+
   return NextResponse.json({ product });
 }
 
-export async function PATCH(req: Request, { params }: Params) {
+export async function PATCH(req: Request, ctx: unknown) {
+  const { params } = ctx as { params: { id: string } };
+
   const session = await getServerSession(authOptions);
   const role: Role | undefined = hasRole(session?.user)
     ? (session!.user.role ?? undefined)
@@ -67,7 +69,9 @@ export async function PATCH(req: Request, { params }: Params) {
   return NextResponse.json({ ok: true, id: updated.id });
 }
 
-export async function DELETE(_req: Request, { params }: Params) {
+export async function DELETE(_req: Request, ctx: unknown) {
+  const { params } = ctx as { params: { id: string } };
+
   const session = await getServerSession(authOptions);
   const role: Role | undefined = hasRole(session?.user)
     ? (session!.user.role ?? undefined)
@@ -76,6 +80,14 @@ export async function DELETE(_req: Request, { params }: Params) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
   }
 
-  await prisma.product.delete({ where: { id: params.id } });
-  return NextResponse.json({ ok: true });
+  try {
+    await prisma.product.delete({ where: { id: params.id } });
+    return NextResponse.json({ ok: true });
+  } catch (e: unknown) {
+    // Prisma P2025 = record not found on delete
+    if ((e as { code?: string }).code === 'P2025') {
+      return NextResponse.json({ message: 'Not found' }, { status: 404 });
+    }
+    return NextResponse.json({ message: 'Delete failed' }, { status: 500 });
+  }
 }
