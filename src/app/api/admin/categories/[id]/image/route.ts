@@ -12,9 +12,8 @@ export const runtime = 'nodejs';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
 type SessionUserWithRole = { role?: Role | null };
-type Params = { params: { id: string } };
 
-const isAuthed = (u: unknown): u is SessionUserWithRole =>
+const hasRole = (u: unknown): u is SessionUserWithRole =>
   !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
 
 /** Map a MIME type to a safe extension, fallback to 'jpg'. */
@@ -37,24 +36,30 @@ function extFromName(name: string | null | undefined): string | null {
   return ext || null;
 }
 
-export async function POST(req: Request, { params }: Params) {
+export async function POST(
+  req: Request,
+  // IMPORTANT: inline type here – no aliases, no Record<...>
+  { params }: { params: { id: string } }
+) {
   try {
+    // Auth
     const session = await getServerSession(authOptions);
-    if (!isAuthed(session?.user) || !session.user.role) {
+    if (!hasRole(session?.user) || !session.user.role) {
       return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
     }
-    // (Optional) tighten auth to HEAD/STAFF only
+    // Allow only HEAD / STAFF to upload
     if (session.user.role !== 'HEAD' && session.user.role !== 'STAFF') {
       return NextResponse.json({ ok: false, error: 'Forbidden' }, { status: 403 });
     }
 
+    // Read form data
     const form = await req.formData();
     const file = form.get('file');
     if (!(file instanceof File)) {
       return NextResponse.json({ ok: false, error: 'No file' }, { status: 400 });
     }
 
-    // Basic validation
+    // Validate image
     const mime = file.type || '';
     if (!mime.startsWith('image/')) {
       return NextResponse.json({ ok: false, error: 'Only images are allowed' }, { status: 400 });
@@ -62,11 +67,11 @@ export async function POST(req: Request, { params }: Params) {
 
     const id = params.id;
 
-    // Ensure target dir exists
+    // Ensure uploads dir
     const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'categories');
     await fs.mkdir(uploadsDir, { recursive: true });
 
-    // Choose extension
+    // Decide extension
     const guessedFromName = extFromName(file.name);
     const guessedFromMime = extFromMime(mime);
     const ext = (guessedFromName || guessedFromMime) || 'jpg';
@@ -76,14 +81,14 @@ export async function POST(req: Request, { params }: Params) {
     const name = `${id}-${Date.now()}-${unique}.${ext}`;
     const fullPath = path.join(uploadsDir, name);
 
-    // Persist file
+    // Save file
     const buf = Buffer.from(await file.arrayBuffer());
     await fs.writeFile(fullPath, buf);
 
     // Public URL (served from /public)
     const url = `/uploads/categories/${name}`;
 
-    // Update category record
+    // Update category
     await prisma.category.update({
       where: { id },
       data: { imageUrl: url },
