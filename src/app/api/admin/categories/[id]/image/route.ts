@@ -1,15 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
+// src/app/api/admin/categories/[id]/image/route.ts
 import { authOptions } from '@/lib/auth-options';
 import prisma from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { NextRequest, NextResponse } from 'next/server';
 
-import path from 'node:path';
-import { promises as fs } from 'node:fs';
 import crypto from 'node:crypto';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 
 export const runtime = 'nodejs';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+
 interface SessionUserWithRole {
   role?: Role | null;
 }
@@ -17,8 +19,10 @@ interface SessionUserWithRole {
 const hasRole = (u: unknown): u is SessionUserWithRole =>
   !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
 
+const ADMIN_ROLES = new Set<Role>(['HEAD', 'STAFF']);
+
 function extFromMime(mime: string | null | undefined): string {
-  const m = (mime ?? '').toLowerCase(); // <- nullish coalescing
+  const m = (mime ?? '').toLowerCase();
   if (m === 'image/jpeg' || m === 'image/jpg') return 'jpg';
   if (m === 'image/png') return 'png';
   if (m === 'image/webp') return 'webp';
@@ -31,20 +35,24 @@ function extFromName(name: string | null | undefined): string | null {
   if (!name) return null;
   const idx = name.lastIndexOf('.');
   if (idx === -1) return null;
-  const ext = name.slice(idx + 1).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const ext = name
+    .slice(idx + 1)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
   return ext || null;
 }
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ): Promise<NextResponse> {
   try {
     const session = await getServerSession(authOptions);
-    if (!hasRole(session?.user) || !session.user.role) {
+    const role = hasRole(session?.user) ? (session!.user.role ?? null) : null;
+    if (!role) {
       return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
     }
-    if (session.user.role !== 'HEAD' && session.user.role !== 'STAFF') {
+    if (!ADMIN_ROLES.has(role)) {
       return NextResponse.json({ ok: false, error: 'Forbidden' }, { status: 403 });
     }
 
@@ -54,19 +62,17 @@ export async function POST(
       return NextResponse.json({ ok: false, error: 'No file' }, { status: 400 });
     }
 
-    const mime = file.type ?? ''; // <- nullish coalescing
+    const mime = file.type ?? '';
     if (!mime.startsWith('image/')) {
       return NextResponse.json({ ok: false, error: 'Only images are allowed' }, { status: 400 });
     }
 
-    const id = params.id;
+    const { id } = context.params;
 
     const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'categories');
     await fs.mkdir(uploadsDir, { recursive: true });
 
-    // Prefer ?? over ||
     const ext = extFromName(file.name) ?? extFromMime(mime) ?? 'jpg';
-
     const unique = crypto.randomBytes(4).toString('hex');
     const name = `${id}-${Date.now()}-${unique}.${ext}`;
     const fullPath = path.join(uploadsDir, name);
@@ -79,11 +85,11 @@ export async function POST(
     await prisma.category.update({
       where: { id },
       data: { imageUrl: url },
-      select: { id: true },
+      select: { id: true }
     });
 
     return NextResponse.json({ ok: true, url });
-  } catch (e: unknown) {
+  } catch (e) {
     const msg = e instanceof Error ? e.message : 'Upload failed';
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
