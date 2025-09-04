@@ -2,7 +2,7 @@
 import { authOptions } from '@/lib/auth-options';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 import crypto from 'node:crypto';
 import { promises as fs } from 'node:fs';
@@ -42,11 +42,12 @@ function extFromName(name: string | null | undefined): string | null {
   return ext || null;
 }
 
-export async function POST(
-  req: NextRequest,
-  context: { params: { id: string } }
-): Promise<NextResponse> {
+export async function POST(req: Request, ctx: unknown) {
   try {
+    // ✅ Cast the 2nd arg inside (avoids Next’s validator complaint)
+    const { params } = ctx as { params: { id: string } };
+    const id = params.id;
+
     const session = await getServerSession(authOptions);
     const role = hasRole(session?.user) ? (session!.user.role ?? null) : null;
     if (!role) {
@@ -66,8 +67,6 @@ export async function POST(
     if (!mime.startsWith('image/')) {
       return NextResponse.json({ ok: false, error: 'Only images are allowed' }, { status: 400 });
     }
-
-    const { id } = context.params;
 
     const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'categories');
     await fs.mkdir(uploadsDir, { recursive: true });
