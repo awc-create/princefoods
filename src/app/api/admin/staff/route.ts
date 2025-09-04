@@ -4,9 +4,16 @@ import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 
+export const runtime = 'nodejs';
+
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+
+const isHead = (u: unknown): boolean =>
+  !!u && typeof u === 'object' && (u as Record<string, unknown>).role === 'HEAD';
+
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user as any).role !== 'HEAD') {
+  if (!isHead(session?.user)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
   }
 
@@ -22,17 +29,22 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user as any).role !== 'HEAD') {
+  if (!isHead(session?.user)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
   }
 
-  const { name, email, password, role } = await req.json();
+  const { name, email, password, role } = (await req.json().catch(() => ({}))) as {
+    name?: string;
+    email?: string;
+    password?: string;
+    role?: Exclude<Role, 'HEAD'>;
+  };
 
   if (!name || !email || !password) {
     return NextResponse.json({ message: 'Name, email and password are required' }, { status: 400 });
   }
 
-  if (!['STAFF', 'VIEWER'].includes(role)) {
+  if (role !== 'STAFF' && role !== 'VIEWER') {
     return NextResponse.json({ message: 'Role must be STAFF or VIEWER' }, { status: 400 });
   }
 

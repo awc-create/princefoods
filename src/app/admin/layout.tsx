@@ -1,3 +1,4 @@
+// src/app/admin/layout.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -9,6 +10,16 @@ import SetupPush from './SetupPush';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
 type GroupKey = 'dashboard' | 'products' | 'operations' | 'admin';
+
+type UserWithRole = {
+  email?: string | null;
+  role?: Role | null;
+};
+
+// Type guard to avoid `any`
+function hasRole(u: unknown): u is UserWithRole {
+  return !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
+}
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -61,7 +72,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Which group matches current route (used for default open on first mount)
   const activeGroup = useMemo<GroupKey>(() => {
     if (safePath.startsWith('/admin/products')) return 'products';
-    if (safePath.startsWith('/admin/chat') || safePath.startsWith('/admin/customers') || safePath.startsWith('/admin/sales')) {
+    if (
+      safePath.startsWith('/admin/chat') ||
+      safePath.startsWith('/admin/customers') ||
+      safePath.startsWith('/admin/sales')
+    ) {
       return 'operations';
     }
     if (safePath.startsWith('/admin/settings')) return 'admin';
@@ -79,7 +94,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Auth gate
   useEffect(() => {
     if (status === 'loading') return;
-    const r = (data?.user as any)?.role as Role | undefined;
+
+    const r: Role | undefined = hasRole(data?.user) ? (data!.user.role as Role | null) ?? undefined : undefined;
+
     if (!data?.user || !r) {
       const cb = encodeURIComponent(safePath);
       router.replace(`/admin/login?callbackUrl=${cb}`);
@@ -108,14 +125,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     try {
       localStorage.setItem('pf:admin:navOpen', JSON.stringify(open));
-    } catch {}
+    } catch {
+      // ignore write errors (private mode, etc.)
+    }
   }, [open]);
 
   if (status === 'loading' || !role) {
     return <div style={{ padding: '2rem' }}>Loading…</div>;
   }
 
-  const isActive = (href: string) => safePath === href || safePath.startsWith(href + '/');
+  const isActive = (href: string) => safePath === href || safePath.startsWith(`${href}/`);
   const toggle = (key: GroupKey) => setOpen((o) => ({ ...o, [key]: !o[key] }));
 
   return (
@@ -125,7 +144,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <aside className={styles.adminSidebar}>
         <div className={styles.logo}>👑 Prince Foods</div>
 
-        {data?.user?.email && (
+        {hasRole(data?.user) && data.user.email && (
           <div className={styles.loggedIn}>
             Logged in as:<br />
             <strong>{data.user.email}</strong>

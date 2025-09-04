@@ -1,14 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import styles from './ProductsPage.module.scss';
 
 type Product = { id: string; name: string };
 
 export default function ProductsInChildPage() {
-  // Safely coerce; in this route, childId is guaranteed
-  const { childId } = (useParams() as { childId: string });
+  const { childId } = useParams() as { childId: string };
 
   const [products, setProducts] = useState<Product[]>([]);
   const [all, setAll] = useState<Product[]>([]);
@@ -16,30 +15,33 @@ export default function ProductsInChildPage() {
   const [pendingAssign, setPendingAssign] = useState<string[]>([]);
   const [pendingUnassign, setPendingUnassign] = useState<string[]>([]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [inCatRes, allRes] = await Promise.all([
       fetch(`/api/admin/categories/${childId}/products`, { cache: 'no-store' }),
-      fetch(`/api/admin/products?limit=200&fields=id,name`, { cache: 'no-store' })
+      fetch(`/api/admin/products?limit=200&fields=id,name`, { cache: 'no-store' }),
     ]);
     setProducts(inCatRes.ok ? await inCatRes.json() : []);
     setAll(allRes.ok ? await allRes.json() : []);
-    setPendingAssign([]); setPendingUnassign([]);
-  };
+    setPendingAssign([]);
+    setPendingUnassign([]);
+  }, [childId]);
 
-  useEffect(() => { load();   }, [childId]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const filtered = useMemo(() => {
+  const filtered = useMemo<Product[]>(() => {
     const q = query.trim().toLowerCase();
-    return q ? all.filter(p => p.name.toLowerCase().includes(q)) : all;
+    return q ? all.filter((p) => p.name.toLowerCase().includes(q)) : all;
   }, [query, all]);
 
   const toggleAssign = (id: string, isInCategory: boolean) => {
     if (isInCategory) {
-      setPendingUnassign(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]);
-      setPendingAssign(prev => prev.filter(x=>x!==id));
+      setPendingUnassign((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+      setPendingAssign((prev) => prev.filter((x) => x !== id));
     } else {
-      setPendingAssign(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]);
-      setPendingUnassign(prev => prev.filter(x=>x!==id));
+      setPendingAssign((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+      setPendingUnassign((prev) => prev.filter((x) => x !== id));
     }
   };
 
@@ -47,34 +49,39 @@ export default function ProductsInChildPage() {
     await fetch(`/api/admin/categories/${childId}/products`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assignIds: pendingAssign, unassignIds: pendingUnassign })
+      body: JSON.stringify({ assignIds: pendingAssign, unassignIds: pendingUnassign }),
     });
     load();
   };
 
-  const currentIds = new Set(products.map(p => p.id));
+  const currentIds = new Set(products.map((p) => p.id));
 
   return (
     <section className={styles.wrap}>
       <h2>Products in this category</h2>
 
       <div className={styles.toolbar}>
-        <input placeholder="Search products…" value={query} onChange={e=>setQuery(e.target.value)} />
+        <input placeholder="Search products…" value={query} onChange={(e) => setQuery(e.target.value)} />
         <button disabled={!pendingAssign.length && !pendingUnassign.length} onClick={commit}>
           Save changes
         </button>
       </div>
 
       <ul className={styles.grid}>
-        {filtered.map(p => {
+        {filtered.map((p) => {
           const inCat = currentIds.has(p.id);
           const markedAdd = !inCat && pendingAssign.includes(p.id);
           const markedRemove = inCat && pendingUnassign.includes(p.id);
           return (
-            <li key={p.id} className={`${styles.card} ${inCat ? styles.inCat : ''} ${markedAdd ? styles.toAdd : ''} ${markedRemove ? styles.toRemove : ''}`}>
+            <li
+              key={p.id}
+              className={`${styles.card} ${inCat ? styles.inCat : ''} ${markedAdd ? styles.toAdd : ''} ${
+                markedRemove ? styles.toRemove : ''
+              }`}
+            >
               <div className={styles.title}>{p.name}</div>
               <button onClick={() => toggleAssign(p.id, inCat)}>
-                {inCat ? (markedRemove ? 'Undo remove' : 'Remove') : (markedAdd ? 'Undo add' : 'Add')}
+                {inCat ? (markedRemove ? 'Undo remove' : 'Remove') : markedAdd ? 'Undo add' : 'Add'}
               </button>
             </li>
           );

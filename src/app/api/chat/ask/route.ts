@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const { answer, confidence } = buildAnswer(hits);
 
     const assistantMsg = await prisma.chatMessage.create({
-      data: { threadId: thread.id, role: 'assistant', content: answer, confidence }
+      data: { threadId: thread.id, role: 'assistant', content: answer, confidence },
     });
 
     const shouldEscalate = confidence < 0.6 || /passing this to a human/i.test(answer);
@@ -35,16 +35,16 @@ export async function POST(req: NextRequest) {
       await prisma.chatMessage.create({ data: { threadId: thread.id, role: 'system', content: `ESCALATE: "${message}"` } });
       await prisma.chatThread.update({
         where: { id: thread.id },
-        data: { escalatedAt: new Date(), emailEscalationSentAt: null }
+        data: { escalatedAt: new Date(), emailEscalationSentAt: null },
       });
 
       // Push + Socket to admins (non-blocking)
-      sendAdminPush('New chat escalation', message).catch(() => {});
-      socketEmit('admins', 'new_escalation', { threadId: thread.id, preview: message, confidence }).catch(() => {});
+      void sendAdminPush('New chat escalation', message);
+      void socketEmit('admins', 'new_escalation', { threadId: thread.id, preview: message, confidence });
     }
 
     // Broadcast assistant message to user room (non-blocking)
-    socketEmit(`thread-${thread.id}`, 'message', { role: 'assistant', content: answer }).catch(() => {});
+    void socketEmit(`thread-${thread.id}`, 'message', { role: 'assistant', content: answer });
 
     return NextResponse.json({
       threadId: thread.id,
@@ -53,8 +53,10 @@ export async function POST(req: NextRequest) {
       confidence,
       escalated: shouldEscalate,
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Chat failed. Please try again.';
+     
     console.error('/api/chat/ask error:', e);
-    return NextResponse.json({ error: 'Chat failed. Please try again.' }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

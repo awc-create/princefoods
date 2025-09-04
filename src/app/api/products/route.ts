@@ -1,6 +1,6 @@
-// src/app/api/products/route.ts
 import prisma from '@/lib/prisma';
 import { NextRequest, NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
 
 const DEFAULT_LIMIT = 12;
 
@@ -18,16 +18,18 @@ export async function GET(req: NextRequest) {
     const min = minStr != null && minStr !== '' ? Number(minStr) : undefined;
     const max = maxStr != null && maxStr !== '' ? Number(maxStr) : undefined;
 
-    const where: any = { visible: true };
+    const priceFilter =
+      (min != null && !Number.isNaN(min)) || (max != null && !Number.isNaN(max))
+        ? {
+            price: {
+              ...(min != null && !Number.isNaN(min) ? { gte: min } : {}),
+              ...(max != null && !Number.isNaN(max) ? { lte: max } : {}),
+            },
+          }
+        : {};
 
-    // Price range
-    if ((min != null && !Number.isNaN(min)) || (max != null && !Number.isNaN(max))) {
-      where.price = {};
-      if (min != null && !Number.isNaN(min)) where.price.gte = min;
-      if (max != null && !Number.isNaN(max)) where.price.lte = max;
-    }
+    let categoryFilter: Prisma.ProductWhereInput = {};
 
-    // Category / collection filtering
     if (collectionParam) {
       const slug = collectionParam.toLowerCase();
       const cat = await prisma.category.findUnique({
@@ -44,12 +46,17 @@ export async function GET(req: NextRequest) {
           });
           ids = [cat.id, ...children.map((c) => c.id)];
         }
-        where.categoryId = { in: ids };
+        categoryFilter = { categoryId: { in: ids } };
       } else {
-        // Fallback to legacy text field
-        where.collection = { contains: collectionParam, mode: 'insensitive' };
+        categoryFilter = { collection: { contains: collectionParam, mode: 'insensitive' } };
       }
     }
+
+    const where: Prisma.ProductWhereInput = {
+      visible: true,
+      ...priceFilter,
+      ...categoryFilter,
+    };
 
     const [total, rows] = await Promise.all([
       prisma.product.count({ where }),
@@ -76,7 +83,7 @@ export async function GET(req: NextRequest) {
       title: p.name,
       price: p.price ?? 0,
       imageUrl: p.productImageUrl ?? null,
-      tag: p.ribbon ?? null, // will be normalized to undefined on client
+      tag: p.ribbon ?? null,
     }));
 
     return NextResponse.json({
@@ -88,7 +95,8 @@ export async function GET(req: NextRequest) {
       pageCount,
       hasNextPage,
     });
-  } catch (error) {
+  } catch (error: unknown) {
+     
     console.error('[API /products] Error:', error);
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }

@@ -5,6 +5,13 @@ import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth-options';
 
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+type SessionUserWithRole = { role?: Role | null };
+
+function hasRole(u: unknown): u is SessionUserWithRole {
+  return !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
+}
+
 export default async function AdminSettingsLayout({
   children,
 }: {
@@ -18,7 +25,7 @@ export default async function AdminSettingsLayout({
     redirect('/admin/login?callbackUrl=/admin/settings');
   }
 
-  const role = (session.user as any).role as 'HEAD' | 'STAFF' | 'VIEWER' | undefined;
+  const role = hasRole(session.user) ? (session.user.role ?? undefined) : undefined;
   if (role !== 'HEAD') {
     // non-HEAD users can’t view settings
     redirect('/admin');

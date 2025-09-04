@@ -29,6 +29,7 @@ function splitCollectionPath(raw: string | null | undefined): string[] {
 /** Ensure a parent category exists (first segment). Returns { id, slug }. */
 async function ensureParentCategory(name: string) {
   const parentSlug = slugify(name);
+
   // try exact slug (parent has parentId null)
   const hit = await prisma.category.findUnique({
     where: { slug: parentSlug },
@@ -83,6 +84,8 @@ async function ensureChildCategory(childName: string, parentId: string, parentSl
   // slug in use under a different parent -> find free suffix
   if (existing && existing.parentId !== parentId) {
     let n = 2;
+    // find a free `${parentSlug}-${base}-${n}`
+     
     while (
       await prisma.category.findUnique({
         where: { slug: `${parentSlug}-${base}-${n}` },
@@ -148,11 +151,14 @@ async function main() {
 
     const collection = str(productRow, 'collection') || null;
 
-    // 👇 NEW: compute categoryId from collection string
+    // Compute categoryId from collection string
     let categoryId: string | null = null;
     try {
+       
       categoryId = await resolveCategoryIdFromCollection(collection);
     } catch (e) {
+      // keep importing the product even if category resolution fails
+       
       console.warn(`Category resolve failed for ${handleId} (${collection ?? 'no collection'}):`, e);
     }
 
@@ -210,28 +216,35 @@ async function main() {
       customTextCharLimit2: toNum(productRow.customTextCharLimit2) ?? null,
       customTextMandatory2: toBool(productRow.customTextMandatory2) || false,
       brand: str(productRow, 'brand') || null,
-      // 👇 NEW:
-      categoryId, // parent if 1 segment, else deepest child
+      // computed from collection path: parent if 1 segment, else deepest child
+      categoryId,
     };
 
     try {
+      // Omit immutable/unsupported fields from update payload (e.g., id).
+      const { id: _id, ...updateRecord } = record;
+
+       
       await prisma.product.upsert({
         where: { id: handleId },
         create: record,
-        update: { ...record, createdAt: undefined as any },
+        update: updateRecord,
       });
       upserted++;
     } catch (e) {
+       
       console.error(`Upsert failed for ${handleId}:`, e);
       skipped++;
     }
   }
 
+   
   console.log(`✅ Done: upserted=${upserted}, skipped=${skipped}`);
 }
 
 main()
   .catch((e) => {
+     
     console.error(e);
     process.exit(1);
   })

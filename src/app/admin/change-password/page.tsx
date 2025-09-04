@@ -2,10 +2,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 export default function ChangePasswordPage() {
-  const router = useRouter();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [status, setStatus] = useState('');
@@ -16,6 +14,7 @@ export default function ChangePasswordPage() {
 
     const res = await fetch('/api/admin/change-password', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, // add proper header
       body: JSON.stringify({ currentPassword, newPassword }),
     });
 
@@ -24,15 +23,24 @@ export default function ChangePasswordPage() {
       setCurrentPassword('');
       setNewPassword('');
     } else {
-      const data = await res.json();
-      setStatus(`❌ ${data.message || 'Something went wrong.'}`);
+      let message = 'Something went wrong.';
+      try {
+        const data = await res.json();
+        message = data.message || message;
+      } catch {
+        /* ignore JSON parse errors */
+      }
+      setStatus(`❌ ${message}`);
     }
   };
 
   return (
     <div style={{ maxWidth: 400, margin: '50px auto' }}>
       <h2>Change Password</h2>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <form
+        onSubmit={handleSubmit}
+        style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+      >
         <input
           type="password"
           placeholder="Current Password"

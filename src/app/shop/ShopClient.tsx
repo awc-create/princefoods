@@ -1,4 +1,3 @@
-// src/app/shop/ShopClient.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -7,6 +6,22 @@ import CategorySidebar from '@/components/shop/CategorySidebar';
 import ProductCard from '@/components/shop/ProductCard';
 import Pagination from '@/components/shop/Pagination';
 import type { Product as Prod } from '@/types/product';
+
+type ApiProduct = {
+  id: string;
+  title?: string;
+  name?: string;
+  price?: number | null;
+  imageUrl?: string | null;
+  productImageUrl?: string | null;
+  tag?: string | null;
+};
+
+type ApiResponse = {
+  ok?: boolean;
+  products?: ApiProduct[];
+  pageCount?: number;
+};
 
 export default function ShopClient() {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
@@ -25,9 +40,10 @@ export default function ShopClient() {
 
     (async () => {
       const res = await fetch(`/api/products?${params.toString()}`, { cache: 'no-store' });
-      const data = await res.json().catch(() => ({} as any));
+      const data = (await res.json().catch(() => ({}))) as unknown as ApiResponse;
 
-      const normalized: Prod[] = (data.products || []).map((p: any): Prod => ({
+      const list = Array.isArray(data?.products) ? data.products : [];
+      const normalized: Prod[] = list.map((p): Prod => ({
         id: String(p.id),
         title: p.title ?? p.name ?? '(untitled)',
         price: Number(p.price ?? 0),
@@ -36,7 +52,7 @@ export default function ShopClient() {
       }));
 
       setProducts(normalized);
-      setPageCount(Number(data.pageCount || 1));
+      setPageCount(Number(data?.pageCount || 1));
     })();
   }, [selectedSlug, page, minPrice, maxPrice]);
 
@@ -67,6 +83,7 @@ export default function ShopClient() {
                   product={product}
                   onAddToCart={(id, qty) => {
                     // integrate with your cart/store here
+                     
                     console.log('ADD', id, qty);
                   }}
                 />

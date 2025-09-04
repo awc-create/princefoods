@@ -9,13 +9,18 @@ import crypto from 'node:crypto';
 
 export const runtime = 'nodejs';
 
+/** ↓ Add these two lines ↓ */
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+type SessionUserWithRole = { role?: Role };
+
 export async function POST(
   req: Request,
   { params }: { params: Record<string, string | string[]> }
 ) {
   try {
     const session = await getServerSession(authOptions);
-    const role = (session?.user as any)?.role as 'HEAD' | 'STAFF' | 'VIEWER' | undefined;
+    /** ↓ Replace any-cast with typed narrowing ↓ */
+    const role = (session?.user as SessionUserWithRole)?.role;
     if (!role) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
 
     const form = await req.formData();
@@ -26,9 +31,8 @@ export async function POST(
       return NextResponse.json({ ok: false, error: 'Only images are allowed' }, { status: 400 });
     }
 
-    const id = String(params.id); // <- normalize
+    const id = String(params.id);
 
-    // ensure dir exists
     const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'categories');
     await fs.mkdir(uploadsDir, { recursive: true });
 
@@ -39,7 +43,6 @@ export async function POST(
     const buf = Buffer.from(await file.arrayBuffer());
     await fs.writeFile(fullPath, buf);
 
-    // URL served by Next from /public
     const url = `/uploads/categories/${name}`;
 
     await prisma.category.update({

@@ -7,6 +7,22 @@ import { prisma } from '@/lib/prisma';
 export const runtime = 'nodejs';
 
 /* -------------------------------------------
+   Types
+------------------------------------------- */
+
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+type SessionUserWithRole = { role?: Role | null };
+
+const hasRole = (u: unknown): u is SessionUserWithRole =>
+  !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
+
+// One CSV row as parsed (original headers preserved)
+type Row = Record<string, string>;
+
+// Row after normalizing keys (lowercase + no spaces)
+type NormalizedRow = Record<string, string>;
+
+/* -------------------------------------------
    Image URL detection + normalization
    (handles Wix bare ids, /media paths, wix:image://v1/,
     Google Drive / Photos, and regular URLs)
@@ -18,11 +34,22 @@ const WIX_MEDIA_PREFIX = `${WIX_MEDIA_HOST}/media/`;
 const WIX_ID_RE = /^[0-9a-f]{6,}_[^/]+~mv2\.[a-z0-9]+$/i;
 
 type ImgDetect =
-  | { url: string; source: 'wix' | 'wix-id' | 'wix-media' | 'wix-image-v1' | 'google-drive' | 'google-photos' | 'google-static' | 'other' }
+  | {
+      url: string;
+      source:
+        | 'wix'
+        | 'wix-id'
+        | 'wix-media'
+        | 'wix-image-v1'
+        | 'google-drive'
+        | 'google-photos'
+        | 'google-static'
+        | 'other';
+    }
   | { url: null; source: 'invalid' };
 
-function detectAndNormalizeImageUrl(input: any): ImgDetect {
-  if (!input) return { url: null, source: 'invalid' };
+function detectAndNormalizeImageUrl(input: unknown): ImgDetect {
+  if (input == null) return { url: null, source: 'invalid' };
   let s = String(input).trim();
   if (!s) return { url: null, source: 'invalid' };
 
@@ -50,6 +77,7 @@ function detectAndNormalizeImageUrl(input: any): ImgDetect {
 
   // try to salvage odd characters so new URL() succeeds
   try {
+     
     new URL(s);
   } catch {
     s = encodeURI(s);
@@ -106,20 +134,6 @@ function detectAndNormalizeImageUrl(input: any): ImgDetect {
    CSV parsing helpers (no external deps)
 ------------------------------------------- */
 
-function parseCSV(csv: string) {
-  const lines = csv.split(/\r?\n/).filter(l => l.trim().length > 0);
-  if (lines.length === 0) return { headers: [] as string[], rows: [] as any[] };
-
-  const headers = splitCSVLine(lines[0]);
-  const rows = lines.slice(1).map(line => {
-    const cols = splitCSVLine(line);
-    const obj: any = {};
-    headers.forEach((h, i) => obj[h] = (cols[i] ?? '').trim());
-    return obj;
-  });
-  return { headers, rows };
-}
-
 function splitCSVLine(line: string): string[] {
   const out: string[] = [];
   let cur = '';
@@ -129,43 +143,73 @@ function splitCSVLine(line: string): string[] {
     const c = line[i];
     if (inQ) {
       if (c === '"') {
-        if (line[i + 1] === '"') { cur += '"'; i++; }
-        else { inQ = false; }
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQ = false;
+        }
       } else {
         cur += c;
       }
     } else {
-      if (c === ',') { out.push(cur); cur = ''; }
-      else if (c === '"') { inQ = true; }
-      else { cur += c; }
+      if (c === ',') {
+        out.push(cur);
+        cur = '';
+      } else if (c === '"') {
+        inQ = true;
+      } else {
+        cur += c;
+      }
     }
   }
   out.push(cur);
   return out;
 }
 
-function normalizeKeys(o: any) {
-  const out: any = {};
-  for (const k of Object.keys(o)) out[k.replace(/\s+/g,'').toLowerCase()] = o[k];
+function parseCSV(csv: string): { headers: string[]; rows: Row[] } {
+  const lines = csv.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return { headers: [], rows: [] };
+
+  const headers = splitCSVLine(lines[0]);
+  const rows: Row[] = lines.slice(1).map((line) => {
+    const cols = splitCSVLine(line);
+    const obj: Row = {};
+    headers.forEach((h, i) => {
+      obj[h] = (cols[i] ?? '').trim();
+    });
+    return obj;
+  });
+  return { headers, rows };
+}
+
+function normalizeKeys(o: Row): NormalizedRow {
+  const out: NormalizedRow = {};
+  for (const k of Object.keys(o)) out[k.replace(/\s+/g, '').toLowerCase()] = o[k];
   return out;
 }
 
-function truthy(val: any): boolean | undefined {
-  const v = String(val || '').trim().toUpperCase();
+function truthy(val: unknown): boolean | undefined {
+  const v = String(val ?? '').trim().toUpperCase();
   if (v === 'TRUE') return true;
   if (v === 'FALSE') return false;
   return undefined;
 }
 
-function numOrNull(val: any): number | null {
+function numOrNull(val: unknown): number | null {
   if (val === '' || val == null) return null;
   const n = Number(val);
   return Number.isFinite(n) ? n : null;
 }
 
-function pick<T extends object>(obj: any, keys: (keyof any)[]): Partial<T> {
-  const out: any = {};
-  for (const k of keys) if (k in obj) out[k] = obj[k];
+function pickKeys<T extends Record<string, unknown>>(obj: T, keys: string[]): Partial<T> {
+  const out: Partial<T> = {};
+  for (const k of keys) {
+    if (k in obj) {
+       
+      (out as Record<string, unknown>)[k] = (obj as Record<string, unknown>)[k];
+    }
+  }
   return out;
 }
 
@@ -173,7 +217,7 @@ function pick<T extends object>(obj: any, keys: (keyof any)[]): Partial<T> {
    Map CSV row → Prisma Product data
 ------------------------------------------- */
 
-function mapToProductCreate(id: string, r: any) {
+function mapToProductCreate(id: string, r: NormalizedRow) {
   const detected = detectAndNormalizeImageUrl(r.productimageurl || r.image || null);
 
   return {
@@ -240,8 +284,9 @@ function mapToProductCreate(id: string, r: any) {
   };
 }
 
-function mapToProductUpdate(r: any) {
-  const d: any = mapToProductCreate('ignore', r);
+function mapToProductUpdate(r: NormalizedRow) {
+  const d = mapToProductCreate('ignore', r);
+  // @ts-expect-error remove id for update shape
   delete d.id;
   return d;
 }
@@ -252,7 +297,7 @@ function mapToProductUpdate(r: any) {
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as any)?.role as 'HEAD' | 'STAFF' | 'VIEWER' | undefined;
+  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
   if (!role || (role !== 'HEAD' && role !== 'STAFF')) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
   }
@@ -267,20 +312,24 @@ export async function POST(req: Request) {
   const { headers, rows } = parseCSV(text);
   if (rows.length === 0) return NextResponse.json({ message: 'Empty file' }, { status: 400 });
 
-  const hasFieldType = headers.map(h => h.toLowerCase()).includes('fieldtype');
+  const hasFieldType = headers.map((h) => h.toLowerCase()).includes('fieldtype');
 
-  let upserted = 0, skipped = 0;
+  let upserted = 0,
+    skipped = 0;
 
   if (hasFieldType) {
     // Wix-style: pair "Product" + "Variant" by handleId
-    type Acc = Record<string, { product?: any; variant?: any }>;
-    const acc: Acc = {};
+    type AccValue = { product?: NormalizedRow; variant?: NormalizedRow };
+    const acc: Record<string, AccValue> = {};
 
     for (const r of rows) {
       const row = normalizeKeys(r);
       const handleId = (row.handleid || row.handleId || '').trim();
       const fieldType = (row.fieldtype || row.fieldType || '').trim();
-      if (!handleId) { skipped++; continue; }
+      if (!handleId) {
+        skipped++;
+        continue;
+      }
 
       acc[handleId] ||= {};
       if (fieldType === 'Product') acc[handleId].product = row;
@@ -289,10 +338,13 @@ export async function POST(req: Request) {
     }
 
     for (const id of Object.keys(acc)) {
-      const p = acc[id].product || {};
-      const v = acc[id].variant || {};
+      const p = acc[id].product ?? {};
+      const v = acc[id].variant ?? {};
       // Variant can override sku/price/inventory/weight AND image fields
-      const merged = { ...p, ...pick(v, ['sku', 'price', 'inventory', 'weight', 'productimageurl', 'image']) };
+      const merged: NormalizedRow = {
+        ...p,
+        ...(pickKeys(v, ['sku', 'price', 'inventory', 'weight', 'productimageurl', 'image']) as NormalizedRow),
+      };
 
       try {
         await prisma.product.upsert({
@@ -311,7 +363,10 @@ export async function POST(req: Request) {
       const row = normalizeKeys(r);
       const id = (row.id || row.handleid || '').trim();
       const name = (row.name || '').trim();
-      if (!id || !name) { skipped++; continue; }
+      if (!id || !name) {
+        skipped++;
+        continue;
+      }
 
       try {
         await prisma.product.upsert({

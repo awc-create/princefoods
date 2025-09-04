@@ -1,13 +1,27 @@
+// src/app/api/admin/categories/route.ts
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 
 export const runtime = 'nodejs';
-const json = (b: any, init?: ResponseInit) => NextResponse.json(b, init);
+
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+type SessionUserWithRole = { role?: Role | null };
+
+function hasRole(u: unknown): u is SessionUserWithRole {
+  return !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
+}
+
+const json = <T>(b: T, init?: ResponseInit) => NextResponse.json(b, init);
 
 const slugify = (s: string) =>
-  (s || '').toLowerCase().trim().replace(/['"]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+  (s || '')
+    .toLowerCase()
+    .trim()
+    .replace(/['"]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)+/g, '');
 
 // GET: list parent categories (no auth; safe JSON)
 export async function GET() {
@@ -17,7 +31,12 @@ export async function GET() {
         where: { parentId: null },
         orderBy: [{ position: 'asc' }, { name: 'asc' }],
         select: {
-          id: true, name: true, slug: true, position: true, isActive: true, imageUrl: true,
+          id: true,
+          name: true,
+          slug: true,
+          position: true,
+          isActive: true,
+          imageUrl: true,
           _count: { select: { children: true } },
         },
       });
@@ -27,28 +46,35 @@ export async function GET() {
         where: { parentId: null },
         orderBy: { name: 'asc' },
         select: {
-          id: true, name: true, slug: true, isActive: true,
+          id: true,
+          name: true,
+          slug: true,
+          isActive: true,
           _count: { select: { children: true } },
         },
       });
-      const withDefaults = items.map((c: any) => ({ position: 0, imageUrl: null, ...c }));
+      const withDefaults = items.map((c) => ({ position: 0, imageUrl: null as string | null, ...c }));
       return json(withDefaults);
     }
-  } catch (e: any) {
-    return json({ ok: false, error: e?.message || 'GET categories failed' }, { status: 500 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'GET categories failed';
+    return json({ ok: false, error: message }, { status: 500 });
   }
 }
 
 // POST: create parent or child (auth required; safe JSON)
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as any)?.role as 'HEAD' | 'STAFF' | 'VIEWER' | undefined;
+  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
   if (!role) return json({ message: 'Unauthorized' }, { status: 401 });
 
   try {
-    const { name, parentId, imageUrl } = (await req.json().catch(() => ({}))) as {
-      name?: string; parentId?: string; imageUrl?: string | null;
+    const body = (await req.json().catch(() => ({}))) as {
+      name?: string;
+      parentId?: string;
+      imageUrl?: string | null;
     };
+    const { name, parentId, imageUrl } = body;
     if (!name?.trim()) return json({ message: 'Name required' }, { status: 400 });
 
     const upsertCat = async (slug: string, pid: string | null) => {
@@ -85,13 +111,16 @@ export async function POST(req: Request) {
     const clash = await prisma.category.findUnique({ where: { slug }, select: { id: true, parentId: true } });
     if (clash && clash.parentId !== parent.id) {
       let n = 2;
-      while (await prisma.category.findUnique({ where: { slug: `${parent.slug}-${base}-${n}` }, select: { id: true } })) n++;
+       
+      while (await prisma.category.findUnique({ where: { slug: `${parent.slug}-${base}-${n}` }, select: { id: true } }))
+        n++;
       slug = `${parent.slug}-${base}-${n}`;
     }
 
     const id = await upsertCat(slug, parent.id);
     return json({ ok: true, id });
-  } catch (e: any) {
-    return json({ ok: false, error: e?.message || 'POST categories failed' }, { status: 500 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'POST categories failed';
+    return json({ ok: false, error: message }, { status: 500 });
   }
 }

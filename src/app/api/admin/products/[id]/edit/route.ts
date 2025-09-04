@@ -4,23 +4,50 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 
 type Params = { params: { id: string } };
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+type SessionUserWithRole = { role?: Role | null };
 
-export async function POST(req: Request, { params }: Params) {
+function hasRole(u: unknown): u is SessionUserWithRole {
+  return !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
+}
+
+export const runtime = 'nodejs';
+
+export async function GET(_req: Request, { params }: Params) {
   const session = await getServerSession(authOptions);
-  if (!['HEAD','STAFF'].includes((session?.user as any)?.role)) {
-    return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
+  if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+
+  const product = await prisma.product.findUnique({ where: { id: params.id } });
+  if (!product) return NextResponse.json({ message: 'Not found' }, { status: 404 });
+  return NextResponse.json({ product });
+}
+
+export async function PATCH(req: Request, { params }: Params) {
+  const session = await getServerSession(authOptions);
+  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
+  if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+
+  const body = (await req.json().catch(() => ({}))) as { visible?: boolean };
+  const { visible } = body;
+  if (typeof visible !== 'boolean') {
+    return NextResponse.json({ message: 'Nothing to update' }, { status: 400 });
   }
-  const body = await req.json();
-  const { name, sku, price, inventory, collection, productImageUrl, description, visible } = body || {};
 
   const updated = await prisma.product.update({
     where: { id: params.id },
-    data: {
-      name, sku, price, inventory, collection, productImageUrl, description,
-      visible: !!visible,
-    },
-    select: { id: true },
+    data: { visible },
+    select: { id: true, visible: true },
   });
+  return NextResponse.json(updated);
+}
 
-  return NextResponse.json({ ok: true, id: updated.id });
+export async function DELETE(_req: Request, { params }: Params) {
+  const session = await getServerSession(authOptions);
+  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
+  if (!role || (role !== 'HEAD' && role !== 'STAFF')) {
+    return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+  }
+  await prisma.product.delete({ where: { id: params.id } });
+  return NextResponse.json({ ok: true });
 }

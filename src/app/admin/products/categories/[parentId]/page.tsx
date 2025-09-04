@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import styles from './ChildPage.module.scss';
@@ -9,18 +9,19 @@ type Child = { id: string; name: string; slug: string; position: number; isActiv
 type Parent = { id: string; name: string; slug: string; children: Child[] };
 
 export default function CategoryChildrenPage() {
-  // Safely coerce; in this route, parentId is guaranteed
-  const { parentId } = (useParams() as { parentId: string });
+  const { parentId } = useParams() as { parentId: string };
 
   const [parent, setParent] = useState<Parent | null>(null);
   const [name, setName] = useState('');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const res = await fetch(`/api/admin/categories/${parentId}`, { cache: 'no-store' });
     if (res.ok) setParent(await res.json());
-  };
+  }, [parentId]);
 
-  useEffect(() => { load();   }, [parentId]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const createChild = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,12 +42,12 @@ export default function CategoryChildrenPage() {
       <h2>{parent.name} — Children</h2>
 
       <form onSubmit={createChild} className={styles.inlineForm}>
-        <input value={name} onChange={e=>setName(e.target.value)} placeholder="New child name" />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="New child name" />
         <button type="submit">Create</button>
       </form>
 
       <ul className={styles.list}>
-        {parent.children.map(c => (
+        {parent.children.map((c) => (
           <li key={c.id} className={styles.row}>
             <div>
               <strong>{c.name}</strong> <em>({c.slug})</em>

@@ -1,47 +1,56 @@
-// src/app/api/admin/products/bulk/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 
 type BulkBody =
-  | { action: 'hide'|'show'|'delete'; ids: string[] }
-  | { action: 'hide'|'show'|'delete'; allMatching: true; search?: string | null };
+  | { action: 'hide' | 'show' | 'delete'; ids: string[] }
+  | { action: 'hide' | 'show' | 'delete'; allMatching: true; search?: string | null };
 
-function buildSearchWhere(q: string | null | undefined) {
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+type SessionUserWithRole = { role?: Role | null };
+
+function hasRole(u: unknown): u is SessionUserWithRole {
+  return !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
+}
+
+function buildSearchWhere(q: string | null | undefined): Prisma.ProductWhereInput | undefined {
   if (!q || !q.trim()) return undefined; // undefined means "no filter" → all products
   const term = q.trim();
   return {
     OR: [
-      { name:        { contains: term, mode: 'insensitive' as const } },
-      { sku:         { contains: term, mode: 'insensitive' as const } },
-      { brand:       { contains: term, mode: 'insensitive' as const } },
-      { collection:  { contains: term, mode: 'insensitive' as const } },
-      { description: { contains: term, mode: 'insensitive' as const } },
+      { name: { contains: term, mode: 'insensitive' } },
+      { sku: { contains: term, mode: 'insensitive' } },
+      { brand: { contains: term, mode: 'insensitive' } },
+      { collection: { contains: term, mode: 'insensitive' } },
+      { description: { contains: term, mode: 'insensitive' } },
     ],
   };
 }
 
+export const runtime = 'nodejs';
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as any)?.role as 'HEAD'|'STAFF'|'VIEWER'|undefined;
+  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
   if (!role || (role !== 'HEAD' && role !== 'STAFF')) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
   }
 
   let body: BulkBody;
   try {
-    body = await req.json();
+    body = (await req.json()) as BulkBody;
   } catch {
     return NextResponse.json({ message: 'Invalid JSON' }, { status: 400 });
   }
 
-  let where: any;
+  let where: Prisma.ProductWhereInput = {};
 
   if ('allMatching' in body && body.allMatching) {
     // If search is empty, this becomes "all products"
-    where = buildSearchWhere(body.search);
-    if (!where) where = {}; // no filter → all products
+    const w = buildSearchWhere(body.search);
+    if (w) where = w;
   } else if ('ids' in body) {
     const ids = Array.isArray(body.ids) ? body.ids.filter(Boolean) : [];
     if (ids.length === 0) {

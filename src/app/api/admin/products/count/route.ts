@@ -3,24 +3,30 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 
-function buildSearchWhere(q: string | null) {
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+type SessionUserWithRole = { role?: Role | null };
+const hasRole = (u: unknown): u is SessionUserWithRole =>
+  !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
+
+function buildSearchWhere(q: string | null): Prisma.ProductWhereInput | undefined {
   if (!q || !q.trim()) return undefined;
   const term = q.trim();
   return {
     OR: [
-      { name:        { contains: term, mode: 'insensitive' as const } },
-      { sku:         { contains: term, mode: 'insensitive' as const } },
-      { brand:       { contains: term, mode: 'insensitive' as const } },
-      { collection:  { contains: term, mode: 'insensitive' as const } },
-      { description: { contains: term, mode: 'insensitive' as const } },
+      { name:        { contains: term, mode: 'insensitive' } },
+      { sku:         { contains: term, mode: 'insensitive' } },
+      { brand:       { contains: term, mode: 'insensitive' } },
+      { collection:  { contains: term, mode: 'insensitive' } },
+      { description: { contains: term, mode: 'insensitive' } },
     ],
   };
 }
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as any)?.role as 'HEAD'|'STAFF'|'VIEWER'|undefined;
+  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
   if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);

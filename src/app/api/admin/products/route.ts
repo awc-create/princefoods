@@ -3,22 +3,38 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 
+export const runtime = 'nodejs';
+
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+type SessionUser = { role?: Role | null };
+const hasRole = (u: unknown): u is SessionUser =>
+  !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as any)?.role as 'HEAD'|'STAFF'|'VIEWER'|undefined;
+  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
   if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
 
   // ---- MODE A: minimal list for pickers (?fields=id,name&limit=200)
-  const fields = (searchParams.get('fields') || '').split(',').map(s => s.trim()).filter(Boolean);
+  const fields = (searchParams.get('fields') || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   const limitParam = searchParams.get('limit');
+
   if (fields.length || limitParam) {
     const limit = Math.min(parseInt(limitParam || '200', 10) || 200, 1000);
-    const select: Record<string, true> = {};
+
+    // Build a typed select
+    const select: { id?: true; name?: true } = {};
     if (fields.includes('id')) select.id = true;
     if (fields.includes('name')) select.name = true;
-    if (!Object.keys(select).length) { select.id = true; select.name = true; }
+    if (!select.id && !select.name) {
+      select.id = true;
+      select.name = true;
+    }
 
     const items = await prisma.product.findMany({
       select,
@@ -28,7 +44,7 @@ export async function GET(req: Request) {
     return NextResponse.json(items);
   }
 
-  // ---- MODE B: paged search (your original)
+  // ---- MODE B: paged search
   const page = Math.max(1, Number(searchParams.get('page') || 1));
   const pageSize = 20;
   const search = (searchParams.get('search') || '').trim();
@@ -52,8 +68,15 @@ export async function GET(req: Request) {
       skip: (page - 1) * pageSize,
       take: pageSize,
       select: {
-        id: true, name: true, sku: true, price: true, inventory: true, collection: true,
-        productImageUrl: true, visible: true, createdAt: true,
+        id: true,
+        name: true,
+        sku: true,
+        price: true,
+        inventory: true,
+        collection: true,
+        productImageUrl: true,
+        visible: true,
+        createdAt: true,
       },
     }),
   ]);

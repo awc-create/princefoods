@@ -4,7 +4,7 @@ import React from 'react';
 import { UploadDropzone } from '@uploadthing/react';
 import type { OurFileRouter } from '@/app/api/uploadthing/core';
 import styles from './ProductImageUpload.module.scss';
-import { Icon } from '@iconify/react';
+import Image from 'next/image';
 
 type Props = {
   images: string[];
@@ -43,7 +43,13 @@ export default function ProductImageUpload({ images, setImages }: Props) {
         <div className={styles.gallery}>
           {images.map((url) => (
             <div key={url} className={styles.thumb}>
-              <img src={url} alt="Uploaded" />
+              <Image
+                src={url}
+                alt="Uploaded"
+                className={styles.preview}
+                width={800}
+                height={800}
+              />
               <button onClick={() => handleDelete(url)}>✕</button>
             </div>
           ))}

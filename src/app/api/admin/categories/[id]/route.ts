@@ -4,15 +4,17 @@ import slugify from '@/utils/slugify';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 
-// ⛔️ remove the alias
-// type Params = { params: { id: string } };
+/** ↓ Add these two lines once at top of file ↓ */
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+type SessionUserWithRole = { role?: Role };
 
 export async function GET(
   _req: Request,
   { params }: { params: { id: string } }
 ) {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as any)?.role as 'HEAD'|'STAFF'|'VIEWER'|undefined;
+  /** ↓ Replace any-cast with typed narrowing ↓ */
+  const role = (session?.user as SessionUserWithRole)?.role;
   if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
   const parent = await prisma.category.findUnique({
@@ -33,13 +35,14 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as any)?.role as 'HEAD'|'STAFF'|'VIEWER'|undefined;
+  /** ↓ Replace any-cast with typed narrowing ↓ */
+  const role = (session?.user as SessionUserWithRole)?.role;
   if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
   const { name, position, isActive } = body as { name?: string; position?: number; isActive?: boolean };
 
-  const data: any = {};
+  const data: Record<string, unknown> = {};
   if (typeof name === 'string' && name.trim()) {
     data.name = name.trim();
     data.slug = slugify(name);
@@ -60,7 +63,8 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as any)?.role as 'HEAD'|'STAFF'|'VIEWER'|undefined;
+  /** ↓ Replace any-cast with typed narrowing ↓ */
+  const role = (session?.user as SessionUserWithRole)?.role;
   if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
   const hasChildren = await prisma.category.count({ where: { parentId: params.id } });

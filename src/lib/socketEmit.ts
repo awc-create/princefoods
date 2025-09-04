@@ -1,6 +1,6 @@
 import { getBaseUrl } from './baseUrl';
 
-export async function socketEmit(room: string, event: string, payload: any) {
+export async function socketEmit(room: string, event: string, payload: unknown): Promise<void> {
   const url = `${getBaseUrl()}/api/socket-emit`;
   try {
     await fetch(url, {
@@ -11,8 +11,9 @@ export async function socketEmit(room: string, event: string, payload: any) {
       },
       body: JSON.stringify({ room, event, payload }),
     });
-  } catch (e) {
+  } catch (e: unknown) {
     // Don’t fail the request just because sockets are down.
-    console.warn('[socket-emit] failed:', (e as Error)?.message);
+     
+    console.warn('[socket-emit] failed:', e instanceof Error ? e.message : String(e));
   }
 }

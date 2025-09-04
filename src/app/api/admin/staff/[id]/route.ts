@@ -3,28 +3,40 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import type { Prisma } from '@prisma/client';
+
+export const runtime = 'nodejs';
 
 type Params = { params: { id: string } };
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+
+const isHead = (u: unknown): boolean =>
+  !!u && typeof u === 'object' && (u as Record<string, unknown>).role === 'HEAD';
 
 export async function PATCH(req: Request, { params }: Params) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user as any).role !== 'HEAD') {
+  if (!isHead(session?.user)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
   }
 
-  const { name, email, role, password } = await req.json();
+  const body = (await req.json().catch(() => ({}))) as {
+    name?: string;
+    email?: string;
+    role?: Exclude<Role, 'HEAD'>;
+    password?: string;
+  };
 
-  const data: any = {};
-  if (name) data.name = name;
-  if (email) data.email = email;
-  if (role) {
-    if (!['STAFF', 'VIEWER'].includes(role)) {
+  const data: Prisma.UserUpdateInput = {};
+  if (body.name) data.name = body.name;
+  if (body.email) data.email = body.email;
+  if (body.role) {
+    if (body.role !== 'STAFF' && body.role !== 'VIEWER') {
       return NextResponse.json({ message: 'Role must be STAFF or VIEWER' }, { status: 400 });
     }
-    data.role = role;
+    data.role = body.role;
   }
-  if (password) {
-    data.password = await bcrypt.hash(password, 12);
+  if (body.password) {
+    data.password = await bcrypt.hash(body.password, 12);
   }
 
   try {
@@ -34,14 +46,15 @@ export async function PATCH(req: Request, { params }: Params) {
       select: { id: true, name: true, email: true, role: true },
     });
     return NextResponse.json(updated);
-  } catch (e: any) {
-    return NextResponse.json({ message: 'Update failed' }, { status: 400 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Update failed';
+    return NextResponse.json({ message }, { status: 400 });
   }
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user as any).role !== 'HEAD') {
+  if (!isHead(session?.user)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
   }
 

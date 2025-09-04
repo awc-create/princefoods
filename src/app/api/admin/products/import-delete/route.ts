@@ -15,45 +15,62 @@ function splitCSVLine(line: string): string[] {
     const c = line[i];
     if (inQ) {
       if (c === '"') {
-        if (line[i + 1] === '"') { cur += '"'; i++; }
-        else { inQ = false; }
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQ = false;
+        }
       } else cur += c;
     } else {
-      if (c === ',') { out.push(cur); cur = ''; }
-      else if (c === '"') inQ = true;
+      if (c === ',') {
+        out.push(cur);
+        cur = '';
+      } else if (c === '"') inQ = true;
       else cur += c;
     }
   }
   out.push(cur);
   return out;
 }
-function parseCSV(text: string) {
-  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
-  if (!lines.length) return { headers: [] as string[], rows: [] as any[] };
-  const headers = splitCSVLine(lines[0]).map(h => h.trim());
-  const rows = lines.slice(1).map(line => {
+
+type CsvRows = Record<string, string>[];
+function parseCSV(text: string): { headers: string[]; rows: CsvRows } {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (!lines.length) return { headers: [], rows: [] };
+  const headers = splitCSVLine(lines[0]).map((h) => h.trim());
+  const rows: CsvRows = lines.slice(1).map((line) => {
     const cols = splitCSVLine(line);
-    const obj: any = {};
-    headers.forEach((h, i) => obj[h] = (cols[i] ?? '').trim());
+    const obj: Record<string, string> = {};
+    headers.forEach((h, i) => {
+      obj[h] = (cols[i] ?? '').trim();
+    });
     return obj;
   });
   return { headers, rows };
 }
-function normalizeKeys(o: any) {
-  const out: any = {};
+
+function normalizeKeys(o: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
   for (const k of Object.keys(o)) out[k.replace(/\s+/g, '').toLowerCase()] = o[k];
   return out;
 }
 
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+type SessionUserWithRole = { role?: Role | null };
+const hasRole = (u: unknown): u is SessionUserWithRole =>
+  !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as any)?.role as 'HEAD' | 'STAFF' | 'VIEWER' | undefined;
+  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
   if (!role || (role !== 'HEAD' && role !== 'STAFF')) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
   }
 
   const form = await req.formData().catch(() => null);
   if (!form) return NextResponse.json({ message: 'Invalid form data' }, { status: 400 });
+
   const file = form.get('file');
   if (!(file instanceof File)) return NextResponse.json({ message: 'Missing file' }, { status: 400 });
 
@@ -63,14 +80,15 @@ export async function POST(req: Request) {
 
   // We accept any of these column headers (case/space insensitive):
   // id, handleId, sku
-  const headerSet = new Set(headers.map(h => h.replace(/\s+/g, '').toLowerCase()));
+  const headerSet = new Set(headers.map((h) => h.replace(/\s+/g, '').toLowerCase()));
   const acceptsId = headerSet.has('id') || headerSet.has('handleid');
   const acceptsSku = headerSet.has('sku');
 
   if (!acceptsId && !acceptsSku) {
-    return NextResponse.json({
-      message: 'CSV must include at least one of: id/handleId or sku',
-    }, { status: 400 });
+    return NextResponse.json(
+      { message: 'CSV must include at least one of: id/handleId or sku' },
+      { status: 400 }
+    );
   }
 
   const ids: string[] = [];
@@ -104,5 +122,10 @@ export async function POST(req: Request) {
     }
   });
 
-  return NextResponse.json({ ok: true, deleted, receivedIds: ids.length, receivedSkus: skus.length });
+  return NextResponse.json({
+    ok: true,
+    deleted,
+    receivedIds: ids.length,
+    receivedSkus: skus.length,
+  });
 }

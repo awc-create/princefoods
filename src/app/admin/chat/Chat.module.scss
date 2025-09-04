@@ -1,3 +1,4 @@
+@use "sass:color";
 /* Palette */
 $bg: #f5f6f8;
 $panel: #ffffff;
@@ -316,7 +317,7 @@ $shadow: 0 6px 18px rgba(0,0,0,.06);
   background: $brand;
   color: #fff;
 
-  &:hover { background: darken($brand, 6%); box-shadow: 0 6px 16px rgba(214,40,40,.25); }
+  &:hover { background: color.adjust($brand, $lightness: -6%); box-shadow: 0 6px 16px rgba(214,40,40,.25); }
   &:active { transform: translateY(1px); }
   &:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 }
@@ -377,6 +378,6 @@ $shadow: 0 6px 18px rgba(0,0,0,.06);
 .admin {
   background: $brand;
   color: #fff;
-  border: 1px solid darken($brand, 10%);
+  border: 1px solid color.adjust($brand, $lightness: -10%);
   border-bottom-right-radius: 4px;
 }

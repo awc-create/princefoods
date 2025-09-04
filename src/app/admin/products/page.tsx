@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import styles from './Products.module.scss';
@@ -21,7 +21,7 @@ type Row = {
 
 function childCategory(full?: string | null) {
   if (!full) return '—';
-  const parts = full.split(';').map(s => s.trim()).filter(Boolean);
+  const parts = full.split(';').map((s) => s.trim()).filter(Boolean);
   return parts.length ? parts[parts.length - 1] : '—';
 }
 
@@ -35,8 +35,8 @@ export default function ProductsPage() {
 
   // bulk select
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const allOnPageSelected = rows.length > 0 && rows.every(r => selected[r.id]);
-  const someSelected = rows.some(r => selected[r.id]);
+  const allOnPageSelected = rows.length > 0 && rows.every((r) => selected[r.id]);
+  const someSelected = rows.some((r) => selected[r.id]);
 
   // "Select all matching results" (across pages)
   const [allMatchingSelected, setAllMatchingSelected] = useState(false);
@@ -45,14 +45,14 @@ export default function ProductsPage() {
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   // Load list
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     const res = await fetch(`/api/admin/products?search=${encodeURIComponent(q)}&page=${page}`);
     const data = await res.json();
     setRows(data.items || []);
     setTotalPages(data.totalPages || 1);
     setLoading(false);
-  }
+  }, [q, page]);
 
   useEffect(() => {
     let ignore = false;
@@ -64,8 +64,10 @@ export default function ProductsPage() {
       setMatchingCount(null);
       setSelected({});
     })();
-    return () => { ignore = true; };
-  }, [q, page]);
+    return () => {
+      ignore = true;
+    };
+  }, [load]);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -76,75 +78,108 @@ export default function ProductsPage() {
     return () => document.removeEventListener('click', onDocClick);
   }, []);
 
-  function toggleSelect(id: string, on: boolean) {
-    setSelected(prev => ({ ...prev, [id]: on }));
+  const toggleSelect = useCallback((id: string, on: boolean) => {
+    setSelected((prev) => ({ ...prev, [id]: on }));
     setAllMatchingSelected(false);
-  }
-  function toggleSelectPage(on: boolean) {
-    const upd: Record<string, boolean> = { ...selected };
-    for (const r of rows) upd[r.id] = on;
-    setSelected(upd);
-    setAllMatchingSelected(false);
-  }
-  function clearSelection() {
+  }, []);
+
+  const toggleSelectPage = useCallback(
+    (on: boolean) => {
+      const upd: Record<string, boolean> = { ...selected };
+      for (const r of rows) upd[r.id] = on;
+      setSelected(upd);
+      setAllMatchingSelected(false);
+    },
+    [rows, selected]
+  );
+
+  const clearSelection = useCallback(() => {
     setSelected({});
     setAllMatchingSelected(false);
     setMatchingCount(null);
-  }
-  function idsSelected(): string[] {
-    return rows.filter(r => selected[r.id]).map(r => r.id);
-  }
+  }, []);
 
-  async function ensureMatchingCount() {
+  const idsSelected = useCallback((): string[] => {
+    return rows.filter((r) => selected[r.id]).map((r) => r.id);
+  }, [rows, selected]);
+
+  const ensureMatchingCount = useCallback(async () => {
     if (matchingCount != null) return matchingCount;
     const res = await fetch(`/api/admin/products/count?search=${encodeURIComponent(q)}`);
     const data = await res.json();
     setMatchingCount(data.count ?? 0);
     return data.count ?? 0;
-  }
+  }, [matchingCount, q]);
 
-  async function selectAllMatching() {
+  const selectAllMatching = useCallback(async () => {
     const count = await ensureMatchingCount();
     if (count > 0) setAllMatchingSelected(true);
-  }
+  }, [ensureMatchingCount]);
 
-  async function toggleVisible(id: string, next: boolean) {
+  const toggleVisible = useCallback(async (id: string, next: boolean) => {
     const res = await fetch(`/api/admin/products/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ visible: next }),
     });
     if (res.ok) {
-      setRows(rs => rs.map(r => r.id === id ? { ...r, visible: next } : r));
+      setRows((rs) => rs.map((r) => (r.id === id ? { ...r, visible: next } : r)));
     }
-  }
+  }, []);
 
-  async function duplicate(id: string) {
-    const res = await fetch(`/api/admin/products/${id}/duplicate`, { method: 'POST' });
-    if (res.ok) {
-      setPage(1);
-      await load();
-    }
-  }
+  const duplicate = useCallback(
+    async (id: string) => {
+      const res = await fetch(`/api/admin/products/${id}/duplicate`, { method: 'POST' });
+      if (res.ok) {
+        setPage(1);
+        await load();
+      }
+    },
+    [load]
+  );
 
-  async function remove(id: string) {
+  const remove = useCallback(async (id: string) => {
     const ok = confirm('Delete this product? This cannot be undone.');
     if (!ok) return;
     const res = await fetch(`/api/admin/products/${id}`, { method: 'DELETE' });
-    if (res.ok) setRows(rs => rs.filter(r => r.id !== id));
-  }
+    if (res.ok) setRows((rs) => rs.filter((r) => r.id !== id));
+  }, []);
 
   // Bulk actions
-  async function bulk(action: 'hide'|'show'|'delete') {
-    if (allMatchingSelected) {
+  const bulk = useCallback(
+    async (action: 'hide' | 'show' | 'delete') => {
+      if (allMatchingSelected) {
+        if (action === 'delete') {
+          const ok = confirm(`Delete ALL products that match your search? This cannot be undone.`);
+          if (!ok) return;
+        }
+        const res = await fetch('/api/admin/products/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, allMatching: true, search: q }),
+        });
+        if (res.ok) {
+          clearSelection();
+          await load();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert(err.message || 'Bulk action failed');
+        }
+        return;
+      }
+
+      const ids = idsSelected();
+      if (ids.length === 0) return;
+
       if (action === 'delete') {
-        const ok = confirm(`Delete ALL products that match your search? This cannot be undone.`);
+        const ok = confirm(`Delete ${ids.length} product(s)? This cannot be undone.`);
         if (!ok) return;
       }
+
       const res = await fetch('/api/admin/products/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, allMatching: true, search: q }),
+        body: JSON.stringify({ action, ids }),
       });
       if (res.ok) {
         clearSelection();
@@ -153,61 +188,48 @@ export default function ProductsPage() {
         const err = await res.json().catch(() => ({}));
         alert(err.message || 'Bulk action failed');
       }
-      return;
-    }
+    },
+    [allMatchingSelected, q, clearSelection, load, idsSelected]
+  );
 
+  const exportSelected = useCallback(() => {
     const ids = idsSelected();
-    if (ids.length === 0) return;
-
-    if (action === 'delete') {
-      const ok = confirm(`Delete ${ids.length} product(s)? This cannot be undone.`);
-      if (!ok) return;
-    }
-
-    const res = await fetch('/api/admin/products/bulk', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, ids }),
-    });
-    if (res.ok) {
-      clearSelection();
-      await load();
-    } else {
-      const err = await res.json().catch(() => ({}));
-      alert(err.message || 'Bulk action failed');
-    }
-  }
-
-  async function exportSelected() {
-    const ids = idsSelected();
-    const url = ids.length
-      ? `/api/admin/products/export?ids=${encodeURIComponent(ids.join(','))}`
-      : `/api/admin/products/export`;
+    const url =
+      ids.length > 0
+        ? `/api/admin/products/export?ids=${encodeURIComponent(ids.join(','))}`
+        : `/api/admin/products/export`;
     const a = document.createElement('a');
     a.href = url;
     a.download = 'products.csv';
     document.body.appendChild(a);
     a.click();
     a.remove();
-  }
+  }, [idsSelected]);
 
-  const header = useMemo(() => (
-    <div className={styles.toolbar}>
-      <input
-        placeholder="Search name, SKU, brand, collection…"
-        value={q}
-        onChange={(e) => { setPage(1); setQ(e.target.value); }}
-      />
-      <div className={styles.spacer} />
-      <Link href="/admin/products/import" className={styles.secondaryBtn}>
-        <Upload size={16} style={{marginRight:6}}/> Import
-      </Link>
-      <button onClick={exportSelected} className={styles.secondaryBtn}>
-        <Download size={16} style={{marginRight:6}}/> Export
-      </button>
-      <Link href="/admin/products/create" className={styles.primaryBtn}>+ New product</Link>
-    </div>
-  ), [q]);
+  const header = useMemo(() => {
+    return (
+      <div className={styles.toolbar}>
+        <input
+          placeholder="Search name, SKU, brand, collection…"
+          value={q}
+          onChange={(e) => {
+            setPage(1);
+            setQ(e.target.value);
+          }}
+        />
+        <div className={styles.spacer} />
+        <Link href="/admin/products/import" className={styles.secondaryBtn}>
+          <Upload size={16} style={{ marginRight: 6 }} /> Import
+        </Link>
+        <button onClick={exportSelected} className={styles.secondaryBtn}>
+          <Download size={16} style={{ marginRight: 6 }} /> Export
+        </button>
+        <Link href="/admin/products/create" className={styles.primaryBtn}>
+          + New product
+        </Link>
+      </div>
+    );
+  }, [q, exportSelected]);
 
   const pageSelectionBanner = useMemo(() => {
     if (!allOnPageSelected || allMatchingSelected) return null;
@@ -221,31 +243,37 @@ export default function ProductsPage() {
               : `Select all ${matchingCount} matching results`}
           </button>
         </span>
-        <button onClick={clearSelection} className={styles.linkBtn}>Clear selection</button>
+        <button onClick={clearSelection} className={styles.linkBtn}>
+          Clear selection
+        </button>
       </div>
     );
-  }, [allOnPageSelected, allMatchingSelected, rows.length, matchingCount]);
+  }, [allOnPageSelected, allMatchingSelected, rows.length, matchingCount, selectAllMatching, clearSelection]);
 
   const bulkBar = useMemo(() => {
     if (!someSelected && !allMatchingSelected) return null;
-    const count = allMatchingSelected
-      ? (matchingCount ?? '…')
-      : Object.values(selected).filter(Boolean).length;
+    const count = allMatchingSelected ? matchingCount ?? '…' : Object.values(selected).filter(Boolean).length;
 
     return (
       <div className={styles.bulkBar}>
         <span>{count} selected</span>
         <div className={styles.bulkActions}>
-          <button onClick={() => bulk('hide')}><EyeOff size={16}/> Hide</button>
-          <button onClick={() => bulk('show')}><Eye size={16}/> Show</button>
-          <button className={styles.danger} onClick={() => bulk('delete')}>
-            <Trash2 size={16}/> Delete
+          <button onClick={() => bulk('hide')}>
+            <EyeOff size={16} /> Hide
           </button>
-          <button onClick={exportSelected}><Download size={16}/> Export</button>
+          <button onClick={() => bulk('show')}>
+            <Eye size={16} /> Show
+          </button>
+          <button className={styles.danger} onClick={() => bulk('delete')}>
+            <Trash2 size={16} /> Delete
+          </button>
+          <button onClick={exportSelected}>
+            <Download size={16} /> Export
+          </button>
         </div>
       </div>
     );
-  }, [someSelected, allMatchingSelected, matchingCount, selected]);
+  }, [someSelected, allMatchingSelected, matchingCount, selected, bulk, exportSelected]);
 
   return (
     <div className={styles.wrap}>
@@ -261,19 +289,19 @@ export default function ProductsPage() {
             <tr>
               <th className={styles.colCheck}>
                 <input
-                    type="checkbox"
-                    // show checked if either all on this page OR all-matching are selected
-                    checked={allOnPageSelected || allMatchingSelected}
-                    onChange={(e) => {
+                  type="checkbox"
+                  // show checked if either all on this page OR all-matching are selected
+                  checked={allOnPageSelected || allMatchingSelected}
+                  onChange={(e) => {
                     if (e.target.checked) {
-                        // select this page; banner will appear offering “select all matching”
-                        toggleSelectPage(true);
+                      // select this page; banner will appear offering “select all matching”
+                      toggleSelectPage(true);
                     } else {
-                        // clear all selection modes
-                        clearSelection();
+                      // clear all selection modes
+                      clearSelection();
                     }
-                    }}
-                    aria-label="Select all on page"
+                  }}
+                  aria-label="Select all on page"
                 />
               </th>
               <th className={styles.colPic}>Pic</th>
@@ -287,107 +315,119 @@ export default function ProductsPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className={styles.muted}>Loading…</td></tr>
+              <tr>
+                <td colSpan={8} className={styles.muted}>
+                  Loading…
+                </td>
+              </tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={8} className={styles.muted}>No products found</td></tr>
-            ) : rows.map(r => {
-              const img = safeImageUrl(r.productImageUrl);
-              return (
-                <tr key={r.id} className={styles.row}>
-                  <td className={styles.checkCell}>
-                    <input
-                      type="checkbox"
-                      checked={!!selected[r.id] || allMatchingSelected}
-                      onChange={(e) => toggleSelect(r.id, e.target.checked)}
-                      aria-label={`Select ${r.name}`}
-                    />
-                  </td>
-                  <td className={styles.picCell}>
-                    <div className={styles.pic}>
-                      {img ? (
-                        <Image
-                          src={img}
-                          alt={r.name}
-                          fill
-                          sizes="48px"
-                          style={{ objectFit: 'cover' }}
-                        />
-                      ) : (
-                        <div className={styles.placeholder}>📦</div>
-                      )}
-                    </div>
-                  </td>
-                  <td>
-                    <div className={styles.nameCell}>
-                      <Link href={`/admin/products/${r.id}`} className={styles.nameLink}>
-                        {r.name}
-                      </Link>
-                      {!r.visible && <span className={styles.badge}>Hidden</span>}
-                    </div>
-                  </td>
-                  <td>{r.sku || '—'}</td>
-                  <td>{r.price != null ? `£${r.price.toFixed(2)}` : '—'}</td>
-                  <td>{r.inventory || '—'}</td>
-                  <td>{childCategory(r.collection)}</td>
-
-                  <td className={styles.actionsCell}>
-                    <div className={styles.hoverbar}>
-                      <button
-                        className={styles.iconBtn}
-                        title="Boost (promote)"
-                        onClick={() => alert('We’ll add Boost flows soon ✨')}
-                      >
-                        <Megaphone size={16} />
-                      </button>
-                      {r.visible ? (
-                        <button
-                          className={styles.iconBtn}
-                          title="Hide from store"
-                          onClick={() => toggleVisible(r.id, false)}
-                        >
-                          <EyeOff size={16} />
-                        </button>
-                      ) : (
-                        <button
-                          className={styles.iconBtn}
-                          title="Show in store"
-                          onClick={() => toggleVisible(r.id, true)}
-                        >
-                          <Eye size={16} />
-                        </button>
-                      )}
-                      <div className={styles.menuWrap} ref={menuRef}>
-                        <button
-                          className={styles.iconBtn}
-                          title="More"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenMenu(id => id === r.id ? null : r.id);
-                          }}
-                        >
-                          <MoreVertical size={16} />
-                        </button>
-                        {openMenu === r.id && (
-                          <div className={styles.menu}>
-                            <Link href={`/admin/products/${r.id}`}>Edit</Link>
-                            <button onClick={() => duplicate(r.id)}>Duplicate</button>
-                            <button className={styles.danger} onClick={() => remove(r.id)}>Delete</button>
-                          </div>
+              <tr>
+                <td colSpan={8} className={styles.muted}>
+                  No products found
+                </td>
+              </tr>
+            ) : (
+              rows.map((r) => {
+                const img = safeImageUrl(r.productImageUrl);
+                return (
+                  <tr key={r.id} className={styles.row}>
+                    <td className={styles.checkCell}>
+                      <input
+                        type="checkbox"
+                        checked={!!selected[r.id] || allMatchingSelected}
+                        onChange={(e) => toggleSelect(r.id, e.target.checked)}
+                        aria-label={`Select ${r.name}`}
+                      />
+                    </td>
+                    <td className={styles.picCell}>
+                      <div className={styles.pic}>
+                        {img ? (
+                          <Image src={img} alt={r.name} fill sizes="48px" style={{ objectFit: 'cover' }} />
+                        ) : (
+                          <div className={styles.placeholder}>📦</div>
                         )}
                       </div>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+                    </td>
+                    <td>
+                      <div className={styles.nameCell}>
+                        <Link href={`/admin/products/${r.id}`} className={styles.nameLink}>
+                          {r.name}
+                        </Link>
+                        {!r.visible && <span className={styles.badge}>Hidden</span>}
+                      </div>
+                    </td>
+                    <td>{r.sku || '—'}</td>
+                    <td>{r.price != null ? `£${r.price.toFixed(2)}` : '—'}</td>
+                    <td>{r.inventory || '—'}</td>
+                    <td>{childCategory(r.collection)}</td>
+
+                    <td className={styles.actionsCell}>
+                      <div className={styles.hoverbar}>
+                        <button
+                          className={styles.iconBtn}
+                          title="Boost (promote)"
+                          onClick={() => alert('We’ll add Boost flows soon ✨')}
+                        >
+                          <Megaphone size={16} />
+                        </button>
+                        {r.visible ? (
+                          <button
+                            className={styles.iconBtn}
+                            title="Hide from store"
+                            onClick={() => toggleVisible(r.id, false)}
+                          >
+                            <EyeOff size={16} />
+                          </button>
+                        ) : (
+                          <button
+                            className={styles.iconBtn}
+                            title="Show in store"
+                            onClick={() => toggleVisible(r.id, true)}
+                          >
+                            <Eye size={16} />
+                          </button>
+                        )}
+                        <div className={styles.menuWrap} ref={menuRef}>
+                          <button
+                            className={styles.iconBtn}
+                            title="More"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenu((id) => (id === r.id ? null : r.id));
+                            }}
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+                          {openMenu === r.id && (
+                            <div className={styles.menu}>
+                              <Link href={`/admin/products/${r.id}`}>Edit</Link>
+                              <button onClick={() => duplicate(r.id)}>Duplicate</button>
+                              <button className={styles.danger} onClick={() => remove(r.id)}>
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
 
       <div className={styles.pager}>
-        <button disabled={page<=1} onClick={()=>setPage(p=>p-1)}>Prev</button>
-        <span>Page {page} / {totalPages}</span>
-        <button disabled={page>=totalPages} onClick={()=>setPage(p=>p+1)}>Next</button>
+        <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+          Prev
+        </button>
+        <span>
+          Page {page} / {totalPages}
+        </span>
+        <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+          Next
+        </button>
       </div>
     </div>
   );
