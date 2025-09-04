@@ -1,5 +1,4 @@
-// src/app/api/admin/categories/[id]/image/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import prisma from '@/lib/prisma';
@@ -11,14 +10,15 @@ import crypto from 'node:crypto';
 export const runtime = 'nodejs';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
-type SessionUserWithRole = { role?: Role | null };
+interface SessionUserWithRole {
+  role?: Role | null;
+}
 
 const hasRole = (u: unknown): u is SessionUserWithRole =>
   !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
 
-/** Map a MIME type to a safe extension, fallback to 'jpg'. */
 function extFromMime(mime: string | null | undefined): string {
-  const m = (mime || '').toLowerCase();
+  const m = (mime ?? '').toLowerCase(); // <- nullish coalescing
   if (m === 'image/jpeg' || m === 'image/jpg') return 'jpg';
   if (m === 'image/png') return 'png';
   if (m === 'image/webp') return 'webp';
@@ -27,7 +27,6 @@ function extFromMime(mime: string | null | undefined): string {
   return 'jpg';
 }
 
-/** Get extension from filename safely. */
 function extFromName(name: string | null | undefined): string | null {
   if (!name) return null;
   const idx = name.lastIndexOf('.');
@@ -37,58 +36,46 @@ function extFromName(name: string | null | undefined): string | null {
 }
 
 export async function POST(
-  req: Request,
-  // IMPORTANT: inline type here – no aliases, no Record<...>
+  req: NextRequest,
   { params }: { params: { id: string } }
-) {
+): Promise<NextResponse> {
   try {
-    // Auth
     const session = await getServerSession(authOptions);
     if (!hasRole(session?.user) || !session.user.role) {
       return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
     }
-    // Allow only HEAD / STAFF to upload
     if (session.user.role !== 'HEAD' && session.user.role !== 'STAFF') {
       return NextResponse.json({ ok: false, error: 'Forbidden' }, { status: 403 });
     }
 
-    // Read form data
     const form = await req.formData();
     const file = form.get('file');
     if (!(file instanceof File)) {
       return NextResponse.json({ ok: false, error: 'No file' }, { status: 400 });
     }
 
-    // Validate image
-    const mime = file.type || '';
+    const mime = file.type ?? ''; // <- nullish coalescing
     if (!mime.startsWith('image/')) {
       return NextResponse.json({ ok: false, error: 'Only images are allowed' }, { status: 400 });
     }
 
     const id = params.id;
 
-    // Ensure uploads dir
     const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'categories');
     await fs.mkdir(uploadsDir, { recursive: true });
 
-    // Decide extension
-    const guessedFromName = extFromName(file.name);
-    const guessedFromMime = extFromMime(mime);
-    const ext = (guessedFromName || guessedFromMime) || 'jpg';
+    // Prefer ?? over ||
+    const ext = extFromName(file.name) ?? extFromMime(mime) ?? 'jpg';
 
-    // Unique filename
     const unique = crypto.randomBytes(4).toString('hex');
     const name = `${id}-${Date.now()}-${unique}.${ext}`;
     const fullPath = path.join(uploadsDir, name);
 
-    // Save file
     const buf = Buffer.from(await file.arrayBuffer());
     await fs.writeFile(fullPath, buf);
 
-    // Public URL (served from /public)
     const url = `/uploads/categories/${name}`;
 
-    // Update category
     await prisma.category.update({
       where: { id },
       data: { imageUrl: url },
