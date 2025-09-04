@@ -1,13 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { buildAnswer, searchDocs } from '@/lib/faqSearch';
 import { prisma } from '@/lib/prisma';
-import { searchDocs, buildAnswer } from '@/lib/faqSearch';
 import { sendAdminPush } from '@/lib/push';
 import { socketEmit } from '@/lib/socketEmit';
+import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const SLA_MIN = Number(process.env.CHAT_SLA_MINUTES || 10);
+const SLA_MIN = Number(process.env.CHAT_SLA_MINUTES ?? 10);
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,28 +19,36 @@ export async function POST(req: NextRequest) {
 
     if (!thread) return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
 
-    await prisma.chatMessage.create({ data: { threadId: thread.id, role: 'user', content: message } });
+    await prisma.chatMessage.create({
+      data: { threadId: thread.id, role: 'user', content: message }
+    });
     await prisma.chatThread.update({ where: { id: thread.id }, data: { lastUserAt: new Date() } });
 
     const hits = await searchDocs(message);
     const { answer, confidence } = buildAnswer(hits);
 
     const assistantMsg = await prisma.chatMessage.create({
-      data: { threadId: thread.id, role: 'assistant', content: answer, confidence },
+      data: { threadId: thread.id, role: 'assistant', content: answer, confidence }
     });
 
     const shouldEscalate = confidence < 0.6 || /passing this to a human/i.test(answer);
 
     if (shouldEscalate) {
-      await prisma.chatMessage.create({ data: { threadId: thread.id, role: 'system', content: `ESCALATE: "${message}"` } });
+      await prisma.chatMessage.create({
+        data: { threadId: thread.id, role: 'system', content: `ESCALATE: "${message}"` }
+      });
       await prisma.chatThread.update({
         where: { id: thread.id },
-        data: { escalatedAt: new Date(), emailEscalationSentAt: null },
+        data: { escalatedAt: new Date(), emailEscalationSentAt: null }
       });
 
       // Push + Socket to admins (non-blocking)
       void sendAdminPush('New chat escalation', message);
-      void socketEmit('admins', 'new_escalation', { threadId: thread.id, preview: message, confidence });
+      void socketEmit('admins', 'new_escalation', {
+        threadId: thread.id,
+        preview: message,
+        confidence
+      });
     }
 
     // Broadcast assistant message to user room (non-blocking)
@@ -51,11 +59,11 @@ export async function POST(req: NextRequest) {
       messageId: assistantMsg.id,
       answer,
       confidence,
-      escalated: shouldEscalate,
+      escalated: shouldEscalate
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Chat failed. Please try again.';
-     
+
     console.error('/api/chat/ask error:', e);
     return NextResponse.json({ error: msg }, { status: 500 });
   }

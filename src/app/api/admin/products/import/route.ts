@@ -1,8 +1,8 @@
 // src/app/api/admin/products/import/route.ts
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
@@ -11,7 +11,9 @@ export const runtime = 'nodejs';
 ------------------------------------------- */
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
-type SessionUserWithRole = { role?: Role | null };
+interface SessionUserWithRole {
+  role?: Role | null;
+}
 
 const hasRole = (u: unknown): u is SessionUserWithRole =>
   !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
@@ -77,7 +79,6 @@ function detectAndNormalizeImageUrl(input: unknown): ImgDetect {
 
   // try to salvage odd characters so new URL() succeeds
   try {
-     
     new URL(s);
   } catch {
     s = encodeURI(s);
@@ -104,7 +105,7 @@ function detectAndNormalizeImageUrl(input: unknown): ImgDetect {
       const dIndex = parts.indexOf('d', fileIndex);
       if (dIndex !== -1 && parts[dIndex + 1]) id = parts[dIndex + 1];
     }
-    if (!id) id = u.searchParams.get('id');
+    id ??= u.searchParams.get('id');
 
     if (id) {
       const direct = new URL('https://drive.google.com/uc');
@@ -190,7 +191,9 @@ function normalizeKeys(o: Row): NormalizedRow {
 }
 
 function truthy(val: unknown): boolean | undefined {
-  const v = String(val ?? '').trim().toUpperCase();
+  const v = String(val ?? '')
+    .trim()
+    .toUpperCase();
   if (v === 'TRUE') return true;
   if (v === 'FALSE') return false;
   return undefined;
@@ -206,7 +209,6 @@ function pickKeys<T extends Record<string, unknown>>(obj: T, keys: string[]): Pa
   const out: Partial<T> = {};
   for (const k of keys) {
     if (k in obj) {
-       
       (out as Record<string, unknown>)[k] = (obj as Record<string, unknown>)[k];
     }
   }
@@ -218,7 +220,11 @@ function pickKeys<T extends Record<string, unknown>>(obj: T, keys: string[]): Pa
 ------------------------------------------- */
 
 function mapToProductCreate(id: string, r: NormalizedRow) {
-  const detected = detectAndNormalizeImageUrl(r.productimageurl || r.image || null);
+  // Prefer a non-empty productimageurl; otherwise use image; otherwise null
+  const primary = r.productimageurl?.trim();
+  const secondary = r.image?.trim();
+  const chosen = primary && primary.length > 0 ? primary : (secondary ?? null);
+  const detected = detectAndNormalizeImageUrl(chosen && chosen.length > 0 ? chosen : null);
 
   return {
     id,
@@ -280,7 +286,7 @@ function mapToProductCreate(id: string, r: NormalizedRow) {
     customTextCharLimit2: r.customtextcharlimit2 ? Number(r.customtextcharlimit2) : null,
     customTextMandatory2: truthy(r.customtextmandatory2) ?? null,
 
-    brand: r.brand || null,
+    brand: r.brand || null
   };
 }
 
@@ -297,7 +303,9 @@ function mapToProductUpdate(r: NormalizedRow) {
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
+  const role: Role | undefined = hasRole(session?.user)
+    ? (session!.user.role ?? undefined)
+    : undefined;
   if (!role || (role !== 'HEAD' && role !== 'STAFF')) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
   }
@@ -306,7 +314,8 @@ export async function POST(req: Request) {
   if (!form) return NextResponse.json({ message: 'Invalid form data' }, { status: 400 });
 
   const file = form.get('file');
-  if (!(file instanceof File)) return NextResponse.json({ message: 'Missing file' }, { status: 400 });
+  if (!(file instanceof File))
+    return NextResponse.json({ message: 'Missing file' }, { status: 400 });
 
   const text = await file.text();
   const { headers, rows } = parseCSV(text);
@@ -319,22 +328,26 @@ export async function POST(req: Request) {
 
   if (hasFieldType) {
     // Wix-style: pair "Product" + "Variant" by handleId
-    type AccValue = { product?: NormalizedRow; variant?: NormalizedRow };
+    interface AccValue {
+      product?: NormalizedRow;
+      variant?: NormalizedRow;
+    }
     const acc: Record<string, AccValue> = {};
 
     for (const r of rows) {
       const row = normalizeKeys(r);
-      const handleId = (row.handleid || row.handleId || '').trim();
-      const fieldType = (row.fieldtype || row.fieldType || '').trim();
+      const handleId = (row.handleid ?? '').trim();
+      const fieldType = (row.fieldtype ?? '').trim();
       if (!handleId) {
         skipped++;
         continue;
       }
 
-      acc[handleId] ||= {};
+      // ✅ nullish coalescing assignment (fixes lint)
+      acc[handleId] ??= {};
       if (fieldType === 'Product') acc[handleId].product = row;
       else if (fieldType === 'Variant') acc[handleId].variant = row;
-      else acc[handleId].product = { ...(acc[handleId].product || {}), ...row };
+      else acc[handleId].product = { ...(acc[handleId].product ?? {}), ...row };
     }
 
     for (const id of Object.keys(acc)) {
@@ -343,14 +356,21 @@ export async function POST(req: Request) {
       // Variant can override sku/price/inventory/weight AND image fields
       const merged: NormalizedRow = {
         ...p,
-        ...(pickKeys(v, ['sku', 'price', 'inventory', 'weight', 'productimageurl', 'image']) as NormalizedRow),
+        ...(pickKeys(v, [
+          'sku',
+          'price',
+          'inventory',
+          'weight',
+          'productimageurl',
+          'image'
+        ]) as NormalizedRow)
       };
 
       try {
         await prisma.product.upsert({
           where: { id },
           update: mapToProductUpdate(merged),
-          create: mapToProductCreate(id, merged),
+          create: mapToProductCreate(id, merged)
         });
         upserted++;
       } catch {
@@ -361,8 +381,8 @@ export async function POST(req: Request) {
     // Simple CSV (no fieldType) — allow id or handleId as primary key
     for (const r of rows) {
       const row = normalizeKeys(r);
-      const id = (row.id || row.handleid || '').trim();
-      const name = (row.name || '').trim();
+      const id = (row.id ?? row.handleid ?? '').trim();
+      const name = (row.name ?? '').trim();
       if (!id || !name) {
         skipped++;
         continue;
@@ -372,7 +392,7 @@ export async function POST(req: Request) {
         await prisma.product.upsert({
           where: { id },
           update: mapToProductUpdate(row),
-          create: mapToProductCreate(id, row),
+          create: mapToProductCreate(id, row)
         });
         upserted++;
       } catch {

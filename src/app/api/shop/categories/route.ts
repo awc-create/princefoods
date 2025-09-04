@@ -1,12 +1,12 @@
 import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 
-type CatOut = {
+interface CatOut {
   name: string;
   slug: string;
   count: number;
   children: { name: string; slug: string; count: number }[];
-};
+}
 
 export async function GET() {
   try {
@@ -26,10 +26,10 @@ export async function GET() {
             id: true,
             name: true,
             slug: true,
-            _count: { select: { products: true } }, // direct products on the child
-          },
-        },
-      },
+            _count: { select: { products: true } } // direct products on the child
+          }
+        }
+      }
     });
 
     const result: CatOut[] = parents
@@ -38,12 +38,11 @@ export async function GET() {
           .map((c) => ({
             name: c.name,
             slug: c.slug,
-            count: c._count.products,
+            count: c._count.products
           }))
           .filter((c) => c.count > 0);
 
-        const total =
-          p._count.products + childWithCounts.reduce((a, b) => a + b.count, 0);
+        const total = p._count.products + childWithCounts.reduce((a, b) => a + b.count, 0);
 
         if (total <= 0) return null; // hide parents with zero (parent + children) products
 
@@ -51,7 +50,7 @@ export async function GET() {
           name: p.name,
           slug: p.slug,
           count: total,
-          children: childWithCounts,
+          children: childWithCounts
         };
       })
       .filter(Boolean) as CatOut[];

@@ -1,13 +1,15 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
-import bcrypt from 'bcryptjs';
 import type { Prisma } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+import { getServerSession } from 'next-auth';
+import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-type Params = { params: { id: string } };
+interface Params {
+  params: { id: string };
+}
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
 
 const isHead = (u: unknown): boolean =>
@@ -43,7 +45,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const updated = await prisma.user.update({
       where: { id: params.id },
       data,
-      select: { id: true, name: true, email: true, role: true },
+      select: { id: true, name: true, email: true, role: true }
     });
     return NextResponse.json(updated);
   } catch (err: unknown) {
@@ -61,7 +63,7 @@ export async function DELETE(_req: Request, { params }: Params) {
   // Don't allow deleting HEAD via this endpoint
   const target = await prisma.user.findUnique({
     where: { id: params.id },
-    select: { id: true, role: true },
+    select: { id: true, role: true }
   });
 
   if (!target) {

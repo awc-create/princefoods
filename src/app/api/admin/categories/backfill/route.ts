@@ -1,13 +1,15 @@
 // src/app/api/admin/categories/backfill/route.ts
-import { NextResponse } from 'next/server';
+import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth-options';
+import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
-type SessionUserWithRole = { role?: Role | null };
+interface SessionUserWithRole {
+  role?: Role | null;
+}
 
 function hasRole(u: unknown): u is SessionUserWithRole {
   return !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
@@ -44,7 +46,9 @@ export async function POST(req: Request) {
   try {
     // ---- AUTH (same as your other admin APIs)
     const session = await getServerSession(authOptions);
-    const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
+    const role: Role | undefined = hasRole(session?.user)
+      ? (session!.user.role ?? undefined)
+      : undefined;
     if (!role) {
       return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
     }
@@ -65,8 +69,8 @@ export async function POST(req: Request) {
           diagnostics: {
             hasProduct,
             hasCategory,
-            prismaKeys: Object.keys(prisma as unknown as Record<string, unknown>),
-          },
+            prismaKeys: Object.keys(prisma as unknown as Record<string, unknown>)
+          }
         },
         { status: 500 }
       );
@@ -76,12 +80,12 @@ export async function POST(req: Request) {
     const products = await prisma.product.findMany({
       select: { id: true, collection: true, categoryId: true },
       where: { collection: { not: null } },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'asc' }
     });
 
     // Optional debug snapshot
     const sampleCollections = products
-      .map((p) => p.collection || '')
+      .map((p) => p.collection ?? '')
       .filter(Boolean)
       .slice(0, 5);
 
@@ -90,7 +94,7 @@ export async function POST(req: Request) {
       const parentSlug = slugify(name);
       const hit = await prisma.category.findUnique({
         where: { slug: parentSlug },
-        select: { id: true, slug: true, parentId: true, name: true, isActive: true },
+        select: { id: true, slug: true, parentId: true, name: true, isActive: true }
       });
 
       if (hit && hit.parentId === null) {
@@ -98,7 +102,7 @@ export async function POST(req: Request) {
           const upd = await prisma.category.update({
             where: { id: hit.id },
             data: { isActive: true, name },
-            select: { id: true, slug: true, parentId: true, name: true, isActive: true },
+            select: { id: true, slug: true, parentId: true, name: true, isActive: true }
           });
           return upd;
         }
@@ -110,7 +114,7 @@ export async function POST(req: Request) {
         where: { slug: parentSlug },
         update: { parentId: null, isActive: true, name },
         create: { name, slug: parentSlug, parentId: null, isActive: true },
-        select: { id: true, slug: true, parentId: true, name: true, isActive: true },
+        select: { id: true, slug: true, parentId: true, name: true, isActive: true }
       });
       return created;
     }
@@ -121,7 +125,7 @@ export async function POST(req: Request) {
 
       let existing = await prisma.category.findUnique({
         where: { slug: childSlug },
-        select: { id: true, slug: true, parentId: true, name: true, isActive: true },
+        select: { id: true, slug: true, parentId: true, name: true, isActive: true }
       });
 
       if (existing && existing.parentId === parent.id) {
@@ -129,7 +133,7 @@ export async function POST(req: Request) {
           existing = await prisma.category.update({
             where: { id: existing.id },
             data: { isActive: true, name: childName },
-            select: { id: true, slug: true, parentId: true, name: true, isActive: true },
+            select: { id: true, slug: true, parentId: true, name: true, isActive: true }
           });
         }
         return existing;
@@ -138,11 +142,11 @@ export async function POST(req: Request) {
       // slug collision under different parent -> suffix
       if (existing && existing.parentId !== parent.id) {
         let n = 2;
-         
+
         while (
           await prisma.category.findUnique({
             where: { slug: `${parent.slug}-${base}-${n}` },
-            select: { id: true },
+            select: { id: true }
           })
         ) {
           n++;
@@ -152,7 +156,7 @@ export async function POST(req: Request) {
 
       const created = await prisma.category.create({
         data: { name: childName, slug: childSlug, parentId: parent.id, isActive: true },
-        select: { id: true, slug: true, parentId: true, name: true, isActive: true },
+        select: { id: true, slug: true, parentId: true, name: true, isActive: true }
       });
       return created;
     }
@@ -167,14 +171,14 @@ export async function POST(req: Request) {
       if (!parts.length) continue;
 
       const parentName = parts[0];
-       
+
       const parent = await ensureParent(parentName);
       parentsTouched.add(parent.slug);
 
       let targetId = parent.id;
       if (parts.length > 1) {
         const childName = parts[parts.length - 1];
-         
+
         const child = await ensureChild(childName, { id: parent.id, slug: parent.slug });
         childrenTouched.add(child.slug);
         targetId = child.id;
@@ -189,13 +193,13 @@ export async function POST(req: Request) {
       const chunk = 100;
       for (let i = 0; i < updates.length; i += chunk) {
         const slice = updates.slice(i, i + chunk);
-         
+
         await prisma.$transaction(
           slice.map((u) =>
             prisma.product.update({
               where: { id: u.id },
               data: { categoryId: u.categoryId },
-              select: { id: true },
+              select: { id: true }
             })
           )
         );
@@ -217,14 +221,14 @@ export async function POST(req: Request) {
             diagnostics: {
               hasProduct,
               hasCategory,
-              sampleCollections,
-            },
+              sampleCollections
+            }
           }
-        : {}),
+        : {})
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err ?? 'Unknown error in backfill');
-     
+
     console.error('[categories/backfill] ERROR:', err);
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }

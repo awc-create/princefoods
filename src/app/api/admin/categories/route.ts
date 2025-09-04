@@ -1,13 +1,15 @@
 // src/app/api/admin/categories/route.ts
-import { NextResponse } from 'next/server';
+import { authOptions } from '@/lib/auth-options';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth-options';
+import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
-type SessionUserWithRole = { role?: Role | null };
+interface SessionUserWithRole {
+  role?: Role | null;
+}
 
 function hasRole(u: unknown): u is SessionUserWithRole {
   return !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
@@ -37,8 +39,8 @@ export async function GET() {
           position: true,
           isActive: true,
           imageUrl: true,
-          _count: { select: { children: true } },
-        },
+          _count: { select: { children: true } }
+        }
       });
       return json(items);
     } catch {
@@ -50,10 +52,14 @@ export async function GET() {
           name: true,
           slug: true,
           isActive: true,
-          _count: { select: { children: true } },
-        },
+          _count: { select: { children: true } }
+        }
       });
-      const withDefaults = items.map((c) => ({ position: 0, imageUrl: null as string | null, ...c }));
+      const withDefaults = items.map((c) => ({
+        position: 0,
+        imageUrl: null as string | null,
+        ...c
+      }));
       return json(withDefaults);
     }
   } catch (e: unknown) {
@@ -65,7 +71,9 @@ export async function GET() {
 // POST: create parent or child (auth required; safe JSON)
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
+  const role: Role | undefined = hasRole(session?.user)
+    ? (session!.user.role ?? undefined)
+    : undefined;
   if (!role) return json({ message: 'Unauthorized' }, { status: 401 });
 
   try {
@@ -83,7 +91,7 @@ export async function POST(req: Request) {
           where: { slug },
           update: { name, isActive: true, parentId: pid, imageUrl: imageUrl ?? null },
           create: { name, slug, isActive: true, parentId: pid, imageUrl: imageUrl ?? null },
-          select: { id: true },
+          select: { id: true }
         });
         return cat.id;
       } catch {
@@ -91,7 +99,7 @@ export async function POST(req: Request) {
           where: { slug },
           update: { name, isActive: true, parentId: pid },
           create: { name, slug, isActive: true, parentId: pid },
-          select: { id: true },
+          select: { id: true }
         });
         return cat.id;
       }
@@ -103,16 +111,27 @@ export async function POST(req: Request) {
       return json({ ok: true, id });
     }
 
-    const parent = await prisma.category.findUnique({ where: { id: parentId }, select: { id: true, slug: true } });
+    const parent = await prisma.category.findUnique({
+      where: { id: parentId },
+      select: { id: true, slug: true }
+    });
     if (!parent) return json({ message: 'Parent not found' }, { status: 404 });
 
     const base = slugify(name);
     let slug = `${parent.slug}-${base}`;
-    const clash = await prisma.category.findUnique({ where: { slug }, select: { id: true, parentId: true } });
+    const clash = await prisma.category.findUnique({
+      where: { slug },
+      select: { id: true, parentId: true }
+    });
     if (clash && clash.parentId !== parent.id) {
       let n = 2;
-       
-      while (await prisma.category.findUnique({ where: { slug: `${parent.slug}-${base}-${n}` }, select: { id: true } }))
+
+      while (
+        await prisma.category.findUnique({
+          where: { slug: `${parent.slug}-${base}-${n}` },
+          select: { id: true }
+        })
+      )
         n++;
       slug = `${parent.slug}-${base}-${n}`;
     }

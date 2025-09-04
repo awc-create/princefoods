@@ -1,15 +1,17 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { NextResponse } from 'next/server';
 
 type BulkBody =
   | { action: 'hide' | 'show' | 'delete'; ids: string[] }
   | { action: 'hide' | 'show' | 'delete'; allMatching: true; search?: string | null };
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
-type SessionUserWithRole = { role?: Role | null };
+interface SessionUserWithRole {
+  role?: Role | null;
+}
 
 function hasRole(u: unknown): u is SessionUserWithRole {
   return !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
@@ -24,8 +26,8 @@ function buildSearchWhere(q: string | null | undefined): Prisma.ProductWhereInpu
       { sku: { contains: term, mode: 'insensitive' } },
       { brand: { contains: term, mode: 'insensitive' } },
       { collection: { contains: term, mode: 'insensitive' } },
-      { description: { contains: term, mode: 'insensitive' } },
-    ],
+      { description: { contains: term, mode: 'insensitive' } }
+    ]
   };
 }
 
@@ -33,7 +35,9 @@ export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
+  const role: Role | undefined = hasRole(session?.user)
+    ? (session!.user.role ?? undefined)
+    : undefined;
   if (!role || (role !== 'HEAD' && role !== 'STAFF')) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
   }

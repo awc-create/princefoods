@@ -1,10 +1,12 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import { getServerSession } from 'next-auth';
+import { NextResponse } from 'next/server';
 
-type SessionUserWithId = { id?: string | null };
+interface SessionUserWithId {
+  id?: string | null;
+}
 
 function hasId(u: unknown): u is SessionUserWithId {
   return !!u && typeof u === 'object' && 'id' in (u as Record<string, unknown>);
@@ -28,7 +30,7 @@ export async function POST(req: Request) {
   const userId = session.user.id;
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, password: true },
+    select: { id: true, password: true }
   });
 
   if (!user?.password) {

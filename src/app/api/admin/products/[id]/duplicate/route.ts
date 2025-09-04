@@ -1,12 +1,14 @@
 // src/app/api/admin/products/[id]/duplicate/route.ts
-import { NextResponse } from 'next/server';
+import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth-options';
+import { NextResponse } from 'next/server';
+import crypto from 'node:crypto';
 
-type Params = { params: { id: string } };
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
-type SessionUserWithRole = { role?: Role | null };
+interface SessionUserWithRole {
+  role?: Role | null;
+}
 
 function hasRole(u: unknown): u is SessionUserWithRole {
   return !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
@@ -14,9 +16,33 @@ function hasRole(u: unknown): u is SessionUserWithRole {
 
 export const runtime = 'nodejs';
 
-export async function POST(_req: Request, { params }: Params) {
+// If sku isn't unique, we must use findFirst, not findUnique
+async function uniqueSku(base: string | null | undefined) {
+  if (!base) return null;
+  const first = `${base}-COPY`;
+  let candidate = first;
+  let n = 1;
+
+  while (n <= 50) {
+    const exists = await prisma.product.findFirst({
+      where: { sku: candidate },
+      select: { id: true }
+    });
+    if (!exists) return candidate;
+    n += 1;
+    candidate = `${first}-${n}`;
+  }
+  return `${first}-${crypto.randomBytes(3).toString('hex')}`;
+}
+
+export async function POST(_req: Request, ctx: unknown) {
+  // Cast second arg locally to satisfy Next's validator
+  const { params } = ctx as { params: { id: string } };
+
   const session = await getServerSession(authOptions);
-  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
+  const role: Role | undefined = hasRole(session?.user)
+    ? (session!.user.role ?? undefined)
+    : undefined;
   if (!role || (role !== 'HEAD' && role !== 'STAFF')) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
   }
@@ -24,21 +50,22 @@ export async function POST(_req: Request, { params }: Params) {
   const src = await prisma.product.findUnique({ where: { id: params.id } });
   if (!src) return NextResponse.json({ message: 'Not found' }, { status: 404 });
 
-  const cloneId = `${src.id}-copy-${Math.random().toString(36).slice(2, 7)}`;
-  const cloneName = `${src.name} (Copy)`;
-
-  // Omit immutable/auto fields that exist on your model (no updatedAt on this schema)
+  // No `any`, no `updatedAt` (since your schema doesn’t have it)
   const { id: _oldId, createdAt: _createdAt, ...rest } = src;
+
+  const cloneId = crypto.randomUUID();
+  const cloneName = `${src.name} (Copy)`;
+  const newSku = await uniqueSku(src.sku ?? undefined);
 
   const created = await prisma.product.create({
     data: {
       ...rest,
       id: cloneId,
       name: cloneName,
-      sku: src.sku ? `${src.sku}-COPY` : null,
+      sku: newSku // stays null if source had no SKU
     },
-    select: { id: true },
+    select: { id: true }
   });
 
-  return NextResponse.json({ id: created.id });
+  return NextResponse.json({ id: created.id }, { status: 201 });
 }

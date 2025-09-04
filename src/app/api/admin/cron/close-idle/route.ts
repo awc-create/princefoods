@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,18 +10,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
-  const idleMinutes = Number(process.env.CHAT_IDLE_MINUTES || 8);
+  const idleMinutes = Number(process.env.CHAT_IDLE_MINUTES ?? 8);
   const cutoff = new Date(Date.now() - idleMinutes * 60_000);
 
   // Pull open threads with their latest message
   const threads = await prisma.chatThread.findMany({
     where: { status: 'open' },
     include: {
-      messages: { orderBy: { createdAt: 'desc' }, take: 1 },
-    },
+      messages: { orderBy: { createdAt: 'desc' }, take: 1 }
+    }
   });
 
-  const toClose = threads.filter(t => {
+  const toClose = threads.filter((t) => {
     const last = t.messages[0];
     if (!last) return false; // no messages? nothing to do
     const isIdle = last.createdAt <= cutoff;
@@ -33,15 +33,15 @@ export async function GET(req: NextRequest) {
     await prisma.$transaction([
       prisma.chatThread.update({
         where: { id: t.id },
-        data: { status: 'closed' },
+        data: { status: 'closed' }
       }),
       prisma.chatMessage.create({
         data: {
           threadId: t.id,
           role: 'system',
-          content: `AUTO_CLOSE: idle > ${idleMinutes}m`,
-        },
-      }),
+          content: `AUTO_CLOSE: idle > ${idleMinutes}m`
+        }
+      })
     ]);
   }
 

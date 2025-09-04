@@ -1,8 +1,8 @@
 // src/app/api/admin/products/import-delete/route.ts
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
@@ -57,13 +57,17 @@ function normalizeKeys(o: Record<string, string>): Record<string, string> {
 }
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
-type SessionUserWithRole = { role?: Role | null };
+interface SessionUserWithRole {
+  role?: Role | null;
+}
 const hasRole = (u: unknown): u is SessionUserWithRole =>
   !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
+  const role: Role | undefined = hasRole(session?.user)
+    ? (session!.user.role ?? undefined)
+    : undefined;
   if (!role || (role !== 'HEAD' && role !== 'STAFF')) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
   }
@@ -72,7 +76,8 @@ export async function POST(req: Request) {
   if (!form) return NextResponse.json({ message: 'Invalid form data' }, { status: 400 });
 
   const file = form.get('file');
-  if (!(file instanceof File)) return NextResponse.json({ message: 'Missing file' }, { status: 400 });
+  if (!(file instanceof File))
+    return NextResponse.json({ message: 'Missing file' }, { status: 400 });
 
   const text = await file.text();
   const { headers, rows } = parseCSV(text);
@@ -116,7 +121,7 @@ export async function POST(req: Request) {
     }
     if (skus.length) {
       const res = await tx.product.deleteMany({
-        where: { sku: { in: skus } },
+        where: { sku: { in: skus } }
       });
       deleted += res.count;
     }
@@ -126,6 +131,6 @@ export async function POST(req: Request) {
     ok: true,
     deleted,
     receivedIds: ids.length,
-    receivedSkus: skus.length,
+    receivedSkus: skus.length
   });
 }

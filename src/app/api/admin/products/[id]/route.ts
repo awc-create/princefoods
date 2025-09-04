@@ -1,11 +1,15 @@
-import { NextResponse } from 'next/server';
+import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth-options';
+import { NextResponse } from 'next/server';
 
-type Params = { params: { id: string } };
+interface Params {
+  params: { id: string };
+}
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
-type SessionUserWithRole = { role?: Role | null };
+interface SessionUserWithRole {
+  role?: Role | null;
+}
 
 function hasRole(u: unknown): u is SessionUserWithRole {
   return !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
@@ -15,7 +19,9 @@ export const runtime = 'nodejs';
 
 export async function GET(_req: Request, { params }: Params) {
   const session = await getServerSession(authOptions);
-  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
+  const role: Role | undefined = hasRole(session?.user)
+    ? (session!.user.role ?? undefined)
+    : undefined;
   if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
   const product = await prisma.product.findUnique({ where: { id: params.id } });
@@ -25,7 +31,9 @@ export async function GET(_req: Request, { params }: Params) {
 
 export async function PATCH(req: Request, { params }: Params) {
   const session = await getServerSession(authOptions);
-  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
+  const role: Role | undefined = hasRole(session?.user)
+    ? (session!.user.role ?? undefined)
+    : undefined;
   if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
   const body = (await req.json().catch(() => ({}))) as {
@@ -51,9 +59,9 @@ export async function PATCH(req: Request, { params }: Params) {
       ...(collection !== undefined ? { collection } : {}),
       ...(productImageUrl !== undefined ? { productImageUrl } : {}),
       ...(description !== undefined ? { description } : {}),
-      ...(visible !== undefined ? { visible: !!visible } : {}),
+      ...(visible !== undefined ? { visible: !!visible } : {})
     },
-    select: { id: true },
+    select: { id: true }
   });
 
   return NextResponse.json({ ok: true, id: updated.id });
@@ -61,7 +69,9 @@ export async function PATCH(req: Request, { params }: Params) {
 
 export async function DELETE(_req: Request, { params }: Params) {
   const session = await getServerSession(authOptions);
-  const role: Role | undefined = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
+  const role: Role | undefined = hasRole(session?.user)
+    ? (session!.user.role ?? undefined)
+    : undefined;
   if (!role || (role !== 'HEAD' && role !== 'STAFF')) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
   }
