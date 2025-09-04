@@ -1,20 +1,19 @@
-import { NextResponse } from 'next/server';
+import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import slugify from '@/utils/slugify';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth-options';
+import { NextResponse } from 'next/server';
 
-/** ↓ Add these two lines once at top of file ↓ */
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
-type SessionUserWithRole = { role?: Role };
+interface SessionUserWithRole {
+  role?: Role | null;
+}
 
-export async function GET(
-  _req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_req: Request, ctx: unknown) {
+  const { params } = ctx as { params: { id: string } };
+
   const session = await getServerSession(authOptions);
-  /** ↓ Replace any-cast with typed narrowing ↓ */
-  const role = (session?.user as SessionUserWithRole)?.role;
+  const role = (session?.user as SessionUserWithRole | undefined)?.role;
   if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
   const parent = await prisma.category.findUnique({
@@ -30,41 +29,41 @@ export async function GET(
   return NextResponse.json(parent);
 }
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(req: Request, ctx: unknown) {
+  const { params } = ctx as { params: { id: string } };
+
   const session = await getServerSession(authOptions);
-  /** ↓ Replace any-cast with typed narrowing ↓ */
-  const role = (session?.user as SessionUserWithRole)?.role;
+  const role = (session?.user as SessionUserWithRole | undefined)?.role;
   if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
-  const body = await req.json();
-  const { name, position, isActive } = body as { name?: string; position?: number; isActive?: boolean };
+  const body = (await req.json().catch(() => ({}))) as {
+    name?: string;
+    position?: number;
+    isActive?: boolean;
+  };
 
   const data: Record<string, unknown> = {};
-  if (typeof name === 'string' && name.trim()) {
-    data.name = name.trim();
-    data.slug = slugify(name);
+  if (typeof body.name === 'string' && body.name.trim()) {
+    const n = body.name.trim();
+    data.name = n;
+    data.slug = slugify(n);
   }
-  if (Number.isInteger(position)) data.position = position;
-  if (typeof isActive === 'boolean') data.isActive = isActive;
+  if (Number.isInteger(body.position)) data.position = body.position;
+  if (typeof body.isActive === 'boolean') data.isActive = body.isActive;
 
   const updated = await prisma.category.update({
     where: { id: params.id },
-    data,
+    data
   });
 
   return NextResponse.json(updated);
 }
 
-export async function DELETE(
-  _req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(_req: Request, ctx: unknown) {
+  const { params } = ctx as { params: { id: string } };
+
   const session = await getServerSession(authOptions);
-  /** ↓ Replace any-cast with typed narrowing ↓ */
-  const role = (session?.user as SessionUserWithRole)?.role;
+  const role = (session?.user as SessionUserWithRole | undefined)?.role;
   if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
   const hasChildren = await prisma.category.count({ where: { parentId: params.id } });
@@ -75,6 +74,7 @@ export async function DELETE(
       { status: 400 }
     );
   }
+
   await prisma.category.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 }

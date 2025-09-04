@@ -1,13 +1,15 @@
 // src/app/api/admin/categories/[id]/products/route.ts
-import { NextResponse } from 'next/server';
+import { authOptions } from '@/lib/auth-options';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth-options';
+import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
-type SessionUserWithRole = { role?: Role | null };
+interface SessionUserWithRole {
+  role?: Role | null;
+}
 
 function hasRole(u: unknown): u is SessionUserWithRole {
   return !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
@@ -21,10 +23,10 @@ async function jsonOrEmpty<T = unknown>(req: Request): Promise<T | object> {
   }
 }
 
-export async function GET(
-  _req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_req: Request, ctx: unknown) {
+  // ✅ Cast ctx locally (don’t annotate the signature)
+  const { params } = ctx as { params: { id: string } };
+
   const session = await getServerSession(authOptions);
   const role = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
   if (!role) {
@@ -33,7 +35,7 @@ export async function GET(
 
   const cat = await prisma.category.findUnique({
     where: { id: params.id },
-    select: { id: true },
+    select: { id: true }
   });
   if (!cat) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
@@ -46,17 +48,17 @@ export async function GET(
       sku: true,
       price: true,
       productImageUrl: true,
-      visible: true,
-    },
+      visible: true
+    }
   });
 
   return NextResponse.json(products);
 }
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(req: Request, ctx: unknown) {
+  // ✅ Same cast pattern
+  const { params } = ctx as { params: { id: string } };
+
   const session = await getServerSession(authOptions);
   const role = hasRole(session?.user) ? (session!.user.role ?? undefined) : undefined;
   if (!role) {
@@ -74,14 +76,14 @@ export async function PATCH(
   if (assignIds.length) {
     await prisma.product.updateMany({
       where: { id: { in: assignIds } },
-      data: { categoryId: params.id },
+      data: { categoryId: params.id }
     });
   }
 
   if (unassignIds.length) {
     await prisma.product.updateMany({
       where: { id: { in: unassignIds }, categoryId: params.id },
-      data: { categoryId: null },
+      data: { categoryId: null }
     });
   }
 

@@ -1,88 +1,95 @@
-// src/app/api/admin/categories/[id]/products/route.ts
+// src/app/api/admin/categories/[id]/image/route.ts
 import { authOptions } from '@/lib/auth-options';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 
+import crypto from 'node:crypto';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+
 export const runtime = 'nodejs';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+
 interface SessionUserWithRole {
   role?: Role | null;
 }
+
 const hasRole = (u: unknown): u is SessionUserWithRole =>
   !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
 
-// GET /api/admin/categories/[id]/products
-export async function GET(_req: Request, ctx: unknown) {
-  try {
-    // 👇 Cast the 2nd arg *inside* to avoid Next’s validator error
-    const { params } = ctx as { params: { id: string } };
-    const session = await getServerSession(authOptions);
-    const role = hasRole(session?.user) ? (session!.user.role ?? null) : null;
-    if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+const ADMIN_ROLES = new Set<Role>(['HEAD', 'STAFF']);
 
-    const cat = await prisma.category.findUnique({
-      where: { id: params.id },
-      select: { id: true }
-    });
-    if (!cat) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
-    const products = await prisma.product.findMany({
-      where: { categoryId: params.id },
-      orderBy: [{ createdAt: 'desc' }],
-      select: {
-        id: true,
-        name: true,
-        sku: true,
-        price: true,
-        productImageUrl: true,
-        visible: true
-      }
-    });
-
-    return NextResponse.json(products);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Unexpected error';
-    return NextResponse.json({ message: msg }, { status: 500 });
-  }
+function extFromMime(mime: string | null | undefined): string {
+  const m = (mime ?? '').toLowerCase();
+  if (m === 'image/jpeg' || m === 'image/jpg') return 'jpg';
+  if (m === 'image/png') return 'png';
+  if (m === 'image/webp') return 'webp';
+  if (m === 'image/gif') return 'gif';
+  if (m === 'image/avif') return 'avif';
+  return 'jpg';
 }
 
-// PATCH /api/admin/categories/[id]/products
-export async function PATCH(req: Request, ctx: unknown) {
+function extFromName(name: string | null | undefined): string | null {
+  if (!name) return null;
+  const idx = name.lastIndexOf('.');
+  if (idx === -1) return null;
+  const ext = name
+    .slice(idx + 1)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+  return ext || null;
+}
+
+export async function POST(req: Request, ctx: unknown) {
   try {
+    // ✅ Cast the 2nd arg inside (avoids Next’s validator complaint)
     const { params } = ctx as { params: { id: string } };
+    const id = params.id;
+
     const session = await getServerSession(authOptions);
     const role = hasRole(session?.user) ? (session!.user.role ?? null) : null;
-    if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-
-    const raw = (await req.json().catch(() => ({}))) as unknown;
-    const body = (raw ?? {}) as { assignIds?: unknown; unassignIds?: unknown };
-
-    const assignIds = Array.isArray(body.assignIds)
-      ? body.assignIds.filter((v): v is string => typeof v === 'string' && v.length > 0)
-      : [];
-    const unassignIds = Array.isArray(body.unassignIds)
-      ? body.unassignIds.filter((v): v is string => typeof v === 'string' && v.length > 0)
-      : [];
-
-    if (assignIds.length) {
-      await prisma.product.updateMany({
-        where: { id: { in: assignIds } },
-        data: { categoryId: params.id }
-      });
+    if (!role) {
+      return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!ADMIN_ROLES.has(role)) {
+      return NextResponse.json({ ok: false, error: 'Forbidden' }, { status: 403 });
     }
 
-    if (unassignIds.length) {
-      await prisma.product.updateMany({
-        where: { id: { in: unassignIds }, categoryId: params.id },
-        data: { categoryId: null }
-      });
+    const form = await req.formData();
+    const file = form.get('file');
+    if (!(file instanceof File)) {
+      return NextResponse.json({ ok: false, error: 'No file' }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true });
+    const mime = file.type ?? '';
+    if (!mime.startsWith('image/')) {
+      return NextResponse.json({ ok: false, error: 'Only images are allowed' }, { status: 400 });
+    }
+
+    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'categories');
+    await fs.mkdir(uploadsDir, { recursive: true });
+
+    const ext = extFromName(file.name) ?? extFromMime(mime) ?? 'jpg';
+    const unique = crypto.randomBytes(4).toString('hex');
+    const name = `${id}-${Date.now()}-${unique}.${ext}`;
+    const fullPath = path.join(uploadsDir, name);
+
+    const buf = Buffer.from(await file.arrayBuffer());
+    await fs.writeFile(fullPath, buf);
+
+    const url = `/uploads/categories/${name}`;
+
+    await prisma.category.update({
+      where: { id },
+      data: { imageUrl: url },
+      select: { id: true }
+    });
+
+    return NextResponse.json({ ok: true, url });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Unexpected error';
-    return NextResponse.json({ message: msg }, { status: 500 });
+    const msg = e instanceof Error ? e.message : 'Upload failed';
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
