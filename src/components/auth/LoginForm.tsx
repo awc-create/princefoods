@@ -1,24 +1,47 @@
+// src/components/auth/LoginForm.tsx
 'use client';
 
 import styles from '@/app/login/LoginPage.module.scss';
 import { signIn } from 'next-auth/react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
-export default function LoginForm({ callbackUrl }: { callbackUrl: string }) {
+interface LoginFormProps {
+  /** Optional preferred callback. If omitted, falls back to ?callbackUrl=… or /admin */
+  callbackUrl?: string;
+}
+
+function safeCallbackUrl(raw?: string | null) {
+  // Default to /admin; never allow /admin/login as a target to avoid loops
+  if (!raw) return '/admin';
+  return raw.startsWith('/admin/login') ? '/admin' : raw;
+}
+
+export default function LoginForm(props: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
+  const sp = useSearchParams();
+  const queryCb = sp?.get('callbackUrl') ?? null;
+  const callbackUrl = safeCallbackUrl(props.callbackUrl ?? queryCb);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
     setPending(true);
     try {
-      await signIn('credentials', { email, password, redirect: true, callbackUrl });
+      await signIn('credentials', {
+        email,
+        password,
+        redirect: true,
+        callbackUrl
+      });
+      // With redirect:true, NextAuth navigates; nothing more to do
     } catch {
       setErr('Unexpected error. Try again.');
       setPending(false);
