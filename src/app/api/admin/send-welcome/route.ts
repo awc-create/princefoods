@@ -1,28 +1,26 @@
-// src/app/api/admin/send-welcome/route.ts
 import { prisma } from '@/lib/prisma';
+import { getResend } from '@/lib/resend';
 import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
-import { Resend } from 'resend';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST() {
-  // --- config guards (don’t crash build/runtime if unconfigured) ---
   if (process.env.RESEND_ENABLED !== 'true') {
     return NextResponse.json(
       { ok: false, message: 'Email disabled (RESEND_ENABLED != "true")' },
       { status: 501 }
     );
   }
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
+  const resend = getResend();
+  if (!resend) {
     return NextResponse.json({ ok: false, message: 'RESEND_API_KEY missing' }, { status: 501 });
   }
+
   const from = process.env.RESEND_FROM ?? 'Prince Foods <no-reply@prince-foods.com>';
   const replyTo = process.env.RESEND_REPLY_TO ?? undefined;
 
-  // Prefer admin URL for onboarding; fallback to public site URL.
   const baseUrl =
     process.env.NEXT_PUBLIC_ADMIN_URL ??
     process.env.NEXT_PUBLIC_SITE_URL ??
@@ -39,13 +37,10 @@ export async function POST() {
     );
   }
 
-  const resend = new Resend(apiKey);
-
-  // --- fetch pending users ---
   const users = await prisma.user.findMany({
     where: { source: 'WIX', welcomeStatus: 'PENDING' },
     take: 1000,
-    select: { id: true, email: true, firstName: true } // only what we need
+    select: { id: true, email: true, firstName: true }
   });
 
   let sent = 0;
@@ -54,7 +49,6 @@ export async function POST() {
 
   for (const u of users) {
     try {
-      // Generate token (7 days expiry)
       const token = crypto.randomBytes(24).toString('hex');
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
@@ -65,10 +59,9 @@ export async function POST() {
       const url = new URL('/welcome', baseUrl);
       url.searchParams.set('token', token);
 
-      // Send email
       await resend.emails.send({
         from,
-        ...(replyTo ? { reply_to: replyTo } : {}),
+        ...(replyTo ? { replyTo } : {}), // <-- camelCase
         to: u.email ?? '',
         subject: 'Welcome to Prince Foods — finish your account',
         html: `
@@ -79,7 +72,6 @@ export async function POST() {
         `
       });
 
-      // Mark as sent
       await prisma.user.update({
         where: { id: u.id },
         data: { welcomeStatus: 'SENT', welcomedAt: new Date() }
@@ -93,8 +85,6 @@ export async function POST() {
         email: u.email ?? null,
         error: e instanceof Error ? e.message : 'Unknown error'
       });
-      // Optionally: cleanup token on failure (comment out if you want to keep it)
-      // await prisma.passwordToken.deleteMany({ where: { userId: u.id } }).catch(() => {});
     }
   }
 

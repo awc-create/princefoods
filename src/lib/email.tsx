@@ -1,9 +1,7 @@
-import { Resend } from 'resend';
-// ⬇️ use renderAsync instead of render
 import ChatSLAEmail from '@/emails/ChatSLAEmail';
 import { renderAsync } from '@react-email/render';
+import { getResendOrThrow } from './resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY!);
 const FROM = process.env.EMAIL_FROM ?? 'Prince Foods <support@prince-foods.com>';
 const DEFAULT_TO = process.env.SUPPORT_EMAIL ?? 'support@prince-foods.com';
 
@@ -14,7 +12,6 @@ export async function sendSlaEmailTemplate(params: {
   minutesOverdue: number;
   to?: string | string[];
 }) {
-  // ⬇️ await the HTML so it’s a string
   const html = await renderAsync(
     <ChatSLAEmail
       threadId={params.threadId}
@@ -23,7 +20,7 @@ export async function sendSlaEmailTemplate(params: {
       minutesOverdue={params.minutesOverdue}
       brand={{
         primary: '#D62828',
-        logoUrl: `${process.env.APP_BASE_URL ?? 'https://www.prince-foods.com'}/assets/prince-foods-logo.png`,
+        logoUrl: `${process.env.NEXT_PUBLIC_ADMIN_URL ?? process.env.SITE_URL ?? 'https://www.prince-foods.com'}/assets/prince-foods-logo.png`,
         supportEmail: DEFAULT_TO
       }}
     />
@@ -31,17 +28,15 @@ export async function sendSlaEmailTemplate(params: {
 
   const to = Array.isArray(params.to) ? params.to : [params.to ?? DEFAULT_TO];
 
+  const resend = getResendOrThrow();
   const { error } = await resend.emails.send({
     from: FROM,
     to,
     subject: `Chat SLA breached • ${params.threadId}`,
-    html, // ✅ now a string
-    replyTo: process.env.REPLY_TO ?? DEFAULT_TO,
+    html,
+    replyTo: process.env.REPLY_TO ?? DEFAULT_TO, // <-- camelCase
     tags: [{ name: 'category', value: 'chat-sla' }]
   });
 
-  if (error) {
-    console.error('Resend error:', error);
-    throw error;
-  }
+  if (error) throw error;
 }
