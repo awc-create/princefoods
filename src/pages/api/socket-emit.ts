@@ -1,15 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-type Envelope<T = unknown> = {
+interface Envelope<T = unknown> {
   room: string;
   event: string;
   payload: T;
-};
+}
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const auth = req.headers.authorization || '';
+  const auth = req.headers.authorization ?? '';
   const key = auth.replace(/^Bearer\s+/i, '');
   if (key !== process.env.SOCKET_EMIT_KEY) return res.status(401).json({ error: 'unauthorized' });
 

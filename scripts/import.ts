@@ -1,8 +1,8 @@
 /* scripts/import.ts */
+import { PrismaClient } from '@prisma/client';
+import { parse } from 'csv-parse/sync';
 import fs from 'node:fs';
 import path from 'node:path';
-import { parse } from 'csv-parse/sync';
-import { PrismaClient } from '@prisma/client';
 import slugify from '../src/utils/slugify'; // <-- uses your util
 
 const prisma = new PrismaClient();
@@ -33,7 +33,7 @@ async function ensureParentCategory(name: string) {
   // try exact slug (parent has parentId null)
   const hit = await prisma.category.findUnique({
     where: { slug: parentSlug },
-    select: { id: true, slug: true, parentId: true, name: true, isActive: true },
+    select: { id: true, slug: true, parentId: true, name: true, isActive: true }
   });
 
   if (hit && hit.parentId === null) {
@@ -41,7 +41,7 @@ async function ensureParentCategory(name: string) {
       const updated = await prisma.category.update({
         where: { id: hit.id },
         data: { isActive: true, name },
-        select: { id: true, slug: true },
+        select: { id: true, slug: true }
       });
       return updated;
     }
@@ -53,7 +53,7 @@ async function ensureParentCategory(name: string) {
     where: { slug: parentSlug },
     update: { parentId: null, isActive: true, name },
     create: { name, slug: parentSlug, parentId: null, isActive: true },
-    select: { id: true, slug: true },
+    select: { id: true, slug: true }
   });
   return created;
 }
@@ -66,7 +66,7 @@ async function ensureChildCategory(childName: string, parentId: string, parentSl
   // exact slug?
   const existing = await prisma.category.findUnique({
     where: { slug: childSlug },
-    select: { id: true, slug: true, parentId: true, name: true, isActive: true },
+    select: { id: true, slug: true, parentId: true, name: true, isActive: true }
   });
 
   if (existing && existing.parentId === parentId) {
@@ -74,7 +74,7 @@ async function ensureChildCategory(childName: string, parentId: string, parentSl
       const updated = await prisma.category.update({
         where: { id: existing.id },
         data: { isActive: true, name: childName },
-        select: { id: true, slug: true },
+        select: { id: true, slug: true }
       });
       return updated;
     }
@@ -85,11 +85,11 @@ async function ensureChildCategory(childName: string, parentId: string, parentSl
   if (existing && existing.parentId !== parentId) {
     let n = 2;
     // find a free `${parentSlug}-${base}-${n}`
-     
+
     while (
       await prisma.category.findUnique({
         where: { slug: `${parentSlug}-${base}-${n}` },
-        select: { id: true },
+        select: { id: true }
       })
     ) {
       n++;
@@ -99,13 +99,15 @@ async function ensureChildCategory(childName: string, parentId: string, parentSl
 
   const created = await prisma.category.create({
     data: { name: childName, slug: childSlug, parentId, isActive: true },
-    select: { id: true, slug: true },
+    select: { id: true, slug: true }
   });
   return created;
 }
 
 /** Map a collection string to a categoryId: parent if 1 segment, otherwise the deepest child. */
-async function resolveCategoryIdFromCollection(collection: string | null | undefined): Promise<string | null> {
+async function resolveCategoryIdFromCollection(
+  collection: string | null | undefined
+): Promise<string | null> {
   const parts = splitCollectionPath(collection);
   if (!parts.length) return null;
 
@@ -126,7 +128,7 @@ async function main() {
     skip_empty_lines: true,
     relax_column_count: true,
     bom: true,
-    trim: true,
+    trim: true
   }) as Row[];
 
   // group by handleId / id
@@ -142,8 +144,10 @@ async function main() {
   let skipped = 0;
 
   for (const [handleId, group] of groups) {
-    const productRow = group.find((r) => (r.fieldType || '').toLowerCase() === 'product') || group[0];
-    const variantRow = group.find((r) => (r.fieldType || '').toLowerCase() === 'variant') || productRow;
+    const productRow =
+      group.find((r) => (r.fieldType || '').toLowerCase() === 'product') ?? group[0];
+    const variantRow =
+      group.find((r) => (r.fieldType || '').toLowerCase() === 'variant') ?? productRow;
     if (!productRow) {
       skipped++;
       continue;
@@ -154,12 +158,14 @@ async function main() {
     // Compute categoryId from collection string
     let categoryId: string | null = null;
     try {
-       
       categoryId = await resolveCategoryIdFromCollection(collection);
     } catch (e) {
       // keep importing the product even if category resolution fails
-       
-      console.warn(`Category resolve failed for ${handleId} (${collection ?? 'no collection'}):`, e);
+
+      console.warn(
+        `Category resolve failed for ${handleId} (${collection ?? 'no collection'}):`,
+        e
+      );
     }
 
     const record = {
@@ -217,34 +223,30 @@ async function main() {
       customTextMandatory2: toBool(productRow.customTextMandatory2) || false,
       brand: str(productRow, 'brand') || null,
       // computed from collection path: parent if 1 segment, else deepest child
-      categoryId,
+      categoryId
     };
 
     try {
       // Omit immutable/unsupported fields from update payload (e.g., id).
       const { id: _id, ...updateRecord } = record;
 
-       
       await prisma.product.upsert({
         where: { id: handleId },
         create: record,
-        update: updateRecord,
+        update: updateRecord
       });
       upserted++;
     } catch (e) {
-       
       console.error(`Upsert failed for ${handleId}:`, e);
       skipped++;
     }
   }
 
-   
   console.log(`✅ Done: upserted=${upserted}, skipped=${skipped}`);
 }
 
 main()
   .catch((e) => {
-     
     console.error(e);
     process.exit(1);
   })

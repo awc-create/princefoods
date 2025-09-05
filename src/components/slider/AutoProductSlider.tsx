@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import ProductSlider, { SliderProduct } from './ProductSlider';
 
-type Props = {
+interface Props {
   title: string;
   limit?: number;
   categoryId?: string;
@@ -11,10 +11,18 @@ type Props = {
   parentSlug?: string;
   collection?: string;
   sort?: 'newest' | 'price-asc' | 'price-desc' | 'random';
-};
+}
 
 export default function AutoProductSlider(props: Props) {
-  const { title, limit = 12, categoryId, categorySlug, parentSlug, collection, sort = 'newest' } = props;
+  const {
+    title,
+    limit = 12,
+    categoryId,
+    categorySlug,
+    parentSlug,
+    collection,
+    sort = 'newest'
+  } = props;
   const [items, setItems] = useState<SliderProduct[]>([]);
   const [ready, setReady] = useState(false);
 
@@ -28,8 +36,8 @@ export default function AutoProductSlider(props: Props) {
     if (collection) params.set('collection', collection);
 
     fetch(`/api/products?${params.toString()}`, { cache: 'no-store' })
-      .then(r => r.json())
-      .then(data => {
+      .then((r) => r.json())
+      .then((data) => {
         const products = (data?.products ?? []) as SliderProduct[];
         setItems(products);
       })

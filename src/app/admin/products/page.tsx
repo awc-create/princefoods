@@ -1,13 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
-import styles from './Products.module.scss';
-import { Megaphone, Eye, EyeOff, MoreVertical, Trash2, Upload, Download } from 'lucide-react';
 import { safeImageUrl } from '@/utils/safeImageUrl';
+import { Download, Eye, EyeOff, Megaphone, MoreVertical, Trash2, Upload } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import styles from './Products.module.scss';
 
-type Row = {
+interface Row {
   id: string;
   name: string;
   sku: string | null;
@@ -17,11 +17,14 @@ type Row = {
   productImageUrl: string | null;
   visible: boolean;
   createdAt: string;
-};
+}
 
 function childCategory(full?: string | null) {
   if (!full) return '—';
-  const parts = full.split(';').map((s) => s.trim()).filter(Boolean);
+  const parts = full
+    .split(';')
+    .map((s) => s.trim())
+    .filter(Boolean);
   return parts.length ? parts[parts.length - 1] : '—';
 }
 
@@ -49,8 +52,8 @@ export default function ProductsPage() {
     setLoading(true);
     const res = await fetch(`/api/admin/products?search=${encodeURIComponent(q)}&page=${page}`);
     const data = await res.json();
-    setRows(data.items || []);
-    setTotalPages(data.totalPages || 1);
+    setRows(data.items ?? []);
+    setTotalPages(data.totalPages ?? 1);
     setLoading(false);
   }, [q, page]);
 
@@ -120,7 +123,7 @@ export default function ProductsPage() {
     const res = await fetch(`/api/admin/products/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ visible: next }),
+      body: JSON.stringify({ visible: next })
     });
     if (res.ok) {
       setRows((rs) => rs.map((r) => (r.id === id ? { ...r, visible: next } : r)));
@@ -156,14 +159,14 @@ export default function ProductsPage() {
         const res = await fetch('/api/admin/products/bulk', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action, allMatching: true, search: q }),
+          body: JSON.stringify({ action, allMatching: true, search: q })
         });
         if (res.ok) {
           clearSelection();
           await load();
         } else {
           const err = await res.json().catch(() => ({}));
-          alert(err.message || 'Bulk action failed');
+          alert(err.message ?? 'Bulk action failed');
         }
         return;
       }
@@ -179,14 +182,14 @@ export default function ProductsPage() {
       const res = await fetch('/api/admin/products/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, ids }),
+        body: JSON.stringify({ action, ids })
       });
       if (res.ok) {
         clearSelection();
         await load();
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.message || 'Bulk action failed');
+        alert(err.message ?? 'Bulk action failed');
       }
     },
     [allMatchingSelected, q, clearSelection, load, idsSelected]
@@ -248,11 +251,20 @@ export default function ProductsPage() {
         </button>
       </div>
     );
-  }, [allOnPageSelected, allMatchingSelected, rows.length, matchingCount, selectAllMatching, clearSelection]);
+  }, [
+    allOnPageSelected,
+    allMatchingSelected,
+    rows.length,
+    matchingCount,
+    selectAllMatching,
+    clearSelection
+  ]);
 
   const bulkBar = useMemo(() => {
     if (!someSelected && !allMatchingSelected) return null;
-    const count = allMatchingSelected ? matchingCount ?? '…' : Object.values(selected).filter(Boolean).length;
+    const count = allMatchingSelected
+      ? (matchingCount ?? '…')
+      : Object.values(selected).filter(Boolean).length;
 
     return (
       <div className={styles.bulkBar}>
@@ -342,7 +354,13 @@ export default function ProductsPage() {
                     <td className={styles.picCell}>
                       <div className={styles.pic}>
                         {img ? (
-                          <Image src={img} alt={r.name} fill sizes="48px" style={{ objectFit: 'cover' }} />
+                          <Image
+                            src={img}
+                            alt={r.name}
+                            fill
+                            sizes="48px"
+                            style={{ objectFit: 'cover' }}
+                          />
                         ) : (
                           <div className={styles.placeholder}>📦</div>
                         )}
@@ -356,9 +374,9 @@ export default function ProductsPage() {
                         {!r.visible && <span className={styles.badge}>Hidden</span>}
                       </div>
                     </td>
-                    <td>{r.sku || '—'}</td>
+                    <td>{r.sku ?? '—'}</td>
                     <td>{r.price != null ? `£${r.price.toFixed(2)}` : '—'}</td>
-                    <td>{r.inventory || '—'}</td>
+                    <td>{r.inventory ?? '—'}</td>
                     <td>{childCategory(r.collection)}</td>
 
                     <td className={styles.actionsCell}>

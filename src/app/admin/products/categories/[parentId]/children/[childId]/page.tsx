@@ -1,10 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from './ProductsPage.module.scss';
 
-type Product = { id: string; name: string };
+interface Product {
+  id: string;
+  name: string;
+}
 
 export default function ProductsInChildPage() {
   const { childId } = useParams() as { childId: string };
@@ -18,7 +21,7 @@ export default function ProductsInChildPage() {
   const load = useCallback(async () => {
     const [inCatRes, allRes] = await Promise.all([
       fetch(`/api/admin/categories/${childId}/products`, { cache: 'no-store' }),
-      fetch(`/api/admin/products?limit=200&fields=id,name`, { cache: 'no-store' }),
+      fetch(`/api/admin/products?limit=200&fields=id,name`, { cache: 'no-store' })
     ]);
     setProducts(inCatRes.ok ? await inCatRes.json() : []);
     setAll(allRes.ok ? await allRes.json() : []);
@@ -37,10 +40,14 @@ export default function ProductsInChildPage() {
 
   const toggleAssign = (id: string, isInCategory: boolean) => {
     if (isInCategory) {
-      setPendingUnassign((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+      setPendingUnassign((prev) =>
+        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      );
       setPendingAssign((prev) => prev.filter((x) => x !== id));
     } else {
-      setPendingAssign((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+      setPendingAssign((prev) =>
+        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      );
       setPendingUnassign((prev) => prev.filter((x) => x !== id));
     }
   };
@@ -49,7 +56,7 @@ export default function ProductsInChildPage() {
     await fetch(`/api/admin/categories/${childId}/products`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assignIds: pendingAssign, unassignIds: pendingUnassign }),
+      body: JSON.stringify({ assignIds: pendingAssign, unassignIds: pendingUnassign })
     });
     load();
   };
@@ -61,7 +68,11 @@ export default function ProductsInChildPage() {
       <h2>Products in this category</h2>
 
       <div className={styles.toolbar}>
-        <input placeholder="Search products…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input
+          placeholder="Search products…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
         <button disabled={!pendingAssign.length && !pendingUnassign.length} onClick={commit}>
           Save changes
         </button>

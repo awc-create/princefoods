@@ -1,11 +1,11 @@
 // src/app/admin/products/[id]/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import styles from './Edit.module.scss';
 
-type Product = {
+interface Product {
   id: string;
   name: string;
   sku: string | null;
@@ -15,7 +15,7 @@ type Product = {
   productImageUrl: string | null;
   description: string | null;
   visible: boolean;
-};
+}
 
 export default function ProductEditPage() {
   // Don't destructure directly; handle possible null/loose typing
@@ -44,7 +44,9 @@ export default function ProductEditPage() {
       setLoading(false);
     })();
 
-    return () => { ignore = true; };
+    return () => {
+      ignore = true;
+    };
   }, [id]);
 
   if (!id) return <div className={styles.wrap}>Loading…</div>;
@@ -57,7 +59,7 @@ export default function ProductEditPage() {
     const res = await fetch(`/api/admin/products/${id}/edit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(p),
+      body: JSON.stringify(p)
     });
     setSaving(false);
     if (res.ok) router.push('/admin/products');
@@ -69,10 +71,7 @@ export default function ProductEditPage() {
       <div className={styles.form}>
         <label>
           Name
-          <input
-            value={p.name}
-            onChange={(e) => setP({ ...p, name: e.target.value })}
-          />
+          <input value={p.name} onChange={(e) => setP({ ...p, name: e.target.value })} />
         </label>
 
         <label>
@@ -89,9 +88,7 @@ export default function ProductEditPage() {
             type="number"
             step="0.01"
             value={p.price ?? ''}
-            onChange={(e) =>
-              setP({ ...p, price: e.target.value ? Number(e.target.value) : null })
-            }
+            onChange={(e) => setP({ ...p, price: e.target.value ? Number(e.target.value) : null })}
           />
         </label>
 
@@ -115,9 +112,7 @@ export default function ProductEditPage() {
           Image URL
           <input
             value={p.productImageUrl ?? ''}
-            onChange={(e) =>
-              setP({ ...p, productImageUrl: e.target.value || null })
-            }
+            onChange={(e) => setP({ ...p, productImageUrl: e.target.value || null })}
           />
         </label>
 

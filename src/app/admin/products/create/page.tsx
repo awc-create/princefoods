@@ -1,24 +1,23 @@
-/* eslint-disable @typescript-eslint/no-unused-expressions */
 'use client';
 
+import CategorySelector, { CategoryMap } from '@/components/category/CategorySelector';
+import ProductImageUpload from '@/components/image/ProductImageUpload';
 import { useEffect, useMemo, useState } from 'react';
-import styles from './CreateProduct.module.scss';
 import AdditionalInfoModal from './AdditionalInfoModal';
 import AddProductOptionModal from './AddProductOptionModal';
-import ProductImageUpload from '@/components/image/ProductImageUpload';
-import CategorySelector, { CategoryMap } from '@/components/category/CategorySelector';
+import styles from './CreateProduct.module.scss';
 
 type DiscountMode = '' | 'PERCENT' | 'AMOUNT';
 
-type ProductOption = {
+interface ProductOption {
   name: string;
   type: 'List' | 'Color';
   values: string[];
-};
+}
 
 type AdditionalInfo = Record<string, string | string[]>;
 
-type FormState = {
+interface FormState {
   name: string;
   ribbon: string;
   description: string;
@@ -37,7 +36,7 @@ type FormState = {
   collection: string[];
   additionalInfo: AdditionalInfo;
   productOptions: ProductOption[];
-};
+}
 
 export default function CreateProductPage() {
   const [categories, setCategories] = useState<CategoryMap>({});
@@ -59,7 +58,7 @@ export default function CreateProductPage() {
     productImageUrls: [],
     collection: [],
     additionalInfo: {},
-    productOptions: [],
+    productOptions: []
   });
 
   const [showModal, setShowModal] = useState(false);
@@ -93,13 +92,13 @@ export default function CreateProductPage() {
       price: isNum(form.price) ? form.price : 0,
       surcharge: isNum(form.surcharge) ? form.surcharge : 0,
       weight: isNum(form.weight) ? form.weight : 0,
-      discountValue: isNum(form.discountValue) ? form.discountValue : 0,
+      discountValue: isNum(form.discountValue) ? form.discountValue : 0
     };
 
     const res = await fetch('/api/products', {
       method: 'POST',
       body: JSON.stringify(body),
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' }
     });
     res.ok ? alert('Product created') : alert('Failed to create product');
   };
@@ -311,7 +310,7 @@ export default function CreateProductPage() {
           onSave={(option) =>
             setForm((prev) => ({
               ...prev,
-              productOptions: [...prev.productOptions, option],
+              productOptions: [...prev.productOptions, option]
             }))
           }
         />

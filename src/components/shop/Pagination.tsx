@@ -1,13 +1,12 @@
 'use client';
-import React from 'react';
 
 import styles from './Pagination.module.scss';
 
-type Props = {
-  page: number;          // current page (1-based)
-  pageCount: number;     // total pages
+interface Props {
+  page: number; // current page (1-based)
+  pageCount: number; // total pages
   onChange: (p: number) => void;
-};
+}
 
 export default function Pagination({ page, pageCount, onChange }: Props) {
   if (!pageCount || pageCount <= 1) return null;
@@ -26,7 +25,7 @@ export default function Pagination({ page, pageCount, onChange }: Props) {
   list.push(first);
 
   const start = Math.max(first + 1, page - win);
-  const end   = Math.min(last - 1, page + win);
+  const end = Math.min(last - 1, page + win);
 
   if (start > first + 1) list.push('…');
   for (let i = start; i <= end; i++) list.push(i);
@@ -47,7 +46,9 @@ export default function Pagination({ page, pageCount, onChange }: Props) {
 
       {list.map((it, idx) =>
         it === '…' ? (
-          <span key={`e${idx}`} className={styles.ellipsis} aria-hidden>…</span>
+          <span key={`e${idx}`} className={styles.ellipsis} aria-hidden>
+            …
+          </span>
         ) : (
           <button
             key={it}

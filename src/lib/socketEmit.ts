@@ -7,13 +7,13 @@ export async function socketEmit(room: string, event: string, payload: unknown):
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.SOCKET_EMIT_KEY || ''}`,
+        Authorization: `Bearer ${process.env.SOCKET_EMIT_KEY ?? ''}`
       },
-      body: JSON.stringify({ room, event, payload }),
+      body: JSON.stringify({ room, event, payload })
     });
   } catch (e: unknown) {
     // Don’t fail the request just because sockets are down.
-     
+
     console.warn('[socket-emit] failed:', e instanceof Error ? e.message : String(e));
   }
 }

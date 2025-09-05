@@ -1,20 +1,20 @@
 // src/app/admin/layout.tsx
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useEffect, useMemo, useState } from 'react';
 import styles from './Admin.module.scss';
 import SetupPush from './SetupPush';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
 type GroupKey = 'dashboard' | 'products' | 'operations' | 'admin';
 
-type UserWithRole = {
+interface UserWithRole {
   email?: string | null;
   role?: Role | null;
-};
+}
 
 // Type guard to avoid `any`
 function hasRole(u: unknown): u is UserWithRole {
@@ -31,41 +31,40 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // All groups + items
   const groups = useMemo(
-    () =>
-      [
-        {
-          key: 'dashboard' as const,
-          title: 'Dashboard',
-          kind: 'list' as const,
-          items: [{ href: '/admin', label: 'Overview' }],
-        },
-        {
-          key: 'products' as const,
-          title: 'Products',
-          kind: 'chips' as const, // render as "pills"
-          items: [
-            { href: '/admin/products', label: 'All Products' },
-            { href: '/admin/products/create', label: 'Add Product' },
-            { href: '/admin/products/categories', label: 'Categories' },
-          ],
-        },
-        {
-          key: 'operations' as const,
-          title: 'Operations',
-          kind: 'list' as const,
-          items: [
-            { href: '/admin/chat', label: 'Chat' },
-            { href: '/admin/customers', label: 'Customers' },
-            { href: '/admin/sales', label: 'Sales' },
-          ],
-        },
-        {
-          key: 'admin' as const,
-          title: 'Admin',
-          kind: 'list' as const,
-          items: [{ href: '/admin/settings', label: 'Settings' }],
-        },
-      ],
+    () => [
+      {
+        key: 'dashboard' as const,
+        title: 'Dashboard',
+        kind: 'list' as const,
+        items: [{ href: '/admin', label: 'Overview' }]
+      },
+      {
+        key: 'products' as const,
+        title: 'Products',
+        kind: 'chips' as const, // render as "pills"
+        items: [
+          { href: '/admin/products', label: 'All Products' },
+          { href: '/admin/products/create', label: 'Add Product' },
+          { href: '/admin/products/categories', label: 'Categories' }
+        ]
+      },
+      {
+        key: 'operations' as const,
+        title: 'Operations',
+        kind: 'list' as const,
+        items: [
+          { href: '/admin/chat', label: 'Chat' },
+          { href: '/admin/customers', label: 'Customers' },
+          { href: '/admin/sales', label: 'Sales' }
+        ]
+      },
+      {
+        key: 'admin' as const,
+        title: 'Admin',
+        kind: 'list' as const,
+        items: [{ href: '/admin/settings', label: 'Settings' }]
+      }
+    ],
     []
   );
 
@@ -88,14 +87,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     dashboard: false,
     products: false,
     operations: false,
-    admin: false,
+    admin: false
   });
 
   // Auth gate
   useEffect(() => {
     if (status === 'loading') return;
 
-    const r: Role | undefined = hasRole(data?.user) ? (data!.user.role as Role | null) ?? undefined : undefined;
+    const r: Role | undefined = hasRole(data?.user)
+      ? ((data!.user.role as Role | null) ?? undefined)
+      : undefined;
 
     if (!data?.user || !r) {
       const cb = encodeURIComponent(safePath);
@@ -146,7 +147,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {hasRole(data?.user) && data.user.email && (
           <div className={styles.loggedIn}>
-            Logged in as:<br />
+            Logged in as:
+            <br />
             <strong>{data.user.email}</strong>
           </div>
         )}

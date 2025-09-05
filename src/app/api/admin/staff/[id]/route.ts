@@ -1,3 +1,4 @@
+// src/app/api/admin/staff/[id]/route.ts
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
@@ -7,19 +8,38 @@ import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-interface Params {
-  params: { id: string };
-}
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
 
-const isHead = (u: unknown): boolean =>
+// Inline the shape so we don’t need a named interface.
+const isHead = (u: unknown): u is { role?: Role | null } =>
   !!u && typeof u === 'object' && (u as Record<string, unknown>).role === 'HEAD';
 
-export async function PATCH(req: Request, { params }: Params) {
+// Promise type guard to avoid `any`
+function isPromise<T = unknown>(v: unknown): v is Promise<T> {
+  return (
+    !!v &&
+    typeof v === 'object' &&
+    'then' in (v as object) &&
+    typeof (v as { then: unknown }).then === 'function'
+  );
+}
+
+// Helper: supports both { params: {...} } and { params: Promise<...> }.
+async function getParams<T extends Record<string, unknown>>(ctx: unknown): Promise<T> {
+  const raw = (ctx as { params?: unknown })?.params;
+  if (isPromise<unknown>(raw)) {
+    return (await raw) as T;
+  }
+  return (raw ?? {}) as T;
+}
+
+export async function PATCH(req: Request, ctx: unknown) {
   const session = await getServerSession(authOptions);
   if (!isHead(session?.user)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
   }
+
+  const { id } = await getParams<{ id: string }>(ctx);
 
   const body = (await req.json().catch(() => ({}))) as {
     name?: string;
@@ -29,21 +49,21 @@ export async function PATCH(req: Request, { params }: Params) {
   };
 
   const data: Prisma.UserUpdateInput = {};
-  if (body.name) data.name = body.name;
-  if (body.email) data.email = body.email;
-  if (body.role) {
+  if (body.name !== undefined) data.name = body.name;
+  if (body.email !== undefined) data.email = body.email;
+  if (body.role !== undefined) {
     if (body.role !== 'STAFF' && body.role !== 'VIEWER') {
       return NextResponse.json({ message: 'Role must be STAFF or VIEWER' }, { status: 400 });
     }
     data.role = body.role;
   }
-  if (body.password) {
+  if (body.password !== undefined && body.password) {
     data.password = await bcrypt.hash(body.password, 12);
   }
 
   try {
     const updated = await prisma.user.update({
-      where: { id: params.id },
+      where: { id },
       data,
       select: { id: true, name: true, email: true, role: true }
     });
@@ -54,15 +74,17 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 }
 
-export async function DELETE(_req: Request, { params }: Params) {
+export async function DELETE(_req: Request, ctx: unknown) {
   const session = await getServerSession(authOptions);
   if (!isHead(session?.user)) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
   }
 
+  const { id } = await getParams<{ id: string }>(ctx);
+
   // Don't allow deleting HEAD via this endpoint
   const target = await prisma.user.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: { id: true, role: true }
   });
 
@@ -73,6 +95,6 @@ export async function DELETE(_req: Request, { params }: Params) {
     return NextResponse.json({ message: 'Cannot delete HEAD via this endpoint' }, { status: 400 });
   }
 
-  await prisma.user.delete({ where: { id: params.id } });
+  await prisma.user.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

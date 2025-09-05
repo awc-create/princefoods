@@ -1,9 +1,9 @@
 'use client';
 
+import { Download } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import styles from './Import.module.scss';
-import Link from 'next/link';
-import { Download } from 'lucide-react';
 
 export default function ImportProductsPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -21,7 +21,7 @@ export default function ImportProductsPage() {
     setBusy(true);
     const res = await fetch('/api/admin/products/import', {
       method: 'POST',
-      body: fd,
+      body: fd
     });
     setBusy(false);
 
@@ -29,7 +29,7 @@ export default function ImportProductsPage() {
     if (res.ok) {
       setMessage(`✅ Imported ${data.upserted} rows, ${data.skipped} skipped.`);
     } else {
-      setMessage(`❌ ${data.message || 'Import failed'}`);
+      setMessage(`❌ ${data.message ?? 'Import failed'}`);
     }
   }
 
@@ -38,14 +38,25 @@ export default function ImportProductsPage() {
       <h1>Import Products</h1>
 
       <div className={styles.card}>
-        <p>Upload a CSV with columns: <code>id</code>, <code>name</code>, <code>sku</code>, <code>price</code>, <code>inventory</code>, <code>collection</code>, <code>productImageUrl</code>, <code>visible</code>, <code>brand</code>, <code>description</code>.</p>
-        <p>Tip: If <code>collection</code> contains multiple segments like <code>Bakery;Savouries B1G1F</code>, we’ll store the whole string. The list view shows only the last segment (“Savouries B1G1F”).</p>
+        <p>
+          Upload a CSV with columns: <code>id</code>, <code>name</code>, <code>sku</code>,{' '}
+          <code>price</code>, <code>inventory</code>, <code>collection</code>,{' '}
+          <code>productImageUrl</code>, <code>visible</code>, <code>brand</code>,{' '}
+          <code>description</code>.
+        </p>
+        <p>
+          Tip: If <code>collection</code> contains multiple segments like{' '}
+          <code>Bakery;Savouries B1G1F</code>, we’ll store the whole string. The list view shows
+          only the last segment (“Savouries B1G1F”).
+        </p>
 
         <div className={styles.actions}>
           <a href="/api/admin/products/export-template" className={styles.secondaryBtn}>
-            <Download size={16} style={{ marginRight: 6 }}/> Download template
+            <Download size={16} style={{ marginRight: 6 }} /> Download template
           </a>
-          <Link href="/admin/products" className={styles.link}>Back to products</Link>
+          <Link href="/admin/products" className={styles.link}>
+            Back to products
+          </Link>
         </div>
       </div>
 
@@ -53,7 +64,7 @@ export default function ImportProductsPage() {
         <input
           type="file"
           accept=".csv,text/csv"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           required
         />
         <button type="submit" disabled={!file || busy} className={styles.primaryBtn}>

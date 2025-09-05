@@ -11,11 +11,11 @@ export interface SliderProduct {
   productImageUrl: string | null;
 }
 
-type Props = {
+interface Props {
   title: string;
   products: SliderProduct[];
   initialVisible?: number; // default 4
-};
+}
 
 const GBP = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
 
@@ -29,8 +29,8 @@ const normalizeImage = (src: string | null | undefined): string => {
 };
 
 export default function ProductSlider({ title, products, initialVisible = 4 }: Props) {
-  const [quantities, setQuantities] = useState<Record<string, number>>(
-    () => Object.fromEntries(products.map((p) => [p.id, 1]))
+  const [quantities, setQuantities] = useState<Record<string, number>>(() =>
+    Object.fromEntries(products.map((p) => [p.id, 1]))
   );
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -38,12 +38,15 @@ export default function ProductSlider({ title, products, initialVisible = 4 }: P
   const [currentIndex, setCurrentIndex] = useState(0);
 
   // responsive visible count
-  const computeVisible = useCallback((w: number) => {
-    if (w < 520) return 1;
-    if (w < 820) return 2;
-    if (w < 1120) return 3;
-    return initialVisible;
-  }, [initialVisible]);
+  const computeVisible = useCallback(
+    (w: number) => {
+      if (w < 520) return 1;
+      if (w < 820) return 2;
+      if (w < 1120) return 3;
+      return initialVisible;
+    },
+    [initialVisible]
+  );
 
   useEffect(() => {
     const el = containerRef.current;
@@ -64,7 +67,7 @@ export default function ProductSlider({ title, products, initialVisible = 4 }: P
   const updateQty = (id: string, delta: number) => {
     setQuantities((prev) => ({
       ...prev,
-      [id]: Math.max(1, (prev[id] || 1) + delta),
+      [id]: Math.max(1, (prev[id] || 1) + delta)
     }));
   };
 
@@ -82,7 +85,11 @@ export default function ProductSlider({ title, products, initialVisible = 4 }: P
 
       <div className={styles.carousel}>
         {canPrev && (
-          <button className={styles.arrow} onClick={() => setCurrentIndex((i) => Math.max(0, i - visibleCount))} aria-label="Previous">
+          <button
+            className={styles.arrow}
+            onClick={() => setCurrentIndex((i) => Math.max(0, i - visibleCount))}
+            aria-label="Previous"
+          >
             ‹
           </button>
         )}
@@ -110,9 +117,19 @@ export default function ProductSlider({ title, products, initialVisible = 4 }: P
 
                   <div className={styles.hoverActions}>
                     <div className={styles.qtyControl}>
-                      <button onClick={() => updateQty(product.id, -1)} aria-label="Decrease quantity">-</button>
+                      <button
+                        onClick={() => updateQty(product.id, -1)}
+                        aria-label="Decrease quantity"
+                      >
+                        -
+                      </button>
                       <span>{quantities[product.id] || 1}</span>
-                      <button onClick={() => updateQty(product.id, 1)} aria-label="Increase quantity">+</button>
+                      <button
+                        onClick={() => updateQty(product.id, 1)}
+                        aria-label="Increase quantity"
+                      >
+                        +
+                      </button>
                     </div>
                     <button className={styles.quickView}>Quick View</button>
                     <button className={styles.addToCart}>Add to Cart</button>
@@ -124,7 +141,11 @@ export default function ProductSlider({ title, products, initialVisible = 4 }: P
         </div>
 
         {canNext && (
-          <button className={styles.arrow} onClick={() => setCurrentIndex((i) => i + visibleCount)} aria-label="Next">
+          <button
+            className={styles.arrow}
+            onClick={() => setCurrentIndex((i) => i + visibleCount)}
+            aria-label="Next"
+          >
             ›
           </button>
         )}

@@ -3,9 +3,30 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+// Promise type guard (no `any`)
+function isPromise<T = unknown>(v: unknown): v is Promise<T> {
+  return (
+    !!v &&
+    typeof v === 'object' &&
+    'then' in (v as object) &&
+    typeof (v as { then: unknown }).then === 'function'
+  );
+}
+
+// Helper: supports both { params: {...} } and { params: Promise<...> }
+async function getParams<T extends Record<string, unknown>>(ctx: unknown): Promise<T> {
+  const raw = (ctx as { params?: unknown })?.params;
+  if (isPromise<unknown>(raw)) {
+    return (await raw) as T;
+  }
+  return (raw ?? {}) as T;
+}
+
+export async function GET(_: NextRequest, ctx: unknown) {
+  const { id } = await getParams<{ id: string }>(ctx);
+
   const user = await prisma.user.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: {
       id: true,
       name: true,
@@ -20,7 +41,6 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   });
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  // pull recent chat threads/messages for this user (by id OR email)
   const [threadsById, threadsByEmail] = await Promise.all([
     prisma.chatThread.findMany({
       where: { userKey: user.id },
@@ -35,6 +55,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       include: { messages: { orderBy: { createdAt: 'desc' }, take: 1 } }
     })
   ]);
+
   const threads = [...threadsById, ...threadsByEmail]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .slice(0, 10);
@@ -47,13 +68,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     : null;
 
   return NextResponse.json({
-    contact: {
-      ...user
-    },
-    stats: {
-      conversations,
-      lastInteraction
-    },
+    contact: { ...user },
+    stats: { conversations, lastInteraction },
     recentThreads: threads.map((t) => ({
       id: t.id,
       status: t.status,

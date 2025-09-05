@@ -1,22 +1,20 @@
 // src/app/admin/settings/layout.tsx
 import React from 'react';
 
+import { authOptions } from '@/lib/auth-options';
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
-import { authOptions } from '@/lib/auth-options';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
-type SessionUserWithRole = { role?: Role | null };
+interface SessionUserWithRole {
+  role?: Role | null;
+}
 
 function hasRole(u: unknown): u is SessionUserWithRole {
   return !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
 }
 
-export default async function AdminSettingsLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function AdminSettingsLayout({ children }: { children: React.ReactNode }) {
   // Server-side guard: must be logged in AND HEAD
   const session = await getServerSession(authOptions);
 

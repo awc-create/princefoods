@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import styles from './Customers.module.scss';
 
-type Row = {
+interface Row {
   id: string;
   name: string;
   email: string;
@@ -12,7 +12,7 @@ type Row = {
   role: 'HEAD' | 'STAFF' | 'VIEWER';
   conversations: number;
   lastActivity?: string | null;
-};
+}
 
 export default function CustomersPage() {
   const [rows, setRows] = useState<Row[]>([]);
@@ -28,15 +28,17 @@ export default function CustomersPage() {
       const res = await fetch(`/api/customers?search=${encodeURIComponent(q)}&page=${page}`);
       const data = await res.json();
       if (ignore) return;
-      setRows(data.items || []);
-      setTotalPages(data.totalPages || 1);
+      setRows(data.items ?? []);
+      setTotalPages(data.totalPages ?? 1);
       setLoading(false);
     })();
-    return () => { ignore = true; };
+    return () => {
+      ignore = true;
+    };
   }, [q, page]);
 
-  const staff = rows.filter(r => r.role === 'STAFF' || r.role === 'HEAD');
-  const customers = rows.filter(r => r.role === 'VIEWER');
+  const staff = rows.filter((r) => r.role === 'STAFF' || r.role === 'HEAD');
+  const customers = rows.filter((r) => r.role === 'VIEWER');
 
   function renderTable(title: string, data: Row[]) {
     return (
@@ -57,24 +59,34 @@ export default function CustomersPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} className={styles.muted}>Loading…</td></tr>
-              ) : data.length === 0 ? (
-                <tr><td colSpan={7} className={styles.muted}>None found</td></tr>
-              ) : data.map(r => (
-                <tr key={r.id}>
-                  <td>{r.name}</td>
-                  <td className={styles.hideSm}>{r.email}</td>
-                  <td className={styles.hideSm}>{r.phone || '—'}</td>
-                  <td>{r.role}</td>
-                  <td>{r.conversations}</td>
-                  <td className={styles.hideSm}>{r.lastActivity || '—'}</td>
-                  <td>
-                    <Link href={`/admin/customers/${r.id}`} className={styles.viewLink}>
-                      View
-                    </Link>
+                <tr>
+                  <td colSpan={7} className={styles.muted}>
+                    Loading…
                   </td>
                 </tr>
-              ))}
+              ) : data.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className={styles.muted}>
+                    None found
+                  </td>
+                </tr>
+              ) : (
+                data.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.name}</td>
+                    <td className={styles.hideSm}>{r.email}</td>
+                    <td className={styles.hideSm}>{r.phone ?? '—'}</td>
+                    <td>{r.role}</td>
+                    <td>{r.conversations}</td>
+                    <td className={styles.hideSm}>{r.lastActivity ?? '—'}</td>
+                    <td>
+                      <Link href={`/admin/customers/${r.id}`} className={styles.viewLink}>
+                        View
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -90,7 +102,10 @@ export default function CustomersPage() {
         <input
           placeholder="Search name, email, phone…"
           value={q}
-          onChange={(e) => { setPage(1); setQ(e.target.value); }}
+          onChange={(e) => {
+            setPage(1);
+            setQ(e.target.value);
+          }}
         />
       </div>
 
@@ -98,9 +113,15 @@ export default function CustomersPage() {
       {renderTable('Customers', customers)}
 
       <div className={styles.pager}>
-        <button disabled={page<=1} onClick={()=>setPage(p=>p-1)}>Prev</button>
-        <span>Page {page} / {totalPages}</span>
-        <button disabled={page>=totalPages} onClick={()=>setPage(p=>p+1)}>Next</button>
+        <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+          Prev
+        </button>
+        <span>
+          Page {page} / {totalPages}
+        </span>
+        <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+          Next
+        </button>
       </div>
     </div>
   );

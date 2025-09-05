@@ -1,12 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 import styles from './ChildPage.module.scss';
 
-type Child = { id: string; name: string; slug: string; position: number; isActive: boolean; _count?: { products: number } };
-type Parent = { id: string; name: string; slug: string; children: Child[] };
+interface Child {
+  id: string;
+  name: string;
+  slug: string;
+  position: number;
+  isActive: boolean;
+  _count?: { products: number };
+}
+interface Parent {
+  id: string;
+  name: string;
+  slug: string;
+  children: Child[];
+}
 
 export default function CategoryChildrenPage() {
   const { parentId } = useParams() as { parentId: string };
@@ -29,7 +41,7 @@ export default function CategoryChildrenPage() {
     await fetch('/api/admin/categories', {
       method: 'POST',
       body: JSON.stringify({ name, parentId }),
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' }
     });
     setName('');
     load();
@@ -42,7 +54,11 @@ export default function CategoryChildrenPage() {
       <h2>{parent.name} — Children</h2>
 
       <form onSubmit={createChild} className={styles.inlineForm}>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="New child name" />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="New child name"
+        />
         <button type="submit">Create</button>
       </form>
 
@@ -52,10 +68,13 @@ export default function CategoryChildrenPage() {
             <div>
               <strong>{c.name}</strong> <em>({c.slug})</em>
               <span className={styles.meta}>
-                • position {c.position} • {c.isActive ? 'active' : 'inactive'} • {c._count?.products ?? 0} products
+                • position {c.position} • {c.isActive ? 'active' : 'inactive'} •{' '}
+                {c._count?.products ?? 0} products
               </span>
             </div>
-            <Link href={`/admin/products/categories/${parentId}/children/${c.id}`}>Open products →</Link>
+            <Link href={`/admin/products/categories/${parentId}/children/${c.id}`}>
+              Open products →
+            </Link>
           </li>
         ))}
       </ul>

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const limit = parseInt(url.searchParams.get('limit') || '6', 10);
+  const limit = parseInt(url.searchParams.get('limit') ?? '6', 10);
 
   const products = await prisma.product.findMany({
     take: limit,

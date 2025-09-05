@@ -3,13 +3,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import styles from './CategorySidebar.module.scss';
 
-type Child = { name: string; slug: string; count: number };
-type Parent = { name: string; slug: string; count: number; children: Child[] };
+interface Child {
+  name: string;
+  slug: string;
+  count: number;
+}
+interface Parent {
+  name: string;
+  slug: string;
+  count: number;
+  children: Child[];
+}
 
 export default function CategorySidebar({
   selected,
   onSelect,
-  onPriceFilterChange,
+  onPriceFilterChange
 }: {
   selected: string | null;
   onSelect: (slug: string | null) => void;
@@ -136,7 +145,9 @@ export default function CategorySidebar({
           );
         })}
 
-        {!parentsOnly.length && <div className={styles.empty}>No categories with products yet.</div>}
+        {!parentsOnly.length && (
+          <div className={styles.empty}>No categories with products yet.</div>
+        )}
       </nav>
 
       <div className={styles.priceBox}>

@@ -12,7 +12,9 @@
     "prepare": "husky install",
     "seed:admin": "tsx prisma/seed.admin.ts",
     "seed:kb": "tsx prisma/seed.kb.ts",
-    "seed": "yarn seed:admin && yarn seed:kb"
+    "seed": "yarn seed:admin && yarn seed:kb",
+    "typecheck": "tsc --noEmit",
+    "validate": "yarn lint && yarn typecheck && yarn build"
   },
   "dependencies": {
     "@iconify/react": "^6.0.0",

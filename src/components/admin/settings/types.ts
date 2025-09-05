@@ -1,6 +1,6 @@
-export type StaffUser = {
-  id: string
-  name: string
-  email: string
-  role: string
+export interface StaffUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
 }

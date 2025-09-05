@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import styles from './Detail.module.scss';
 
-type Contact = {
+interface Contact {
   id: string;
   name: string;
   email: string;
@@ -15,30 +15,30 @@ type Contact = {
   welcomeStatus: 'PENDING' | 'SENT' | 'COMPLETED';
   createdAt: string;
   updatedAt: string;
-};
+}
 
-type Stat = {
+interface Stat {
   conversations: number;
   lastInteraction?: string | null;
-};
+}
 
-type Thread = {
+interface Thread {
   id: string;
   status: string;
   lastMessagePreview: string;
   createdAt: string;
   lastUserAt?: string;
   lastAdminAt?: string;
-};
+}
 
-type OrderRow = {
+interface OrderRow {
   id: string;
   number: string;
   date: string;
   items: string;
   total: string;
   status: string;
-};
+}
 
 export default function CustomerDetailPage() {
   // ✅ Non-null assertion so TS knows params will exist
@@ -58,7 +58,7 @@ export default function CustomerDetailPage() {
       setLoading(true);
       const [cRes, oRes] = await Promise.all([
         fetch(`/api/customers/${id}`),
-        fetch(`/api/customers/${id}/orders`),
+        fetch(`/api/customers/${id}/orders`)
       ]);
       const c = await cRes.json();
       const o = await oRes.json();
@@ -66,9 +66,9 @@ export default function CustomerDetailPage() {
 
       setContact(c.contact);
       setStats(c.stats);
-      setThreads(c.recentThreads || []);
-      setOrders(o.items || []);
-      setOrdersNote(o.note || null);
+      setThreads(c.recentThreads ?? []);
+      setOrders(o.items ?? []);
+      setOrdersNote(o.note ?? null);
       setLoading(false);
     })();
     return () => {
@@ -76,8 +76,18 @@ export default function CustomerDetailPage() {
     };
   }, [id]);
 
-  if (loading) return <div className={styles.wrapper}><p>Loading…</p></div>;
-  if (!contact) return <div className={styles.wrapper}><p>Not found.</p></div>;
+  if (loading)
+    return (
+      <div className={styles.wrapper}>
+        <p>Loading…</p>
+      </div>
+    );
+  if (!contact)
+    return (
+      <div className={styles.wrapper}>
+        <p>Not found.</p>
+      </div>
+    );
 
   return (
     <div className={styles.wrapper}>
@@ -108,7 +118,7 @@ export default function CustomerDetailPage() {
             </li>
             <li>
               <strong>Last interaction</strong>
-              <span>{stats?.lastInteraction || '—'}</span>
+              <span>{stats?.lastInteraction ?? '—'}</span>
             </li>
             <li>
               <strong>Joined</strong>

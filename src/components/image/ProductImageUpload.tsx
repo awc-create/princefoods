@@ -1,15 +1,14 @@
 'use client';
-import React from 'react';
 
-import { UploadDropzone } from '@uploadthing/react';
 import type { OurFileRouter } from '@/app/api/uploadthing/core';
-import styles from './ProductImageUpload.module.scss';
+import { UploadDropzone } from '@uploadthing/react';
 import Image from 'next/image';
+import styles from './ProductImageUpload.module.scss';
 
-type Props = {
+interface Props {
   images: string[];
   setImages: (urls: string[]) => void;
-};
+}
 
 export default function ProductImageUpload({ images, setImages }: Props) {
   const handleUploadComplete = (res: { url: string }[]) => {
@@ -43,13 +42,7 @@ export default function ProductImageUpload({ images, setImages }: Props) {
         <div className={styles.gallery}>
           {images.map((url) => (
             <div key={url} className={styles.thumb}>
-              <Image
-                src={url}
-                alt="Uploaded"
-                className={styles.preview}
-                width={800}
-                height={800}
-              />
+              <Image src={url} alt="Uploaded" className={styles.preview} width={800} height={800} />
               <button onClick={() => handleDelete(url)}>✕</button>
             </div>
           ))}

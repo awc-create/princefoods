@@ -38,16 +38,25 @@ export function detectImageUrl(input?: string | null): { url: string | null; sou
   // 3) wix:image://v1/... tail usually the media id with extension
   if (s.startsWith('wix:image://v1/')) {
     const last = s.split('/').pop();
-    if (last && WIX_ID_RE.test(last)) return { url: WIX_MEDIA_PREFIX + last, source: 'wix-image-v1' };
+    if (last && WIX_ID_RE.test(last))
+      return { url: WIX_MEDIA_PREFIX + last, source: 'wix-image-v1' };
   }
 
   // Try to ensure a valid URL string
   if (!/^https?:\/\//i.test(s)) {
-    try { new URL(s); } catch { s = encodeURI(s); }
+    try {
+      new URL(s);
+    } catch {
+      s = encodeURI(s);
+    }
   }
 
   let u: URL;
-  try { u = new URL(s); } catch { return { url: null, source: 'invalid' }; }
+  try {
+    u = new URL(s);
+  } catch {
+    return { url: null, source: 'invalid' };
+  }
 
   const host = u.hostname.toLowerCase();
 
@@ -60,7 +69,7 @@ export function detectImageUrl(input?: string | null): { url: string | null; sou
       const dIdx = parts.indexOf('d', fileIdx);
       if (dIdx !== -1 && parts[dIdx + 1]) id = parts[dIdx + 1];
     }
-    if (!id) id = u.searchParams.get('id');
+    id ??= u.searchParams.get('id');
     if (id) {
       const direct = new URL('https://drive.google.com/uc');
       direct.searchParams.set('export', 'view');

@@ -1,13 +1,12 @@
 'use client';
-import React from 'react';
 
 import styles from './Pagination.module.scss';
 
-type Props = {
-  page: number;          // current page (1-based)
-  pageCount: number;     // total pages
+interface Props {
+  page: number; // current page (1-based)
+  pageCount: number; // total pages
   onChange: (p: number) => void;
-};
+}
 
 export default function Pagination({ page, pageCount, onChange }: Props) {
   if (!pageCount || pageCount <= 1) return null;
@@ -26,7 +25,7 @@ export default function Pagination({ page, pageCount, onChange }: Props) {
   pages.push(first);
 
   const start = Math.max(first + 1, page - win);
-  const end   = Math.min(last - 1, page + win);
+  const end = Math.min(last - 1, page + win);
 
   if (start > first + 1) pages.push('…');
   for (let i = start; i <= end; i++) pages.push(i);

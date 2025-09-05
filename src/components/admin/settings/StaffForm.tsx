@@ -1,11 +1,10 @@
+'use client';
 
-'use client'
+import { useState } from 'react';
+import styles from './Settings.module.scss';
 
-import { useState } from 'react'
-import styles from './Settings.module.scss'
-
-type Props = {
-  onSuccess: (msg: string) => void
+interface Props {
+  onSuccess: (msg: string) => void;
 }
 
 export default function StaffForm({ onSuccess }: Props) {
@@ -13,31 +12,31 @@ export default function StaffForm({ onSuccess }: Props) {
     name: '',
     email: '',
     password: '',
-    role: 'STAFF',
-  })
+    role: 'STAFF'
+  });
 
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setMessage('')
+    e.preventDefault();
+    setMessage('');
 
     const res = await fetch('/api/admin/staff', {
       method: 'POST',
       body: JSON.stringify(form),
-      headers: { 'Content-Type': 'application/json' },
-    })
+      headers: { 'Content-Type': 'application/json' }
+    });
 
-    const data = await res.json()
+    const data = await res.json();
     if (res.ok) {
-      onSuccess('✅ Staff user added')
-      setForm({ name: '', email: '', password: '', role: 'STAFF' })
+      onSuccess('✅ Staff user added');
+      setForm({ name: '', email: '', password: '', role: 'STAFF' });
     } else {
-      setMessage(`❌ ${data.message}`)
+      setMessage(`❌ ${data.message}`);
     }
 
-    setTimeout(() => setMessage(''), 4000)
-  }
+    setTimeout(() => setMessage(''), 4000);
+  };
 
   return (
     <form onSubmit={handleSubmit} className={styles.staffForm}>
@@ -62,14 +61,11 @@ export default function StaffForm({ onSuccess }: Props) {
         onChange={(e) => setForm({ ...form, password: e.target.value })}
         required
       />
-      <select
-        value={form.role}
-        onChange={(e) => setForm({ ...form, role: e.target.value })}
-      >
+      <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
         <option value="STAFF">Staff</option>
       </select>
       <button type="submit">Add Staff</button>
       {message && <p>{message}</p>}
     </form>
-  )
+  );
 }

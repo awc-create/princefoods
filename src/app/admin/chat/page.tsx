@@ -5,15 +5,19 @@ import { useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import styles from './Chat.module.scss';
 
-type EscItem = { threadId: string; preview: string; updatedAt: string };
+interface EscItem {
+  threadId: string;
+  preview: string;
+  updatedAt: string;
+}
 
-type IncomingMessage = {
+interface IncomingMessage {
   threadId: string;
   from: string;
   subject: string;
   bodyHtml: string;
   updatedAt: string;
-};
+}
 
 export default function AdminChatPage() {
   const [items, setItems] = useState<EscItem[]>([]);
@@ -61,8 +65,8 @@ export default function AdminChatPage() {
         reply,
         customerEmail,
         subject,
-        bodyHtml,
-      }),
+        bodyHtml
+      })
     });
 
     if (res.ok) {

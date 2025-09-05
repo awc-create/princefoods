@@ -4,17 +4,17 @@
 import { useRef, useState } from 'react';
 import styles from './ImportExport.module.scss';
 
-type ImportError = {
+interface ImportError {
   ok: false;
   message?: string;
   errors?: { row: number; message: string }[];
-};
+}
 
-type ImportSuccess = {
+interface ImportSuccess {
   ok: true;
   results?: { action: 'created' | 'updated' | string }[];
   errors?: { row: number; message: string }[];
-};
+}
 
 // Type guards without `any`
 function isImportError(v: unknown): v is ImportError {
@@ -67,7 +67,11 @@ export default function ImportExport() {
         <button onClick={exportCsv} className={styles.primary} disabled={busy}>
           Export CSV
         </button>
-        <button onClick={() => inputRef.current?.click()} className={styles.secondary} disabled={busy}>
+        <button
+          onClick={() => inputRef.current?.click()}
+          className={styles.secondary}
+          disabled={busy}
+        >
           {busy ? 'Importing…' : 'Import CSV'}
         </button>
         <input
@@ -111,8 +115,8 @@ export default function ImportExport() {
           <strong>CSV columns</strong> (first row must be headers)
         </summary>
         <p className={styles.muted}>
-          Minimal columns: <code>name, price, visible</code>. Optional: everything you see in the export. If you include{' '}
-          <code>id</code>, rows will update; otherwise they’ll be created.
+          Minimal columns: <code>name, price, visible</code>. Optional: everything you see in the
+          export. If you include <code>id</code>, rows will update; otherwise they’ll be created.
         </p>
       </details>
     </div>

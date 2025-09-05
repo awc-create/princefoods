@@ -1,17 +1,11 @@
 // src/components/common/Modal.tsx
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useRouter } from 'next/navigation';
 
-export default function Modal({
-  title,
-  children,
-}: {
-  title?: string;
-  children: React.ReactNode;
-}) {
+export default function Modal({ title, children }: { title?: string; children: React.ReactNode }) {
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
@@ -44,12 +38,12 @@ export default function Modal({
     inset: 0,
     zIndex: 2147483647, // max overlay
     display: 'grid',
-    placeItems: 'center',
+    placeItems: 'center'
   };
   const backdropStyle: React.CSSProperties = {
     position: 'absolute',
     inset: 0,
-    background: 'rgba(0,0,0,.5)',
+    background: 'rgba(0,0,0,.5)'
   };
   const panelStyle: React.CSSProperties = {
     position: 'relative',
@@ -60,7 +54,7 @@ export default function Modal({
     borderRadius: 16,
     background: '#fff',
     padding: 24,
-    boxShadow: '0 20px 40px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.08)',
+    boxShadow: '0 20px 40px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.08)'
   };
   const closeBtnStyle: React.CSSProperties = {
     position: 'absolute',
@@ -70,13 +64,13 @@ export default function Modal({
     background: '#fff',
     borderRadius: 8,
     padding: '4px 8px',
-    cursor: 'pointer',
+    cursor: 'pointer'
   };
 
   return createPortal(
     <div style={overlayStyle} role="dialog" aria-modal="true">
       <div style={backdropStyle} onClick={() => router.back()} />
-      <div ref={panelRef} tabIndex={-1} style={panelStyle} aria-label={title || 'Dialog'}>
+      <div ref={panelRef} tabIndex={-1} style={panelStyle} aria-label={title ?? 'Dialog'}>
         <button style={closeBtnStyle} onClick={() => router.back()} aria-label="Close">
           ×
         </button>

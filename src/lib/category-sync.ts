@@ -1,13 +1,13 @@
 import { prisma } from '@/lib/prisma';
 import slugify from '@/utils/slugify';
 
-export type CatLite = {
+export interface CatLite {
   id: string;
   slug: string;
   parentId: string | null;
   name: string;
   isActive: boolean;
-};
+}
 
 // Accept ; > / | as separators
 export function splitCollectionPath(raw: string | null | undefined): string[] {
@@ -27,7 +27,7 @@ export async function ensureParentCategory(name: string): Promise<CatLite> {
   // try exact parent (slug unique and parentId null)
   const hit = await prisma.category.findUnique({
     where: { slug: parentSlug },
-    select: { id: true, slug: true, parentId: true, name: true, isActive: true },
+    select: { id: true, slug: true, parentId: true, name: true, isActive: true }
   });
 
   if (hit && hit.parentId === null) {
@@ -35,7 +35,7 @@ export async function ensureParentCategory(name: string): Promise<CatLite> {
       const updated = await prisma.category.update({
         where: { id: hit.id },
         data: { isActive: true, name },
-        select: { id: true, slug: true, parentId: true, name: true, isActive: true },
+        select: { id: true, slug: true, parentId: true, name: true, isActive: true }
       });
       return updated;
     }
@@ -47,7 +47,7 @@ export async function ensureParentCategory(name: string): Promise<CatLite> {
     where: { slug: parentSlug },
     update: { parentId: null, isActive: true, name },
     create: { name, slug: parentSlug, parentId: null, isActive: true },
-    select: { id: true, slug: true, parentId: true, name: true, isActive: true },
+    select: { id: true, slug: true, parentId: true, name: true, isActive: true }
   });
   return created;
 }
@@ -63,7 +63,7 @@ export async function ensureChildCategory(childName: string, parent: CatLite): P
   // Does that child already exist (exact slug)?
   let existing = await prisma.category.findUnique({
     where: { slug: childSlug },
-    select: { id: true, slug: true, parentId: true, name: true, isActive: true },
+    select: { id: true, slug: true, parentId: true, name: true, isActive: true }
   });
 
   if (existing && existing.parentId === parent.id) {
@@ -71,7 +71,7 @@ export async function ensureChildCategory(childName: string, parent: CatLite): P
       existing = await prisma.category.update({
         where: { id: existing.id },
         data: { isActive: true, name: childName },
-        select: { id: true, slug: true, parentId: true, name: true, isActive: true },
+        select: { id: true, slug: true, parentId: true, name: true, isActive: true }
       });
     }
     return existing;
@@ -83,7 +83,7 @@ export async function ensureChildCategory(childName: string, parent: CatLite): P
     while (
       await prisma.category.findUnique({
         where: { slug: `${parent.slug}-${childBase}-${n}` },
-        select: { id: true },
+        select: { id: true }
       })
     ) {
       n++;
@@ -93,7 +93,7 @@ export async function ensureChildCategory(childName: string, parent: CatLite): P
 
   const created = await prisma.category.create({
     data: { name: childName, slug: childSlug, parentId: parent.id, isActive: true },
-    select: { id: true, slug: true, parentId: true, name: true, isActive: true },
+    select: { id: true, slug: true, parentId: true, name: true, isActive: true }
   });
   return created;
 }
@@ -103,7 +103,9 @@ export async function ensureChildCategory(childName: string, parent: CatLite): P
  * - If 1 segment -> parent category
  * - If 2+ segments -> deepest (child) under the first segment as parent
  */
-export async function resolveCategoryIdFromCollection(collection: string | null | undefined): Promise<string | null> {
+export async function resolveCategoryIdFromCollection(
+  collection: string | null | undefined
+): Promise<string | null> {
   const parts = splitCollectionPath(collection);
   if (!parts.length) return null;
 

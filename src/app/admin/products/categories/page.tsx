@@ -1,11 +1,11 @@
 // src/app/admin/products/categories/page.tsx
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import React, { useEffect, useRef, useState } from 'react';
 import styles from './CategoryPage.module.scss';
 
-type Category = {
+interface Category {
   id: string;
   name: string;
   slug: string;
@@ -13,9 +13,9 @@ type Category = {
   isActive: boolean;
   imageUrl?: string | null;
   _count?: { children: number };
-};
+}
 
-type BackfillResponse = {
+interface BackfillResponse {
   ok?: boolean;
   error?: string;
   message?: string;
@@ -28,7 +28,7 @@ type BackfillResponse = {
   childrenTouched?: number;
   productsUpdated?: number;
   productsScanned?: number;
-};
+}
 
 export default function Page() {
   const [items, setItems] = useState<Category[]>([]);
@@ -71,7 +71,7 @@ export default function Page() {
       await fetch('/api/admin/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name })
       });
       setName('');
       await load();
@@ -89,10 +89,12 @@ export default function Page() {
       const data: unknown = await res.json().catch(() => ({}));
 
       // Normalize response
-      const b = (typeof data === 'object' && data !== null ? (data as BackfillResponse) : {}) as BackfillResponse;
+      const b = (
+        typeof data === 'object' && data !== null ? (data as BackfillResponse) : {}
+      ) as BackfillResponse;
 
       if (!res.ok || b.ok === false) {
-        const detail = b.error || b.message || `HTTP ${res.status}`;
+        const detail = b.error ?? b.message ?? `HTTP ${res.status}`;
         throw new Error(detail);
       }
 
@@ -119,7 +121,7 @@ export default function Page() {
     setEditing((e) => ({ ...e, [c.id]: true }));
     setDrafts((d) => ({
       ...d,
-      [c.id]: { name: c.name, isActive: c.isActive, imageUrl: c.imageUrl ?? '' },
+      [c.id]: { name: c.name, isActive: c.isActive, imageUrl: c.imageUrl ?? '' }
     }));
   };
 
@@ -140,11 +142,13 @@ export default function Page() {
     try {
       const res = await fetch(`/api/admin/categories/${id}/image`, { method: 'POST', body: form });
       const data: unknown = await res.json().catch(() => ({}));
-      const ok = typeof data === 'object' && data !== null && 'url' in (data as Record<string, unknown>);
+      const ok =
+        typeof data === 'object' && data !== null && 'url' in (data as Record<string, unknown>);
       if (!res.ok || !ok) {
         const errMsg =
-          (typeof data === 'object' && data && 'error' in data ? String((data as { error?: unknown }).error) : null) ??
-          `Upload failed (${res.status})`;
+          (typeof data === 'object' && data && 'error' in data
+            ? String((data as { error?: unknown }).error)
+            : null) ?? `Upload failed (${res.status})`;
         throw new Error(errMsg);
       }
       const url = String((data as { url: unknown }).url);
@@ -186,8 +190,8 @@ export default function Page() {
         body: JSON.stringify({
           name: draft.name,
           isActive: draft.isActive,
-          imageUrl: (draft.imageUrl ?? '').toString() || null,
-        }),
+          imageUrl: (draft.imageUrl ?? '').toString() || null
+        })
       });
       await load();
       cancelEdit(id);
@@ -243,7 +247,7 @@ export default function Page() {
           {items.map((c) => {
             const isEditing = !!editing[c.id];
             const d = drafts[c.id] || {};
-            const currentImage = (d.imageUrl as string) ?? (c.imageUrl ?? '');
+            const currentImage = (d.imageUrl as string) ?? c.imageUrl ?? '';
 
             return (
               <li key={c.id} className={styles.card}>
@@ -266,7 +270,6 @@ export default function Page() {
                   title="Open category"
                 >
                   {currentImage ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={currentImage} alt={c.name} />
                   ) : (
                     <div className={styles.noImg}>No image</div>
@@ -300,7 +303,7 @@ export default function Page() {
                           onChange={(e) =>
                             setDrafts((prev) => ({
                               ...prev,
-                              [c.id]: { ...prev[c.id], name: e.target.value },
+                              [c.id]: { ...prev[c.id], name: e.target.value }
                             }))
                           }
                         />
@@ -314,11 +317,11 @@ export default function Page() {
                             className={styles.input}
                             type="text"
                             placeholder="https://…"
-                            value={(d.imageUrl as string) ?? (c.imageUrl ?? '')}
+                            value={(d.imageUrl as string) ?? c.imageUrl ?? ''}
                             onChange={(e) =>
                               setDrafts((prev) => ({
                                 ...prev,
-                                [c.id]: { ...prev[c.id], imageUrl: e.target.value },
+                                [c.id]: { ...prev[c.id], imageUrl: e.target.value }
                               }))
                             }
                           />
@@ -335,7 +338,7 @@ export default function Page() {
 
                       {currentImage && (
                         <div className={styles.preview}>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          {}
                           <img src={currentImage} alt="" />
                           <button
                             type="button"
@@ -343,7 +346,7 @@ export default function Page() {
                             onClick={() =>
                               setDrafts((prev) => ({
                                 ...prev,
-                                [c.id]: { ...prev[c.id], imageUrl: '' },
+                                [c.id]: { ...prev[c.id], imageUrl: '' }
                               }))
                             }
                             aria-label="Remove image"
@@ -363,7 +366,7 @@ export default function Page() {
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                               setDrafts((prev) => ({
                                 ...prev,
-                                [c.id]: { ...prev[c.id], isActive: e.target.checked },
+                                [c.id]: { ...prev[c.id], isActive: e.target.checked }
                               }))
                             }
                           />
