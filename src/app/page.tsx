@@ -7,7 +7,7 @@ import Hero from '@/components/home/hero/Hero';
 import ProductSlider from '@/components/products/ProductSlider';
 import styles from './page.module.scss';
 
-export const dynamic = 'force-dynamic'; // don’t prerender at build
+export const dynamic = 'force-dynamic';
 
 export default async function Home() {
   noStore(); // avoid static caching/prerender
