@@ -1,12 +1,12 @@
-import LoginForm from '@/components/auth/LoginForm';
 import { Suspense } from 'react';
+import LoginClient from './LoginClient';
 
-export const dynamic = 'force-dynamic'; // optional but helps during "Collecting page data"
+export const dynamic = 'force-dynamic';
 
 export default function LoginPage() {
   return (
     <Suspense fallback={null}>
-      <LoginForm />
+      <LoginClient />
     </Suspense>
   );
 }
