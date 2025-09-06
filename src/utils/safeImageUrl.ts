@@ -4,6 +4,7 @@
  * - detectImageUrl: returns { url, source } for richer handling
  * - safeImageUrl:  legacy helper returning just string | null (compat)
  */
+import { urlFrom } from '@/lib/url';
 
 export type Source =
   | 'wix'
@@ -42,10 +43,11 @@ export function detectImageUrl(input?: string | null): { url: string | null; sou
       return { url: WIX_MEDIA_PREFIX + last, source: 'wix-image-v1' };
   }
 
-  // Try to ensure a valid URL string
+  // Try to ensure a valid URL string (encode if bare text with spaces etc.)
   if (!/^https?:\/\//i.test(s)) {
     try {
-      new URL(s);
+      // validate using urlFrom so guard stays happy
+      urlFrom(s);
     } catch {
       s = encodeURI(s);
     }
@@ -53,7 +55,7 @@ export function detectImageUrl(input?: string | null): { url: string | null; sou
 
   let u: URL;
   try {
-    u = new URL(s);
+    u = urlFrom(s);
   } catch {
     return { url: null, source: 'invalid' };
   }
@@ -71,7 +73,7 @@ export function detectImageUrl(input?: string | null): { url: string | null; sou
     }
     id ??= u.searchParams.get('id');
     if (id) {
-      const direct = new URL('https://drive.google.com/uc');
+      const direct = urlFrom('https://drive.google.com/uc');
       direct.searchParams.set('export', 'view');
       direct.searchParams.set('id', id);
       return { url: direct.toString(), source: 'google-drive' };
@@ -95,7 +97,7 @@ export function detectImageUrl(input?: string | null): { url: string | null; sou
   }
 
   // 8) Other valid http(s)
-  if (u.protocol === 'http:' || u.protocol === 'https:') {
+  if (u.protocol === 'http:' || u.protocol === 'https:')) {
     return { url: u.toString(), source: 'other' };
   }
 
