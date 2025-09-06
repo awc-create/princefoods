@@ -1,3 +1,4 @@
+import { absUrl } from '@/lib/abs-url';
 import { sendSlaEmailTemplate } from '@/lib/email';
 import { prisma } from '@/lib/prisma';
 import { NextRequest, NextResponse } from 'next/server';
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
 
     const latestUserMsg =
       [...t.messages].reverse().find((m) => m.role === 'user')?.content ?? '(no user message)';
-    const url = `${process.env.APP_BASE_URL}/admin/chat?threadId=${t.id}`;
+    const url = absUrl(`/admin/chat?threadId=${t.id}`);
     const minutesOver = Math.max(0, Math.round((now - start - slaMs) / 60000));
 
     await sendSlaEmailTemplate({

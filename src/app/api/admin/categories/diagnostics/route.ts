@@ -1,6 +1,6 @@
 // src/app/api/admin/categories/diagnostics/route.ts
+import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 
@@ -20,22 +20,22 @@ export async function GET() {
         position: true,
         imageUrl: true,
         isActive: true,
-        _count: { select: { children: true } },
+        _count: { select: { children: true } }
       },
-      take: 10,
+      take: 10
     });
 
     const childSamples = await prisma.category.findMany({
       where: { parentId: { not: null } },
       orderBy: { name: 'asc' },
       select: { id: true, name: true, slug: true, parentId: true, isActive: true },
-      take: 10,
+      take: 10
     });
 
     return NextResponse.json({
       ok: true,
       counts: { total, parents, children },
-      samples: { parents: parentSamples, children: childSamples },
+      samples: { parents: parentSamples, children: childSamples }
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'diagnostics failed';
