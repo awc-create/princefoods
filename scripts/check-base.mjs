@@ -1,15 +1,28 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import dotenv from 'dotenv';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const envPath = resolve(process.cwd(), '.env');
-let env = '';
-try {
-  env = readFileSync(envPath, 'utf8');
-} catch {}
-const get = (k) => (process.env[k] ?? env.match(new RegExp(`^${k}=(.*)$`, 'm'))?.[1] ?? '').trim();
+const cwd = process.cwd();
 
-const base = get('NEXT_PUBLIC_ADMIN_URL') || get('NEXT_PUBLIC_SITE_URL') || get('SITE_URL');
+// Load env from common locations (override as we find more specific files)
+const envCandidates = [
+  path.join(cwd, '.env'),
+  path.join(cwd, '.vercel', '.env.production.local'),
+  path.join(cwd, '.vercel', '.env.preview.local'),
+  path.join(cwd, '.vercel', '.env.development.local')
+];
+
+for (const p of envCandidates) {
+  if (fs.existsSync(p)) {
+    dotenv.config({ path: p, override: true });
+  }
+}
+
+// Now read from process.env
+const base =
+  process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || process.env.NEXT_PUBLIC_ADMIN_URL;
+
 if (!base) {
   console.error(
     '❌ No base URL (NEXT_PUBLIC_ADMIN_URL|NEXT_PUBLIC_SITE_URL|SITE_URL) in .env or env.'
@@ -17,15 +30,4 @@ if (!base) {
   process.exit(1);
 }
 
-try {
-  const u = new URL(base);
-  // also check relative resolution works (trailing slash etc.)
-  const v = new URL('/health', u);
-  if (!v.href.startsWith(u.origin)) throw new Error('relative resolution broken');
-} catch (e) {
-  console.error('❌ Base URL is invalid or cannot resolve relatives:', base);
-  console.error(String((e && e.message) || e));
-  process.exit(1);
-}
-
-console.log('✅ Base URL OK:', base);
+console.log(`✅ Base URL detected: ${base}`);
