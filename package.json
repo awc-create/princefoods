@@ -19,7 +19,9 @@
     "validate": "yarn lint && yarn typecheck && yarn build",
     "vercel:pull:prod": "vercel pull --yes --environment=production",
     "vercel:pull:preview": "vercel pull --yes --environment=preview",
-    "vercel:pull:dev": "vercel pull --yes --environment=development"
+    "vercel:pull:dev": "vercel pull --yes --environment=development",
+    "ci:build:vercel": "yarn prisma generate && yarn vercel build --prod --debug",
+    "ci:deploy:vercel": "yarn vercel deploy --prebuilt --prod --debug"
   },
   "dependencies": {
     "@iconify/react": "^6.0.0",

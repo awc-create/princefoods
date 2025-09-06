@@ -1,4 +1,8 @@
-import React from 'react';
+// src/app/about/page.tsx
+// Keep this page simple; no URL construction here.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 import AboutClient from './AboutClient';
 

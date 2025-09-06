@@ -1,5 +1,5 @@
-// src/app/layout.tsx (SERVER)
-// ❌ no "use client" here
+// src/app/layout.tsx (SERVER ONLY – no "use client")
+import '@/instrument/url-guard'; // activates only when BUILD_URL_GUARD=1
 import { absUrl } from '@/lib/abs-url';
 import { urlFrom } from '@/lib/url';
 import '@/styles/Global.scss';
@@ -7,7 +7,7 @@ import type { Metadata } from 'next';
 import ClientShell from './ClientShell';
 
 export const metadata: Metadata = {
-  // ✅ safe even if env is missing
+  // metadataBase expects a URL object – urlFrom('/') returns URL
   metadataBase: urlFrom('/'),
   title: {
     default: 'Prince Foods',

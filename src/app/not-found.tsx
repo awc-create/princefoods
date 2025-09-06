@@ -1,3 +1,4 @@
+// src/app/not-found.tsx
 export const dynamic = 'force-static';
 
 export default function NotFound() {
