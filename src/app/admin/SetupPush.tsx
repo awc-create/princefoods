@@ -1,5 +1,6 @@
 // src/app/admin/SetupPush.tsx
 'use client';
+
 import { useEffect } from 'react';
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -16,22 +17,24 @@ export default function SetupPush() {
     (async () => {
       try {
         if (typeof window === 'undefined') return;
-        if (location.protocol !== 'https:') return; // require HTTPS
+
+        // Require HTTPS in production
+        if (location.protocol !== 'https:') return;
+
         if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
 
-        // ✅ use the keys you actually set
-        const vapid =
-          process.env.NEXT_PUBLIC_VAPID_PUBLIC ??
-          process.env.VAPID_PUBLIC ?? // alias just in case
-          null;
-
+        // ✅ simplified vapid key lookup
+        const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC ?? process.env.VAPID_PUBLIC;
         if (!vapid) return;
 
         const reg = await navigator.serviceWorker.register('/sw.js');
+
         const perm = await Notification.requestPermission();
         if (perm !== 'granted') return;
 
-        const sub = await reg.pushManager.subscribe({
+        let sub = await reg.pushManager.getSubscription();
+        // ✅ ESLint-friendly nullish assignment
+        sub ??= await reg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(vapid)
         });
@@ -39,10 +42,13 @@ export default function SetupPush() {
         await fetch('/api/push/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subscription: sub, adminEmail: 'admin@princefoods.com' })
-        });
+          body: JSON.stringify({
+            subscription: sub,
+            adminEmail: 'admin@princefoods.com'
+          })
+        }).catch(() => {});
       } catch {
-        // swallow in dev
+        // swallow errors in prod/dev
       }
     })();
   }, []);
