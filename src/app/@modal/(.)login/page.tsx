@@ -1,5 +1,4 @@
 // app/@modal/(.)login/page.tsx  ✅
-'use client';
 import LoginForm from '@/components/auth/LoginForm';
 import Modal from '@/components/common/Modal';
 import { Suspense } from 'react';
