@@ -1,11 +1,14 @@
-import { absUrl } from '@/lib/abs-url';
+// src/lib/url.ts
+import { absUrl } from './abs-url';
 
-/** Always construct a URL with a known base to avoid build-time crashes. */
 export function urlFrom(input: string | URL): URL {
-  // already absolute -> pass through
-  if (typeof input === 'string' && /^https?:\/\//i.test(input)) {
-    return new URL(input);
+  try {
+    if (input instanceof URL) return input;
+    const s = String(input);
+    if (/^https?:\/\//i.test(s)) return new URL(s);
+    return new URL(s, absUrl('/')); // always supply a solid base
+  } catch {
+    // Never throw; at worst return the site root as a URL
+    return new URL(absUrl('/'));
   }
-  // everything else -> resolve against a safe base
-  return new URL(String(input), absUrl('/'));
 }

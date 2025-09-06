@@ -1,5 +1,4 @@
-// src/app/layout.tsx (SERVER ONLY – no "use client")
-import '@/instrument/url-guard'; // activates only when BUILD_URL_GUARD=1
+// src/app/layout.tsx (server component)
 import { absUrl } from '@/lib/abs-url';
 import { urlFrom } from '@/lib/url';
 import '@/styles/Global.scss';
@@ -7,25 +6,14 @@ import type { Metadata } from 'next';
 import ClientShell from './ClientShell';
 
 export const metadata: Metadata = {
-  // metadataBase expects a URL object – urlFrom('/') returns URL
+  // ✅ URL object, but created safely
   metadataBase: urlFrom('/'),
-  title: {
-    default: 'Prince Foods',
-    template: '%s — Prince Foods'
-  },
+  title: { default: 'Prince Foods', template: '%s — Prince Foods' },
   description: 'South Asian groceries at unbeatable everyday prices.',
-  openGraph: {
-    images: [absUrl('/og.png')]
-  },
-  twitter: {
-    images: [absUrl('/og.png')]
-  },
-  icons: {
-    icon: absUrl('/favicon.ico')
-  },
-  alternates: {
-    canonical: absUrl('/')
-  }
+  openGraph: { images: [absUrl('/og.png')] },
+  twitter: { images: [absUrl('/og.png')] },
+  icons: { icon: absUrl('/favicon.ico') },
+  alternates: { canonical: absUrl('/') }
 };
 
 export default function RootLayout({
