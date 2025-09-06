@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "prebuild": "prisma generate",
+    "guard:url": "node scripts/guard-url.mjs",
+    "prebuild": "prisma generate && npm run guard:url",
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
@@ -15,7 +16,10 @@
     "seed:kb": "tsx prisma/seed.kb.ts",
     "seed": "yarn seed:admin && yarn seed:kb",
     "typecheck": "tsc --noEmit",
-    "validate": "yarn lint && yarn typecheck && yarn build"
+    "validate": "yarn lint && yarn typecheck && yarn build",
+    "vercel:pull:prod": "vercel pull --yes --environment=production",
+    "vercel:pull:preview": "vercel pull --yes --environment=preview",
+    "vercel:pull:dev": "vercel pull --yes --environment=development"
   },
   "dependencies": {
     "@iconify/react": "^6.0.0",
@@ -79,6 +83,7 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.20.4",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.32.1"
+    "typescript-eslint": "^8.32.1",
+    "vercel": "^47.0.5"
   }
 }

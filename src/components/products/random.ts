@@ -4,7 +4,6 @@ import { urlFrom } from '@/lib/url';
 import { NextResponse } from 'next/server';
 
 export async function GET(req: Request) {
-  // ✅ Use safe helper instead of raw new URL()
   const requestUrl = urlFrom(req.url);
   const limit = parseInt(requestUrl.searchParams.get('limit') ?? '6', 10);
 

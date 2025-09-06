@@ -1,13 +1,14 @@
 // src/app/layout.tsx (SERVER)
 // ❌ no "use client" here
 import { absUrl } from '@/lib/abs-url';
+import { urlFrom } from '@/lib/url';
 import '@/styles/Global.scss';
 import type { Metadata } from 'next';
 import ClientShell from './ClientShell';
 
 export const metadata: Metadata = {
-  // ✅ safe even if env is missing, thanks to absUrl()
-  metadataBase: new URL(absUrl('/')),
+  // ✅ safe even if env is missing
+  metadataBase: urlFrom('/'),
   title: {
     default: 'Prince Foods',
     template: '%s — Prince Foods'
