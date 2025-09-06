@@ -1,9 +1,12 @@
+// src/app/api/products/route.ts
+import { absUrl } from '@/lib/abs-url';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const limit = parseInt(url.searchParams.get('limit') ?? '6', 10);
+  // Parse request URL safely
+  const requestUrl = new URL(req.url, absUrl('/')); // ensures a base exists
+  const limit = parseInt(requestUrl.searchParams.get('limit') ?? '6', 10);
 
   const products = await prisma.product.findMany({
     take: limit,

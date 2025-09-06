@@ -1,3 +1,5 @@
+// src/app/api/admin/send-welcome/route.ts
+import { absUrl } from '@/lib/abs-url';
 import { prisma } from '@/lib/prisma';
 import { getResend } from '@/lib/resend';
 import { NextResponse } from 'next/server';
@@ -13,6 +15,7 @@ export async function POST() {
       { status: 501 }
     );
   }
+
   const resend = getResend();
   if (!resend) {
     return NextResponse.json({ ok: false, message: 'RESEND_API_KEY missing' }, { status: 501 });
@@ -21,21 +24,10 @@ export async function POST() {
   const from = process.env.RESEND_FROM ?? 'Prince Foods <no-reply@prince-foods.com>';
   const replyTo = process.env.RESEND_REPLY_TO ?? undefined;
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_ADMIN_URL ??
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    process.env.SITE_URL ??
-    null;
-
-  if (!baseUrl) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: 'Base URL missing (set NEXT_PUBLIC_ADMIN_URL or NEXT_PUBLIC_SITE_URL)'
-      },
-      { status: 501 }
-    );
-  }
+  // We no longer require a base URL env to exist here.
+  // absUrl() will safely fall back to a canonical base (envs if present, or localhost),
+  // so build-time or unusual runtime envs won’t throw.
+  // If you *want* to hard-enforce a prod base, you can re-add a check.
 
   const users = await prisma.user.findMany({
     where: { source: 'WIX', welcomeStatus: 'PENDING' },
@@ -56,18 +48,19 @@ export async function POST() {
         data: { userId: u.id, token, expiresAt }
       });
 
-      const url = new URL('/welcome', baseUrl);
-      url.searchParams.set('token', token);
+      // ✅ Build a safe absolute URL and then add the token query param
+      const welcome = new URL(absUrl('/welcome'));
+      welcome.searchParams.set('token', token);
 
       await resend.emails.send({
         from,
-        ...(replyTo ? { replyTo } : {}), // <-- camelCase
+        ...(replyTo ? { replyTo } : {}),
         to: u.email ?? '',
         subject: 'Welcome to Prince Foods — finish your account',
         html: `
           <p>Hi${u.firstName ? ' ' + u.firstName : ''},</p>
           <p>We’ve moved to our new site. Please finish setting up your account:</p>
-          <p><a href="${url.toString()}">Set your password and complete your profile</a></p>
+          <p><a href="${welcome.toString()}">Set your password and complete your profile</a></p>
           <p>Thanks,<br/>Prince Foods Team</p>
         `
       });
