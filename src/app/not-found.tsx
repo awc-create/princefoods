@@ -1,5 +1,6 @@
 // src/app/not-found.tsx
-export const dynamic = 'force-static';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default function NotFound() {
   return (

@@ -1,4 +1,4 @@
-// src/app/layout.tsx (server component)
+// src/app/layout.tsx (SERVER)
 import { absUrl } from '@/lib/abs-url';
 import { urlFrom } from '@/lib/url';
 import '@/styles/Global.scss';
@@ -6,8 +6,7 @@ import type { Metadata } from 'next';
 import ClientShell from './ClientShell';
 
 export const metadata: Metadata = {
-  // ✅ URL object, but created safely
-  metadataBase: urlFrom('/'),
+  metadataBase: urlFrom(absUrl('/')),
   title: { default: 'Prince Foods', template: '%s — Prince Foods' },
   description: 'South Asian groceries at unbeatable everyday prices.',
   openGraph: { images: [absUrl('/og.png')] },

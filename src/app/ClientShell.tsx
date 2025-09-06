@@ -1,10 +1,10 @@
-// src/app/ClientShell.tsx (CLIENT)
 'use client';
 
 import PrinceChat from '@/components/chat/PrinceChat';
 import Footer from '@/components/footer/Footer';
 import Navbar from '@/components/navbar/Navbar';
 import { usePathname } from 'next/navigation';
+import React from 'react';
 import Providers from './providers';
 
 const isEcommerce = process.env.NEXT_PUBLIC_SITE_MODE === 'ecommerce';

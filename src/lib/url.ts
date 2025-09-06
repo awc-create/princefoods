@@ -2,13 +2,24 @@
 import { absUrl } from './abs-url';
 
 export function urlFrom(input: string | URL): URL {
+  if (input instanceof URL) return input;
+
+  const s = String(input).trim();
+
+  // Absolute HTTP(S) → construct directly
+  if (/^https?:\/\//i.test(s)) {
+    try {
+      return new URL(s);
+    } catch {
+      // fall through to base-join fallback
+    }
+  }
+
+  // Relative or anything weird → join with a safe base
   try {
-    if (input instanceof URL) return input;
-    const s = String(input);
-    if (/^https?:\/\//i.test(s)) return new URL(s);
-    return new URL(s, absUrl('/')); // always supply a solid base
+    return new URL(s, absUrl('/'));
   } catch {
-    // Never throw; at worst return the site root as a URL
+    // As a last resort, return the base itself
     return new URL(absUrl('/'));
   }
 }
