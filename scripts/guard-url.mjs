@@ -3,7 +3,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(process.cwd(), 'src');
-const ALLOW = new Set([path.join(ROOT, 'lib/abs-url.ts'), path.join(ROOT, 'lib/url.ts')]);
+
+// ✅ Allowlist: files that may legitimately contain `new URL(...)`
+const ALLOW = new Set([
+  path.join(ROOT, 'lib/abs-url.ts'),
+  path.join(ROOT, 'lib/url.ts'),
+  path.join(ROOT, 'instrument/url-guard.ts') // <— added
+]);
 
 const IGNORE_DIRS = new Set([
   'node_modules',
