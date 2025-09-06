@@ -1,5 +1,5 @@
+// src/app/contact/ContactClient.tsx
 'use client';
-import React from 'react';
 
 import styles from './Contact.module.scss';
 
@@ -10,9 +10,9 @@ export default function ContactClient() {
         <h1 id="contact-heading">Contact Us</h1>
         <p>
           Have questions about our South Asian groceries or frozen food delivery? Get in touch with
-          Prince Foods today.  Whether you&apos;re looking for product information, order support, or
-          wholesale inquiries, our friendly team is ready to assist. Reach out and let&rsquo;s find the
-          right solution for your home or business.
+          Prince Foods today. Whether you&apos;re looking for product information, order support, or
+          wholesale inquiries, our friendly team is ready to assist. Reach out and let&rsquo;s find
+          the right solution for your home or business.
         </p>
       </div>
 

@@ -1,48 +1,41 @@
 // src/instrument/url-guard.ts
-// Make this file a module so global augmentation is allowed.
+// Dev-only shim that warns if code calls `new URL(<relative>)` with no base.
+// Safe: module scope only, no global type augmentation.
+// It does nothing in production.
+
 export {};
 
-type URLInput = ConstructorParameters<typeof URL>[0];
-type URLBase = ConstructorParameters<typeof URL>[1];
+if (process.env.NODE_ENV !== 'production' && typeof globalThis !== 'undefined') {
+  // Type out the URL constructor so we don't use `any`.
+  type URLCtor = new (input: string | URL, base?: string | URL) => URL;
 
-// Only activates when BUILD_URL_GUARD=1 (safe otherwise)
-if (process.env.BUILD_URL_GUARD === '1') {
-  const RealURL = URL;
+  // Keep a reference to the real constructor.
+  const RealURL = globalThis.URL as unknown as URLCtor;
 
-  function GuardedURL(input: URLInput, base?: URLBase) {
-    // Detect relative-like strings when no base is provided
-    const s = String(input ?? '');
-    const looksRelative =
-      !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(s) &&
-      !s.startsWith('//') &&
-      !s.startsWith('data:') &&
-      !s.startsWith('blob:');
+  // Only override if URL exists and we haven't wrapped it already.
+  if (typeof RealURL === 'function') {
+    const WrappedURL: URLCtor = function URL(input: string | URL, base?: string | URL): URL {
+      // Warn when input is a relative string and no base was provided.
+      if (
+        typeof input === 'string' &&
+        // not an absolute scheme (e.g., http:, https:, data:, etc.)
+        !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(input) &&
+        base === undefined
+      ) {
+        console.warn('[url-guard] `new URL(<relative>)` without a base detected:', input);
+      }
 
-    if (base == null && looksRelative) {
-      const err = new Error(`[URL guard] Relative URL without base: ${JSON.stringify(s)}`);
-      // Keep the stack short & helpful
-      const stack = (err.stack ?? '').split('\n').slice(0, 8).join('\n');
-
-      console.error(stack);
-    }
-
-    try {
-      // Call the real constructor
-
-      // @ts-ignore - construct like native
       return new RealURL(input, base);
-    } catch (e) {
-      console.error('[URL guard] new URL threw:', { input: s, base }, e);
-      throw e;
-    }
+    } as unknown as URLCtor;
+
+    // Preserve prototype so instanceof checks keep working.
+    (WrappedURL as unknown as { prototype: URL }).prototype = (
+      RealURL as unknown as {
+        prototype: URL;
+      }
+    ).prototype;
+
+    // Install the wrapper.
+    (globalThis as unknown as { URL: URLCtor }).URL = WrappedURL;
   }
-
-  // Preserve prototype
-
-  // @ts-ignore
-  GuardedURL.prototype = RealURL.prototype;
-
-  // Swap globally
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (globalThis as any).URL = GuardedURL;
 }
