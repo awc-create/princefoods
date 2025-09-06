@@ -1,35 +1,43 @@
-'use client';
-import React from 'react';
-
+// src/app/layout.tsx (SERVER)
+// ❌ no "use client" here
+import { absUrl } from '@/lib/abs-url';
 import '@/styles/Global.scss';
-import { usePathname } from 'next/navigation';
-import Navbar from '@/components/navbar/Navbar';
-import Footer from '@/components/footer/Footer';
-import PrinceChat from '@/components/chat/PrinceChat';
-import Providers from './providers';
+import type { Metadata } from 'next';
+import ClientShell from './ClientShell';
 
-const isEcommerce = process.env.NEXT_PUBLIC_SITE_MODE === 'ecommerce';
+export const metadata: Metadata = {
+  // ✅ safe even if env is missing, thanks to absUrl()
+  metadataBase: new URL(absUrl('/')),
+  title: {
+    default: 'Prince Foods',
+    template: '%s — Prince Foods'
+  },
+  description: 'South Asian groceries at unbeatable everyday prices.',
+  openGraph: {
+    images: [absUrl('/og.png')]
+  },
+  twitter: {
+    images: [absUrl('/og.png')]
+  },
+  icons: {
+    icon: absUrl('/favicon.ico')
+  },
+  alternates: {
+    canonical: absUrl('/')
+  }
+};
 
 export default function RootLayout({
   children,
-  modal,                        // parallel route slot
+  modal
 }: {
   children: React.ReactNode;
   modal: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const isAdmin = pathname?.startsWith('/admin') ?? false;
-
   return (
     <html lang="en">
       <body>
-        <Providers>
-          <Navbar isEcommerce={isEcommerce} />
-          <main>{children}</main>
-          {modal}
-          {!isAdmin && <PrinceChat />}
-          <Footer />
-        </Providers>
+        <ClientShell modal={modal}>{children}</ClientShell>
       </body>
     </html>
   );
