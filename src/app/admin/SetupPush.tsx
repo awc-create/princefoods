@@ -1,3 +1,4 @@
+// src/app/admin/SetupPush.tsx
 'use client';
 import { useEffect } from 'react';
 
@@ -15,13 +16,15 @@ export default function SetupPush() {
     (async () => {
       try {
         if (typeof window === 'undefined') return;
-
-        // Require HTTPS (avoid errors on localhost/dev)
-        if (location.protocol !== 'https:') return;
-
+        if (location.protocol !== 'https:') return; // require HTTPS
         if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
 
-        const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+        // ✅ use the keys you actually set
+        const vapid =
+          process.env.NEXT_PUBLIC_VAPID_PUBLIC ??
+          process.env.VAPID_PUBLIC ?? // alias just in case
+          null;
+
         if (!vapid) return;
 
         const reg = await navigator.serviceWorker.register('/sw.js');
@@ -30,16 +33,16 @@ export default function SetupPush() {
 
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapid),
+          applicationServerKey: urlBase64ToUint8Array(vapid)
         });
 
         await fetch('/api/push/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subscription: sub, adminEmail: 'admin@princefoods.com' }),
+          body: JSON.stringify({ subscription: sub, adminEmail: 'admin@princefoods.com' })
         });
       } catch {
-        // swallow in dev to avoid noisy console errors
+        // swallow in dev
       }
     })();
   }, []);

@@ -1,13 +1,21 @@
-import webpush, { type WebPushError, type PushSubscription } from 'web-push';
+// src/lib/push.ts
+import webpush, { type PushSubscription, type WebPushError } from 'web-push';
 import { prisma } from './prisma';
 
-const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC;
-const VAPID_PRIVATE = process.env.VAPID_PRIVATE;
+// Accept either NEXT_PUBLIC_VAPID_PUBLIC (preferred) or VAPID_PUBLIC as an alias
+const VAPID_PUBLIC = (
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC ??
+  process.env.VAPID_PUBLIC ??
+  ''
+).trim();
+const VAPID_PRIVATE = (process.env.VAPID_PRIVATE ?? '').trim();
 
-if (VAPID_PUBLIC && VAPID_PRIVATE) {
+const hasVapid = VAPID_PUBLIC !== '' && VAPID_PRIVATE !== '';
+
+if (hasVapid) {
   webpush.setVapidDetails('mailto:alerts@prince-foods.com', VAPID_PUBLIC, VAPID_PRIVATE);
-} else {
-   
+} else if (process.env.NODE_ENV !== 'production') {
+  // Only warn in dev to avoid build logs being noisy
   console.warn('[push] VAPID keys missing; admin push notifications are disabled.');
 }
 
@@ -16,10 +24,10 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
  * Auto-cleans dead subscriptions (410/404).
  */
 export async function sendAdminPush(title: string, body: string): Promise<void> {
-  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return;
+  if (!hasVapid) return;
 
   const subs = await prisma.pushSubscription.findMany({
-    select: { id: true, endpointJson: true },
+    select: { id: true, endpointJson: true }
   });
   if (subs.length === 0) return;
 
@@ -36,7 +44,6 @@ export async function sendAdminPush(title: string, body: string): Promise<void> 
         if (code === 404 || code === 410) {
           toDelete.push(s.id); // stale subscription
         } else {
-           
           console.error('[push] send error:', err instanceof Error ? err.message : String(err));
         }
       }
