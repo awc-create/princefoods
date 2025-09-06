@@ -19,7 +19,6 @@ export type Source =
 
 const WIX_MEDIA_HOST = 'https://static.wixstatic.com';
 const WIX_MEDIA_PREFIX = `${WIX_MEDIA_HOST}/media/`;
-// e.g. 96bfc4_a4613d3675074b0b97f11a2f8093f585~mv2.webp
 const WIX_ID_RE = /^[0-9a-f]{6,}_[^/]+~mv2\.[a-z0-9]+$/i;
 
 export function detectImageUrl(input?: string | null): { url: string | null; source: Source } {
@@ -36,18 +35,17 @@ export function detectImageUrl(input?: string | null): { url: string | null; sou
   // 2) Wix /media/... path
   if (s.startsWith('/media/')) return { url: WIX_MEDIA_HOST + s, source: 'wix-media' };
 
-  // 3) wix:image://v1/... tail usually the media id with extension
+  // 3) wix:image://v1/...
   if (s.startsWith('wix:image://v1/')) {
     const last = s.split('/').pop();
     if (last && WIX_ID_RE.test(last))
       return { url: WIX_MEDIA_PREFIX + last, source: 'wix-image-v1' };
   }
 
-  // Try to ensure a valid URL string (encode if bare text with spaces etc.)
+  // Ensure parseable URL string
   if (!/^https?:\/\//i.test(s)) {
     try {
-      // validate using urlFrom so guard stays happy
-      urlFrom(s);
+      urlFrom(s); // validate
     } catch {
       s = encodeURI(s);
     }
@@ -97,7 +95,7 @@ export function detectImageUrl(input?: string | null): { url: string | null; sou
   }
 
   // 8) Other valid http(s)
-  if (u.protocol === 'http:' || u.protocol === 'https:')) {
+  if (u.protocol === 'http:' || u.protocol === 'https:') {
     return { url: u.toString(), source: 'other' };
   }
 
