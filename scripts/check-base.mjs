@@ -1,33 +1,61 @@
 #!/usr/bin/env node
-import dotenv from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const cwd = process.cwd();
+const CANDIDATE_KEYS = ['NEXT_PUBLIC_ADMIN_URL', 'NEXT_PUBLIC_SITE_URL', 'SITE_URL'];
 
-// Load env from common locations (override as we find more specific files)
-const envCandidates = [
-  path.join(cwd, '.env'),
-  path.join(cwd, '.vercel', '.env.production.local'),
-  path.join(cwd, '.vercel', '.env.preview.local'),
-  path.join(cwd, '.vercel', '.env.development.local')
-];
+const envFile = path.resolve(process.cwd(), '.env');
+const hasDotenv = fs.existsSync(envFile);
+const dotenvText = hasDotenv ? fs.readFileSync(envFile, 'utf8') : '';
+const dotenv = Object.fromEntries(
+  dotenvText
+    .split(/\r?\n/)
+    .filter((l) => l && !l.trim().startsWith('#') && l.includes('='))
+    .map((l) => {
+      const i = l.indexOf('=');
+      const k = l.slice(0, i).trim();
+      const v = l.slice(i + 1).trim();
+      return [k, v.replace(/^["']|["']$/g, '')];
+    })
+);
 
-for (const p of envCandidates) {
-  if (fs.existsSync(p)) {
-    dotenv.config({ path: p, override: true });
+// resolve the first non-empty value from process.env or .env
+const getVal = (k) => {
+  const v = (process.env[k] ?? dotenv[k] ?? '').trim();
+  return v || null;
+};
+
+// simple absolute URL validator
+const isAbsUrl = (s) => {
+  if (!s) return false;
+  try {
+    const u = new URL(s);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
   }
+};
+
+// find the first good one
+const winner = CANDIDATE_KEYS.find((k) => isAbsUrl(getVal(k)));
+
+if (winner) {
+  console.log(`✅ Base URL checks passed (${winner}=${getVal(winner)})`);
+  process.exit(0);
 }
 
-// Now read from process.env
-const base =
-  process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || process.env.NEXT_PUBLIC_ADMIN_URL;
+// if none matched, print helpful diagnostics
+const have = CANDIDATE_KEYS.map((k) => `${k}=${JSON.stringify(getVal(k))}`).join(', ');
 
-if (!base) {
-  console.error(
-    '❌ No base URL (NEXT_PUBLIC_ADMIN_URL|NEXT_PUBLIC_SITE_URL|SITE_URL) in .env or env.'
-  );
-  process.exit(1);
+console.error('❌ No valid base URL found. Need at least ONE of:');
+console.error('   ' + CANDIDATE_KEYS.join(', '));
+console.error(`🔎 Resolved values (env ⟶ .env): ${have}`);
+
+if (hasDotenv) {
+  console.error('\n📄 First 12 lines of .env for context:');
+  console.error(dotenvText.split(/\r?\n/).slice(0, 12).join('\n'));
+} else {
+  console.error('\n⚠️ No .env file found at project root.');
 }
 
-console.log(`✅ Base URL detected: ${base}`);
+process.exit(1);
