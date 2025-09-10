@@ -18,8 +18,18 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Prisma client (fallback if no script exists)
+
+# 👇 Accept base URL build args and surface as env for scripts/guard-url.mjs
+ARG NEXT_PUBLIC_SITE_URL
+ARG NEXT_PUBLIC_ADMIN_URL
+ARG SITE_URL
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
+    NEXT_PUBLIC_ADMIN_URL=$NEXT_PUBLIC_ADMIN_URL \
+    SITE_URL=$SITE_URL
+
+# Prisma client (fallback)
 RUN npx prisma generate || true
+
 # Next build (standalone)
 RUN \
   if [ -f yarn.lock ]; then yarn build; \
@@ -35,11 +45,9 @@ ENV NODE_ENV=production \
 RUN apk add --no-cache libc6-compat \
  && addgroup -g 1001 -S nodejs \
  && adduser -S nextjs -u 1001
-# Copy standalone output
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
-# Migrations (optional but handy if you run prisma migrate deploy in container)
 COPY --from=builder /app/prisma ./prisma
 RUN npm i -g prisma@6.13.0
 USER 1001
