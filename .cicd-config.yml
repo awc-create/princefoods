@@ -3,8 +3,8 @@ slug: princefoods
 port: 3000
 
 domains:
-  prod: prince-foods.com
-  admin: admin.prince-foods.com
+  prod: prince-v.com
+  admin: admin.prince-v.com
 
 deploy_targets:
   main-hetz: hetzner
