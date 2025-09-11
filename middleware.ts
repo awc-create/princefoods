@@ -3,12 +3,17 @@ import { getToken } from 'next-auth/jwt';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+interface AppToken {
+  role?: Role;
+}
+
 const PUBLIC_HOSTS = new Set(['prince-v.com', 'www.prince-v.com']);
 const ADMIN_HOSTS = new Set(['admin.prince-v.com']);
 
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
-  const host = req.headers.get('host') || req.nextUrl.hostname;
+  const host = req.headers.get('host') ?? req.nextUrl.hostname; // nullish coalescing ✅
 
   // Always allow framework/static/api and both login pages
   if (
@@ -16,45 +21,53 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api') ||
     pathname.startsWith('/assets') ||
     pathname.startsWith('/public') ||
-    pathname === '/login' || // public login
-    pathname === '/admin/login' || // admin login
+    pathname === '/login' ||
+    pathname === '/admin/login' ||
     pathname.startsWith('/signup') ||
     pathname.startsWith('/admin/signup')
-  )
-    return NextResponse.next();
+  ) {
+    const res = NextResponse.next();
+    res.headers.set('x-mw', `allow:${host}`); // debug header
+    return res;
+  }
 
   // === Public site rules ===
   if (PUBLIC_HOSTS.has(host)) {
-    // /admin must never be reachable on the public host
     if (pathname.startsWith('/admin')) {
-      return NextResponse.redirect(new URL('/', req.url));
+      const res = NextResponse.redirect(new URL('/', req.url));
+      res.headers.set('x-mw', `public-block-admin:${host}`); // debug header
+      return res;
     }
-    // (Optional) protect /account, /orders, etc.
-    // const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-    // if (!token && (pathname.startsWith('/account') || pathname.startsWith('/orders'))) {
-    //   const url = new URL('/login', req.url);
-    //   url.searchParams.set('callbackUrl', pathname + search);
-    //   return NextResponse.redirect(url);
-    // }
-    return NextResponse.next();
+    const res = NextResponse.next();
+    res.headers.set('x-mw', `public-pass:${host}`);
+    return res;
   }
 
   // === Admin site rules ===
   if (ADMIN_HOSTS.has(host)) {
     if (pathname.startsWith('/admin')) {
-      const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-      const role = (token as any)?.role as 'HEAD' | 'STAFF' | 'VIEWER' | undefined;
-      if (!token || !(role === 'HEAD' || role === 'STAFF')) {
+      const token = (await getToken({
+        req,
+        secret: process.env.NEXTAUTH_SECRET
+      })) as AppToken | null;
+      const role = token?.role;
+      if (!role || (role !== 'HEAD' && role !== 'STAFF')) {
         const url = new URL('/admin/login', req.url);
         url.searchParams.set('callbackUrl', pathname + search);
-        return NextResponse.redirect(url);
+        const res = NextResponse.redirect(url);
+        res.headers.set('x-mw', `admin-gate:${host}`);
+        return res;
       }
     }
-    return NextResponse.next();
+    const res = NextResponse.next();
+    res.headers.set('x-mw', `admin-pass:${host}`);
+    return res;
   }
 
   // Default allow (useful for localhost/preview)
-  return NextResponse.next();
+  const res = NextResponse.next();
+  res.headers.set('x-mw', `default-pass:${host}`);
+  return res;
 }
 
 export const config = { matcher: ['/:path*'] };
