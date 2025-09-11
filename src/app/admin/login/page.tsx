@@ -1,10 +1,10 @@
+// src/app/admin/login/page.tsx
 'use client';
 
-import { useState } from 'react';
-import { signIn } from 'next-auth/react';
-import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
+import { signIn, useSession } from 'next-auth/react';
 import Image from 'next/image';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import styles from './Login.module.scss';
 
 function safeCallbackUrl(raw?: string | null) {
@@ -19,8 +19,16 @@ export default function AdminLoginPage() {
   const [err, setErr] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
+  const { status } = useSession();
   const sp = useSearchParams();
+  const router = useRouter();
   const callbackUrl = safeCallbackUrl(sp?.get('callbackUrl'));
+
+  useEffect(() => {
+    if (status === 'authenticated') {
+      router.replace(callbackUrl);
+    }
+  }, [status, callbackUrl, router]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,13 +39,15 @@ export default function AdminLoginPage() {
         email,
         password,
         redirect: true,
-        callbackUrl,
+        callbackUrl
       });
     } catch {
       setErr('Unexpected error. Try again.');
       setPending(false);
     }
   }
+
+  if (status === 'loading') return <div className={styles.container}>Checking session…</div>;
 
   return (
     <div className={styles.container}>
@@ -51,17 +61,21 @@ export default function AdminLoginPage() {
           className={styles.logo}
         />
         <h1 className={styles.title}>Admin Login</h1>
-        <p className={styles.subtitle}>Please sign in to continue.</p>
+        <p className={styles.subtitle}>Staff access only.</p>
       </div>
 
       <form onSubmit={onSubmit} className={styles.form} autoComplete="on">
-        <label className={styles.label} htmlFor="email">Email</label>
+        <label className={styles.label} htmlFor="email">
+          Email
+        </label>
         <div className={styles.field}>
-          <span className={styles.icon} aria-hidden>✉️</span>
+          <span className={styles.icon} aria-hidden>
+            ✉️
+          </span>
           <input
             id="email"
             type="email"
-            placeholder="you@example.com"
+            placeholder="admin@prince-v.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -71,11 +85,16 @@ export default function AdminLoginPage() {
         </div>
 
         <div className={styles.rowBetween}>
-          <label className={styles.label} htmlFor="password">Password</label>
-          <Link href="/forgot-password" className={styles.helper}>Forgot?</Link>
+          <label className={styles.label} htmlFor="password">
+            Password
+          </label>
+          {/* If you have a staff-only reset, point here */}
+          {/* <Link href="/admin/forgot-password" className={styles.helper}>Forgot?</Link> */}
         </div>
         <div className={styles.field}>
-          <span className={styles.icon} aria-hidden>🔒</span>
+          <span className={styles.icon} aria-hidden>
+            🔒
+          </span>
           <input
             id="password"
             type={showPw ? 'text' : 'password'}
@@ -103,15 +122,7 @@ export default function AdminLoginPage() {
         </button>
       </form>
 
-      <p className={styles.switchAuth}>
-        New here?{' '}
-        <Link
-          href={`/signup?callbackUrl=${encodeURIComponent(callbackUrl)}`}
-          className={styles.link}
-        >
-          Sign up now
-        </Link>
-      </p>
+      {/* No signup / social on admin host */}
     </div>
   );
 }

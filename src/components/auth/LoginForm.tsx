@@ -2,6 +2,7 @@
 'use client';
 
 import styles from '@/app/login/LoginPage.module.scss';
+import { safePublicCallbackUrl } from '@/lib/auth-redirect';
 import { signIn } from 'next-auth/react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -9,17 +10,11 @@ import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 interface LoginFormProps {
-  /** Optional preferred callback. If omitted, falls back to ?callbackUrl=… or /admin */
+  /** Prefer passing a pre-normalised callbackUrl from the page/client. */
   callbackUrl?: string;
 }
 
-function safeCallbackUrl(raw?: string | null) {
-  // Default to /admin; never allow /admin/login as a target to avoid loops
-  if (!raw) return '/admin';
-  return raw.startsWith('/admin/login') ? '/admin' : raw;
-}
-
-export default function LoginForm(props: LoginFormProps) {
+export default function LoginForm({ callbackUrl: propCallback }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -27,8 +22,9 @@ export default function LoginForm(props: LoginFormProps) {
   const [pending, setPending] = useState(false);
 
   const sp = useSearchParams();
-  const queryCb = sp?.get('callbackUrl') ?? null;
-  const callbackUrl = safeCallbackUrl(props.callbackUrl ?? queryCb);
+
+  // If a prop is provided, use it directly; otherwise normalise the query value
+  const callbackUrl = propCallback ?? safePublicCallbackUrl(sp?.get('callbackUrl') ?? null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,7 +37,6 @@ export default function LoginForm(props: LoginFormProps) {
         redirect: true,
         callbackUrl
       });
-      // With redirect:true, NextAuth navigates; nothing more to do
     } catch {
       setErr('Unexpected error. Try again.');
       setPending(false);
@@ -91,6 +86,7 @@ export default function LoginForm(props: LoginFormProps) {
             Forgot?
           </Link>
         </div>
+
         <div className={styles.field}>
           <span className={styles.icon} aria-hidden>
             🔒
