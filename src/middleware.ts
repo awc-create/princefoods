@@ -1,4 +1,4 @@
-// middleware.ts (repo root or src/, pick ONE location only)
+// src/middleware.ts  (or ./middleware.ts — keep ONLY one)
 import { getToken } from 'next-auth/jwt';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -15,7 +15,6 @@ export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const host = req.headers.get('host') ?? req.nextUrl.hostname;
 
-  // Always allow framework/static/api and both login pages
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
@@ -27,14 +26,12 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/admin/signup')
   ) {
     const res = NextResponse.next();
-    res.headers.set('x-mw', `allow:${host}`); // debug header
+    res.headers.set('x-mw', `allow:${host}`);
     return res;
   }
 
-  // === Public site rules ===
   if (PUBLIC_HOSTS.has(host)) {
     if (pathname.startsWith('/admin')) {
-      // redirect to "/" WITHOUT using new URL(...)
       const url = req.nextUrl.clone();
       url.pathname = '/';
       url.search = '';
@@ -47,7 +44,6 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
-  // === Admin site rules ===
   if (ADMIN_HOSTS.has(host)) {
     if (pathname.startsWith('/admin')) {
       const token = (await getToken({
@@ -56,7 +52,6 @@ export async function middleware(req: NextRequest) {
       })) as AppToken | null;
       const role = token?.role;
       if (!role || (role !== 'HEAD' && role !== 'STAFF')) {
-        // redirect to "/admin/login" WITHOUT using new URL(...)
         const url = req.nextUrl.clone();
         url.pathname = '/admin/login';
         url.searchParams.set('callbackUrl', pathname + search);
@@ -70,7 +65,6 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
-  // Default allow
   const res = NextResponse.next();
   res.headers.set('x-mw', `default-pass:${host}`);
   return res;
