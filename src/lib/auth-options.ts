@@ -1,30 +1,21 @@
 // src/lib/auth-options.ts
-import type { NextAuthOptions, DefaultSession, User as NextAuthUser } from 'next-auth';
-import Google from 'next-auth/providers/google';
-import Credentials from 'next-auth/providers/credentials';
-import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import { prisma } from '@/lib/prisma';
+import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
-import { z } from 'zod';
-import type { JWT } from 'next-auth/jwt';
+import type { DefaultSession, NextAuthOptions, User as NextAuthUser } from 'next-auth';
 import type { AdapterUser } from 'next-auth/adapters';
+import type { JWT } from 'next-auth/jwt';
+import Credentials from 'next-auth/providers/credentials';
+import Google from 'next-auth/providers/google';
+import { z } from 'zod';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
-
-// Extend token/session shapes locally without module augmentation
-type AppJWT = JWT & {
-  id?: string;
-  role?: Role;
-};
-
-type AppSessionUser = DefaultSession['user'] & {
-  id?: string;
-  role?: Role;
-};
+type AppJWT = JWT & { id?: string; role?: Role };
+type AppSessionUser = DefaultSession['user'] & { id?: string; role?: Role };
 
 const CredentialsSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(6)
 });
 
 function isAdapterUser(u: NextAuthUser | AdapterUser): u is AdapterUser {
@@ -34,13 +25,28 @@ function isAdapterUser(u: NextAuthUser | AdapterUser): u is AdapterUser {
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   session: { strategy: 'jwt' },
+
+  // ⛑ ensure the session cookie is accepted by the browser on admin.prince-v.com
+  cookies: {
+    sessionToken: {
+      name: '__Secure-next-auth.session-token',
+      options: {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        path: '/',
+        domain: 'admin.prince-v.com'
+      }
+    }
+  },
+
   providers: [
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
       ? [
           Google({
             clientId: process.env.GOOGLE_CLIENT_ID!,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-          }),
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET!
+          })
         ]
       : []),
     Credentials({
@@ -57,42 +63,29 @@ export const authOptions: NextAuthOptions = {
         const ok = await bcrypt.compare(password, user.password);
         if (!ok) return null;
 
-        // Return minimal user with role for JWT
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role as Role,
-        };
-      },
-    }),
+        return { id: user.id, name: user.name, email: user.email, role: user.role as Role };
+      }
+    })
   ],
+
   callbacks: {
     async jwt({ token, user }) {
       const t = token as AppJWT;
-
       if (user) {
-        // First login for the session
-        if (isAdapterUser(user)) {
-          t.id = user.id;
-        }
-        // Credentials provider returns object with role
+        if (isAdapterUser(user)) t.id = user.id;
         const maybeRole = (user as Partial<{ role: Role }>).role;
         if (maybeRole) t.role = maybeRole;
       }
-
-      // If we still don't have role/id, fetch minimal from DB by email
       if ((!t.role || !t.id) && token.email) {
         const db = await prisma.user.findUnique({
           where: { email: token.email as string },
-          select: { id: true, role: true },
+          select: { id: true, role: true }
         });
         if (db) {
           t.id = t.id ?? db.id;
           t.role = (t.role ?? db.role) as Role;
         }
       }
-
       return t;
     },
 
@@ -107,33 +100,35 @@ export const authOptions: NextAuthOptions = {
     },
 
     async signIn({ user, account }) {
-      // On first Google sign-in, lightly enrich name parts
       if (account?.provider === 'google' && isAdapterUser(user)) {
         const u = await prisma.user.findUnique({ where: { id: user.id } });
         if (u) {
           const parts = (user.name ?? '').trim().split(/\s+/);
           const first = u.firstName ?? parts[0] ?? null;
           const last = u.lastName ?? (parts.length > 1 ? parts.slice(1).join(' ') : null);
-          const fullName = first && last ? `${first} ${last}` : first ?? u.name ?? user.name ?? '';
+          const fullName =
+            first && last ? `${first} ${last}` : (first ?? u.name ?? user.name ?? '');
           await prisma.user.update({
             where: { id: u.id },
-            // IMPORTANT: do not pass null to a non-nullable Prisma string field
-            data: { firstName: first, lastName: last, name: fullName || u.name || undefined },
+            data: { firstName: first, lastName: last, name: fullName || u.name || undefined }
           });
         }
       }
       return true;
-    },
+    }
   },
-  pages: { signIn: '/login' },
+
+  // Important: leave this unset or set to the PUBLIC login only if you need it there.
+  // We’re handling admin gating via middleware and the admin/login page itself.
+  // pages: { signIn: '/login' },
+
   events: {
     async createUser({ user }) {
-      // Ensure role is set for social signups (no any)
       if (isAdapterUser(user)) {
         await prisma.user
           .update({ where: { id: user.id }, data: { role: 'VIEWER' } })
-          .catch(() => { /* ignore race */ });
+          .catch(() => {});
       }
-    },
-  },
+    }
+  }
 };

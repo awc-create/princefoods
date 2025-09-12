@@ -1,139 +1,206 @@
-// src/app/admin/login/page.tsx
+// src/app/admin/layout.tsx
 'use client';
 
-import { signIn, useSession } from 'next-auth/react';
-import Image from 'next/image';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import styles from './Login.module.scss';
+import { useSession } from 'next-auth/react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import styles from './Admin.module.scss';
+import SetupPush from './SetupPush';
 
-function safeCallbackUrl(raw?: string | null) {
-  if (!raw) return '/admin';
-  return raw.startsWith('/admin/login') ? '/admin' : raw;
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+type GroupKey = 'dashboard' | 'products' | 'operations' | 'admin';
+
+interface UserWithRole {
+  email?: string | null;
+  role?: Role | null;
+}
+function hasRole(u: unknown): u is UserWithRole {
+  return !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
 }
 
-export default function AdminLoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+// helper to match "/admin/login" and "/admin/login/"
+const isLoginPath = (p?: string | null) => p === '/admin/login' || p === '/admin/login/';
 
-  const { status } = useSession();
-  const sp = useSearchParams();
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname() ?? '/admin';
   const router = useRouter();
+  const { status, data } = useSession();
 
-  const rawCb = sp?.get('callbackUrl') ?? null;
-  const callbackUrl = safeCallbackUrl(rawCb);
-
-  // Clean up any recursive ?callbackUrl that points back to /admin/login*
-  useEffect(() => {
-    if (!rawCb) return;
-    try {
-      const target = decodeURIComponent(rawCb);
-      if (target.startsWith('/admin/login')) {
-        // strip query (no reload)
-        const cleanPath = window.location.pathname;
-        window.history.replaceState({}, '', cleanPath);
-      }
-    } catch {
-      // ignore malformed encodings
-    }
-  }, [rawCb]);
-
-  useEffect(() => {
-    if (status === 'authenticated') router.replace(callbackUrl);
-  }, [status, callbackUrl, router]);
-
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    setPending(true);
-    try {
-      await signIn('credentials', {
-        email,
-        password,
-        redirect: true,
-        callbackUrl
-      });
-    } catch {
-      setErr('Unexpected error. Try again.');
-      setPending(false);
-    }
+  // ⛔️ Do NOT gate or render the admin chrome on the login page
+  if (isLoginPath(pathname)) {
+    return <>{children}</>;
   }
 
-  if (status === 'loading') return <div className={styles.container}>Checking session…</div>;
+  const [role, setRole] = useState<Role | null>(null);
+
+  const groups = useMemo(
+    () => [
+      {
+        key: 'dashboard' as const,
+        title: 'Dashboard',
+        kind: 'list' as const,
+        items: [{ href: '/admin', label: 'Overview' }]
+      },
+      {
+        key: 'products' as const,
+        title: 'Products',
+        kind: 'chips' as const,
+        items: [
+          { href: '/admin/products', label: 'All Products' },
+          { href: '/admin/products/create', label: 'Add Product' },
+          { href: '/admin/products/categories', label: 'Categories' }
+        ]
+      },
+      {
+        key: 'operations' as const,
+        title: 'Operations',
+        kind: 'list' as const,
+        items: [
+          { href: '/admin/chat', label: 'Chat' },
+          { href: '/admin/customers', label: 'Customers' },
+          { href: '/admin/sales', label: 'Sales' }
+        ]
+      },
+      {
+        key: 'admin' as const,
+        title: 'Admin',
+        kind: 'list' as const,
+        items: [{ href: '/admin/settings', label: 'Settings' }]
+      }
+    ],
+    []
+  );
+
+  const activeGroup = useMemo<GroupKey>(() => {
+    if (pathname.startsWith('/admin/products')) return 'products';
+    if (
+      pathname.startsWith('/admin/chat') ||
+      pathname.startsWith('/admin/customers') ||
+      pathname.startsWith('/admin/sales')
+    ) {
+      return 'operations';
+    }
+    if (pathname.startsWith('/admin/settings')) return 'admin';
+    return 'dashboard';
+  }, [pathname]);
+
+  const [open, setOpen] = useState<Record<GroupKey, boolean>>({
+    dashboard: false,
+    products: false,
+    operations: false,
+    admin: false
+  });
+
+  // Auth gate for protected admin pages (NOT the login page)
+  useEffect(() => {
+    if (status === 'loading') return;
+
+    const r: Role | undefined = hasRole(data?.user)
+      ? ((data!.user.role as Role | null) ?? undefined)
+      : undefined;
+
+    if (!data?.user || !r) {
+      const cb = encodeURIComponent(pathname);
+      router.replace(`/admin/login?callbackUrl=${cb}`);
+      return;
+    }
+    setRole(r);
+  }, [status, data, router, pathname]);
+
+  // Restore/seed nav open-state
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('pf:admin:navOpen');
+      if (raw) setOpen((prev) => ({ ...prev, ...JSON.parse(raw) }));
+      else setOpen((prev) => ({ ...prev, [activeGroup]: true }));
+    } catch {
+      setOpen((prev) => ({ ...prev, [activeGroup]: true }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('pf:admin:navOpen', JSON.stringify(open));
+    } catch {}
+  }, [open]);
+
+  if (status === 'loading' || !role) {
+    return <div style={{ padding: '2rem' }}>Loading…</div>;
+  }
+
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  const toggle = (key: GroupKey) => setOpen((o) => ({ ...o, [key]: !o[key] }));
 
   return (
-    <div className={styles.container}>
-      <div className={styles.brand}>
-        <Image
-          src="/assets/prince-foods-logo.png"
-          alt="Prince Foods"
-          width={140}
-          height={74}
-          priority
-          className={styles.logo}
-        />
-        <h1 className={styles.title}>Admin Login</h1>
-        <p className={styles.subtitle}>Staff access only.</p>
-      </div>
+    <div className={styles.adminWrapper}>
+      {role !== 'VIEWER' && <SetupPush />}
 
-      <form onSubmit={onSubmit} className={styles.form} autoComplete="on">
-        <label className={styles.label} htmlFor="email">
-          Email
-        </label>
-        <div className={styles.field}>
-          <span className={styles.icon} aria-hidden>
-            ✉️
-          </span>
-          <input
-            id="email"
-            type="email"
-            placeholder="admin@prince-v.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoComplete="email"
-            className={styles.input}
-          />
+      <aside className={styles.adminSidebar}>
+        <div className={styles.logo}>👑 Prince Foods</div>
+
+        {hasRole(data?.user) && data.user.email && (
+          <div className={styles.loggedIn}>
+            Logged in as:
+            <br />
+            <strong>{data.user.email}</strong>
+          </div>
+        )}
+
+        {groups.map((g) => (
+          <div key={g.key} className={styles.group}>
+            <button
+              type="button"
+              className={styles.groupHeaderBtn}
+              aria-expanded={open[g.key]}
+              onClick={() => toggle(g.key)}
+            >
+              <span className={styles.groupTitle}>{g.title}</span>
+              <span className={styles.groupIcon} aria-hidden>
+                {open[g.key] ? '−' : '+'}
+              </span>
+            </button>
+
+            {open[g.key] &&
+              (g.kind === 'chips' ? (
+                <div className={styles.pillBar}>
+                  {g.items.map((it) => (
+                    <Link
+                      key={it.href}
+                      href={it.href}
+                      className={`${styles.pill} ${isActive(it.href) ? styles.pillActive : ''}`}
+                    >
+                      {it.label}
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <nav className={styles.nav}>
+                  {g.items.map((it) => (
+                    <Link
+                      key={it.href}
+                      href={it.href}
+                      className={`${styles.navLink} ${isActive(it.href) ? styles.active : ''}`}
+                    >
+                      {it.label}
+                    </Link>
+                  ))}
+                </nav>
+              ))}
+          </div>
+        ))}
+
+        <div className={styles.group}>
+          <nav className={styles.nav}>
+            <Link href="/api/auth/signout?callbackUrl=/admin/login" className={styles.navLink}>
+              Log Out
+            </Link>
+          </nav>
         </div>
+      </aside>
 
-        <div className={styles.rowBetween}>
-          <label className={styles.label} htmlFor="password">
-            Password
-          </label>
-        </div>
-        <div className={styles.field}>
-          <span className={styles.icon} aria-hidden>
-            🔒
-          </span>
-          <input
-            id="password"
-            type={showPw ? 'text' : 'password'}
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-            className={styles.input}
-          />
-          <button
-            type="button"
-            className={styles.peek}
-            onClick={() => setShowPw((s) => !s)}
-            aria-label={showPw ? 'Hide password' : 'Show password'}
-          >
-            {showPw ? '🙈' : '👁️'}
-          </button>
-        </div>
-
-        {err && <p className={styles.error}>{err}</p>}
-
-        <button type="submit" className={styles.primaryBtn} disabled={pending}>
-          {pending ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
+      <main className={styles.adminMain}>{children}</main>
     </div>
   );
 }
