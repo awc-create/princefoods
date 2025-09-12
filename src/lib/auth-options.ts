@@ -26,7 +26,7 @@ export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   session: { strategy: 'jwt' },
 
-  // ⛑ ensure the session cookie is accepted by the browser on admin.prince-v.com
+  // Ensure cookie sticks on admin host (Traefik forwards Host/Proto)
   cookies: {
     sessionToken: {
       name: '__Secure-next-auth.session-token',
@@ -56,13 +56,10 @@ export const authOptions: NextAuthOptions = {
         const parsed = CredentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
         const { email, password } = parsed.data;
-
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user || !user.password) return null;
-
         const ok = await bcrypt.compare(password, user.password);
         if (!ok) return null;
-
         return { id: user.id, name: user.name, email: user.email, role: user.role as Role };
       }
     })
@@ -118,10 +115,7 @@ export const authOptions: NextAuthOptions = {
     }
   },
 
-  // Important: leave this unset or set to the PUBLIC login only if you need it there.
-  // We’re handling admin gating via middleware and the admin/login page itself.
-  // pages: { signIn: '/login' },
-
+  // Do NOT set pages.signIn here. Middleware handles /admin/login on admin host.
   events: {
     async createUser({ user }) {
       if (isAdapterUser(user)) {

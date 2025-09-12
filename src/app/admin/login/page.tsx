@@ -5,7 +5,7 @@ import { signIn, useSession } from 'next-auth/react';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import styles from './Login.module.scss'; // ✅ stays in ./login/
+import styles from './Login.module.scss';
 
 function safeCallbackUrl(raw?: string | null) {
   if (!raw) return '/admin';
@@ -26,7 +26,7 @@ export default function AdminLoginPage() {
   const rawCb = sp?.get('callbackUrl') ?? null;
   const callbackUrl = safeCallbackUrl(rawCb);
 
-  // Strip recursive callbackUrl to /admin/login*
+  // strip any recursive ?callbackUrl to /admin/login*
   useEffect(() => {
     if (!rawCb) return;
     try {

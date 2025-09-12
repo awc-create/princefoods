@@ -1,34 +1,27 @@
-// src/app/admin/layout.tsx
+// src/app/admin/(protected)/layout.tsx
 'use client';
 
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import styles from './Admin.module.scss';
-import SetupPush from './SetupPush';
+import styles from '../Admin.module.scss';
+import SetupPush from '../SetupPush';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
 type GroupKey = 'dashboard' | 'products' | 'operations' | 'admin';
-
 interface UserWithRole {
   email?: string | null;
   role?: Role | null;
 }
-const hasRole = (u: unknown): u is UserWithRole =>
-  !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
+function hasRole(u: unknown): u is UserWithRole {
+  return !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
+}
 
-const isLoginPath = (p?: string | null) => p === '/admin/login' || p === '/admin/login/';
-
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  // 1) All hooks unconditionally
-  const pathname = usePathname();
-  const safePath = pathname ?? '/admin';
-  const onLogin = isLoginPath(safePath);
-
+export default function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname() ?? '/admin';
   const router = useRouter();
   const { status, data } = useSession();
-
   const [role, setRole] = useState<Role | null>(null);
 
   const groups = useMemo(
@@ -43,43 +36,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         key: 'products' as const,
         title: 'Products',
         kind: 'chips' as const,
-        items: [
-          { href: '/admin/products', label: 'All Products' },
-          { href: '/admin/products/create', label: 'Add Product' },
-          { href: '/admin/products/categories', label: 'Categories' }
-        ]
+        items: [{ href: '/admin/(protected)/products', label: 'All Products' }]
       },
-      {
-        key: 'operations' as const,
-        title: 'Operations',
-        kind: 'list' as const,
-        items: [
-          { href: '/admin/chat', label: 'Chat' },
-          { href: '/admin/customers', label: 'Customers' },
-          { href: '/admin/sales', label: 'Sales' }
-        ]
-      },
+      { key: 'operations' as const, title: 'Operations', kind: 'list' as const, items: [] },
       {
         key: 'admin' as const,
         title: 'Admin',
         kind: 'list' as const,
-        items: [{ href: '/admin/settings', label: 'Settings' }]
+        items: [{ href: '/admin/(protected)/settings', label: 'Settings' }]
       }
     ],
     []
   );
 
   const activeGroup = useMemo<GroupKey>(() => {
-    if (safePath.startsWith('/admin/products')) return 'products';
-    if (
-      safePath.startsWith('/admin/chat') ||
-      safePath.startsWith('/admin/customers') ||
-      safePath.startsWith('/admin/sales')
-    )
-      return 'operations';
-    if (safePath.startsWith('/admin/settings')) return 'admin';
+    if (pathname.includes('/products')) return 'products';
+    if (pathname.includes('/settings')) return 'admin';
     return 'dashboard';
-  }, [safePath]);
+  }, [pathname]);
 
   const [open, setOpen] = useState<Record<GroupKey, boolean>>({
     dashboard: false,
@@ -88,54 +62,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     admin: false
   });
 
-  // 2) Effects declared always; guard inside them
-
-  // Auth gate (skip when on login path)
   useEffect(() => {
-    if (onLogin) return; // ← important
     if (status === 'loading') return;
-
     const r: Role | undefined = hasRole(data?.user)
       ? ((data!.user.role as Role | null) ?? undefined)
       : undefined;
-
     if (!data?.user || !r) {
-      const cb = encodeURIComponent(safePath);
+      const cb = encodeURIComponent('/admin'); // simple; you can use pathname if you prefer
       router.replace(`/admin/login?callbackUrl=${cb}`);
       return;
     }
     setRole(r);
-  }, [onLogin, status, data, router, safePath]);
+  }, [status, data, router]);
 
-  // Restore open-state
   useEffect(() => {
-    if (onLogin) return; // ← skip on login page
     try {
       const raw = localStorage.getItem('pf:admin:navOpen');
-      if (raw) setOpen((prev) => ({ ...prev, ...JSON.parse(raw) }));
-      else setOpen((prev) => ({ ...prev, [activeGroup]: true }));
+      if (raw) setOpen((p) => ({ ...p, ...JSON.parse(raw) }));
+      else setOpen((p) => ({ ...p, [activeGroup]: true }));
     } catch {
-      setOpen((prev) => ({ ...prev, [activeGroup]: true }));
+      setOpen((p) => ({ ...p, [activeGroup]: true }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onLogin]);
+  }, []);
 
-  // Persist changes
   useEffect(() => {
-    if (onLogin) return; // ← skip on login page
     try {
       localStorage.setItem('pf:admin:navOpen', JSON.stringify(open));
     } catch {}
-  }, [onLogin, open]);
+  }, [open]);
 
-  // 3) After all hooks, short-circuit render on login
-  if (onLogin) return <>{children}</>;
+  if (status === 'loading' || !role) return <div style={{ padding: '2rem' }}>Loading…</div>;
 
-  if (status === 'loading' || !role) {
-    return <div style={{ padding: '2rem' }}>Loading…</div>;
-  }
-
-  const isActive = (href: string) => safePath === href || safePath.startsWith(`${href}/`);
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const toggle = (key: GroupKey) => setOpen((o) => ({ ...o, [key]: !o[key] }));
 
   return (
@@ -144,7 +103,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       <aside className={styles.adminSidebar}>
         <div className={styles.logo}>👑 Prince Foods</div>
-
         {hasRole(data?.user) && data.user.email && (
           <div className={styles.loggedIn}>
             Logged in as:

@@ -1,4 +1,4 @@
-// middleware.ts  (or src/middleware.ts — choose ONE place)
+// src/middleware.ts
 import { getToken } from 'next-auth/jwt';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -26,7 +26,8 @@ export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   const host = normalizeHost(req);
 
-  const alwaysAllow =
+  // Always allow framework/static/api + both login routes
+  if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
     pathname.startsWith('/assets') ||
@@ -34,15 +35,14 @@ export async function middleware(req: NextRequest) {
     isPath(pathname, '/login') ||
     isPath(pathname, '/admin/login') ||
     pathname.startsWith('/signup') ||
-    pathname.startsWith('/admin/signup');
-
-  if (alwaysAllow) {
+    pathname.startsWith('/admin/signup')
+  ) {
     const res = NextResponse.next();
     res.headers.set('x-mw', `allow:${host}`);
     return res;
   }
 
-  // Public host: block any /admin*
+  // Public host: /admin must never be reachable
   if (PUBLIC_HOSTS.has(host)) {
     if (isUnder(pathname, '/admin')) {
       const url = req.nextUrl.clone();
@@ -57,7 +57,7 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
-  // Admin host: require HEAD/STAFF for /admin*
+  // Admin host: require HEAD/STAFF under /admin
   if (ADMIN_HOSTS.has(host)) {
     if (isUnder(pathname, '/admin')) {
       const token = (await getToken({
@@ -69,7 +69,7 @@ export async function middleware(req: NextRequest) {
         const url = req.nextUrl.clone();
         url.pathname = '/admin/login';
         url.search = '';
-        url.searchParams.set('callbackUrl', pathname); // path only (no query) to avoid recursion
+        url.searchParams.set('callbackUrl', pathname); // path-only to avoid recursion
         const res = NextResponse.redirect(url);
         res.headers.set('x-mw', `admin-gate:${host}`);
         return res;
