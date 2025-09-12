@@ -1,4 +1,4 @@
-// src/middleware.ts  (or ./middleware.ts — keep ONLY one)
+// middleware.ts  (or src/middleware.ts — choose ONE place)
 import { getToken } from 'next-auth/jwt';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -8,30 +8,43 @@ interface AppToken {
   role?: Role;
 }
 
+function normalizeHost(req: NextRequest) {
+  const raw =
+    req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? req.nextUrl.hostname;
+  return raw.split(',')[0].trim().toLowerCase().replace(/:\d+$/, '');
+}
+
+const isPath = (pathname: string, p: string) => pathname === p || pathname === `${p}/`;
+
+const isUnder = (pathname: string, base: string) =>
+  pathname.startsWith(base + '/') || pathname === base || pathname === `${base}/`;
+
 const PUBLIC_HOSTS = new Set(['prince-v.com', 'www.prince-v.com']);
 const ADMIN_HOSTS = new Set(['admin.prince-v.com']);
 
 export async function middleware(req: NextRequest) {
-  const { pathname, search } = req.nextUrl;
-  const host = req.headers.get('host') ?? req.nextUrl.hostname;
+  const pathname = req.nextUrl.pathname;
+  const host = normalizeHost(req);
 
-  if (
+  const alwaysAllow =
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
     pathname.startsWith('/assets') ||
     pathname.startsWith('/public') ||
-    pathname === '/login' ||
-    pathname === '/admin/login' ||
+    isPath(pathname, '/login') ||
+    isPath(pathname, '/admin/login') ||
     pathname.startsWith('/signup') ||
-    pathname.startsWith('/admin/signup')
-  ) {
+    pathname.startsWith('/admin/signup');
+
+  if (alwaysAllow) {
     const res = NextResponse.next();
     res.headers.set('x-mw', `allow:${host}`);
     return res;
   }
 
+  // Public host: block any /admin*
   if (PUBLIC_HOSTS.has(host)) {
-    if (pathname.startsWith('/admin')) {
+    if (isUnder(pathname, '/admin')) {
       const url = req.nextUrl.clone();
       url.pathname = '/';
       url.search = '';
@@ -44,8 +57,9 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
+  // Admin host: require HEAD/STAFF for /admin*
   if (ADMIN_HOSTS.has(host)) {
-    if (pathname.startsWith('/admin')) {
+    if (isUnder(pathname, '/admin')) {
       const token = (await getToken({
         req,
         secret: process.env.NEXTAUTH_SECRET
@@ -54,7 +68,8 @@ export async function middleware(req: NextRequest) {
       if (!role || (role !== 'HEAD' && role !== 'STAFF')) {
         const url = req.nextUrl.clone();
         url.pathname = '/admin/login';
-        url.searchParams.set('callbackUrl', pathname + search);
+        url.search = '';
+        url.searchParams.set('callbackUrl', pathname); // path only (no query) to avoid recursion
         const res = NextResponse.redirect(url);
         res.headers.set('x-mw', `admin-gate:${host}`);
         return res;

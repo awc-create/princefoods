@@ -22,12 +22,27 @@ export default function AdminLoginPage() {
   const { status } = useSession();
   const sp = useSearchParams();
   const router = useRouter();
-  const callbackUrl = safeCallbackUrl(sp?.get('callbackUrl'));
+
+  const rawCb = sp?.get('callbackUrl') ?? null;
+  const callbackUrl = safeCallbackUrl(rawCb);
+
+  // Clean up any recursive ?callbackUrl that points back to /admin/login*
+  useEffect(() => {
+    if (!rawCb) return;
+    try {
+      const target = decodeURIComponent(rawCb);
+      if (target.startsWith('/admin/login')) {
+        // strip query (no reload)
+        const cleanPath = window.location.pathname;
+        window.history.replaceState({}, '', cleanPath);
+      }
+    } catch {
+      // ignore malformed encodings
+    }
+  }, [rawCb]);
 
   useEffect(() => {
-    if (status === 'authenticated') {
-      router.replace(callbackUrl);
-    }
+    if (status === 'authenticated') router.replace(callbackUrl);
   }, [status, callbackUrl, router]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -88,8 +103,6 @@ export default function AdminLoginPage() {
           <label className={styles.label} htmlFor="password">
             Password
           </label>
-          {/* If you have a staff-only reset, point here */}
-          {/* <Link href="/admin/forgot-password" className={styles.helper}>Forgot?</Link> */}
         </div>
         <div className={styles.field}>
           <span className={styles.icon} aria-hidden>
@@ -121,8 +134,6 @@ export default function AdminLoginPage() {
           {pending ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
-
-      {/* No signup / social on admin host */}
     </div>
   );
 }

@@ -1,37 +1,38 @@
-"use client";
+// src/components/navbar/Navbar.tsx  (adjust the path if yours differs)
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
-import Image from "next/image";
-import { Icon } from "@iconify/react";
-import { usePathname } from "next/navigation";
-import dynamic from "next/dynamic";
-import styles from "./Navbar.module.scss";
-import { NAV_LINKS } from "@/config/menu.config";
+import { NAV_LINKS } from '@/config/menu.config';
+import { Menu, Search, X } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import Image from 'next/image';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import styles from './Navbar.module.scss';
 
-// Dynamic import with SSR disabled
-const CartIcon = dynamic(() => import("@/components/ecommerce/basket/CartIcon"), { ssr: false });
-const LoginButton = dynamic(() => import("@/components/ecommerce/login/LoginButton"), { ssr: false });
+const CartIcon = dynamic(() => import('@/components/ecommerce/basket/CartIcon'), { ssr: false });
+const LoginButton = dynamic(() => import('@/components/ecommerce/login/LoginButton'), {
+  ssr: false
+});
 
 export default function Navbar({ isEcommerce = true }: { isEcommerce?: boolean }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const toggleMenu = useCallback(() => setMenuOpen(prev => !prev), []);
+  const toggleMenu = useCallback(() => setMenuOpen((prev) => !prev), []);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   useEffect(() => {
     closeMenu();
   }, [pathname, closeMenu]);
 
-  // Dynamically identify the 'Shop' link
-  const shopLink = NAV_LINKS.find(link => link.slug === "shop");
-  const mainLinks = NAV_LINKS.filter(link => link.slug !== "shop");
+  const shopLink = NAV_LINKS.find((link) => link.slug === 'shop');
+  const mainLinks = NAV_LINKS.filter((link) => link.slug !== 'shop');
 
   return (
     <header className={styles.navbar}>
       <div className={styles.topRow}>
-        <div /> {/* Left spacer for centered logo */}
+        <div />
 
         <div className={styles.logo}>
           <Image
@@ -49,12 +50,12 @@ export default function Navbar({ isEcommerce = true }: { isEcommerce?: boolean }
           </div>
           <div className={styles.search}>
             <input type="text" placeholder="Search..." aria-label="Search" />
-            <Icon icon="ic:round-search" width="20" />
+            <Search width={20} height={20} aria-hidden />
           </div>
         </div>
 
         <button className={styles.hamburger} onClick={toggleMenu} aria-label="Toggle menu">
-          <Icon icon={menuOpen ? "mdi:close" : "mdi:menu"} width="28" height="28" />
+          {menuOpen ? <X width={28} height={28} /> : <Menu width={28} height={28} />}
         </button>
       </div>
 
@@ -64,7 +65,7 @@ export default function Navbar({ isEcommerce = true }: { isEcommerce?: boolean }
             const href = `/${slug}`;
             const isActive = pathname === href;
             return (
-              <Link key={slug} href={href} className={isActive ? styles.active : ""}>
+              <Link key={slug} href={href} className={isActive ? styles.active : ''}>
                 {label}
               </Link>
             );
@@ -75,7 +76,7 @@ export default function Navbar({ isEcommerce = true }: { isEcommerce?: boolean }
           <div className={styles.shopLink}>
             <Link
               href={`/${shopLink.slug}`}
-              className={pathname === `/${shopLink.slug}` ? styles.active : ""}
+              className={pathname === `/${shopLink.slug}` ? styles.active : ''}
             >
               {shopLink.label}
             </Link>
@@ -100,7 +101,7 @@ export default function Navbar({ isEcommerce = true }: { isEcommerce?: boolean }
                 key={slug}
                 href={href}
                 onClick={closeMenu}
-                className={isActive ? styles.active : ""}
+                className={isActive ? styles.active : ''}
               >
                 {label}
               </Link>
