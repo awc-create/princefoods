@@ -1,71 +1,211 @@
-// src/middleware.ts
-import type { JWT } from 'next-auth/jwt';
-import { getToken } from 'next-auth/jwt';
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+// src/app/admin/layout.tsx
+'use client';
+
+import { useSession } from 'next-auth/react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import styles from './Admin.module.scss';
+import SetupPush from './SetupPush';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
-type Token = (JWT & { role?: Role }) | null;
+type GroupKey = 'dashboard' | 'products' | 'operations' | 'admin';
 
-const PUBLIC_HOSTS = new Set(['prince-v.com', 'www.prince-v.com']);
-const ADMIN_HOSTS = new Set(['admin.prince-v.com']);
-
-const isLoginPath = (p: string) =>
-  p === '/login' || p === '/login/' || p === '/admin/login' || p === '/admin/login/';
-
-const isFrameworkPath = (p: string) =>
-  p.startsWith('/_next') ||
-  p.startsWith('/api') ||
-  p.startsWith('/assets') ||
-  p.startsWith('/public');
-
-export async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl; // ← remove unused searchParams
-  const host = req.headers.get('host') ?? req.nextUrl.hostname;
-
-  // Always allow framework/static & BOTH login variants (+ signups)
-  if (
-    isFrameworkPath(pathname) ||
-    isLoginPath(pathname) ||
-    pathname.startsWith('/signup') ||
-    pathname.startsWith('/admin/signup')
-  ) {
-    return NextResponse.next();
-  }
-
-  // === Public host rules ===
-  if (PUBLIC_HOSTS.has(host)) {
-    // Never allow /admin on the public host (with or without slash)
-    if (pathname === '/admin' || pathname.startsWith('/admin/')) {
-      const url = req.nextUrl.clone();
-      url.pathname = '/';
-      url.search = '';
-      return NextResponse.redirect(url);
-    }
-    return NextResponse.next();
-  }
-
-  // === Admin host rules ===
-  if (ADMIN_HOSTS.has(host)) {
-    if (pathname === '/admin' || pathname.startsWith('/admin/')) {
-      // Gate everything under /admin (except /admin/login which is already whitelisted above)
-      const token = (await getToken({ req, secret: process.env.NEXTAUTH_SECRET })) as Token;
-      const role: Role | undefined = token?.role;
-
-      if (!token || !(role === 'HEAD' || role === 'STAFF')) {
-        const url = req.nextUrl.clone();
-        url.pathname = '/admin/login'; // trailingSlash is handled by Next
-        // Prevent infinite nesting by normalising callback target
-        const cb = isLoginPath(pathname) ? '/admin' : `${pathname}${req.nextUrl.search}`;
-        url.searchParams.set('callbackUrl', cb);
-        return NextResponse.redirect(url);
-      }
-    }
-    return NextResponse.next();
-  }
-
-  // Default allow (localhost/preview)
-  return NextResponse.next();
+interface UserWithRole {
+  email?: string | null;
+  role?: Role | null;
 }
+const hasRole = (u: unknown): u is UserWithRole =>
+  !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
 
-export const config = { matcher: ['/:path*'] };
+const isLoginPath = (p?: string | null) => p === '/admin/login' || p === '/admin/login/';
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  // 1) All hooks unconditionally
+  const pathname = usePathname();
+  const safePath = pathname ?? '/admin';
+  const onLogin = isLoginPath(safePath);
+
+  const router = useRouter();
+  const { status, data } = useSession();
+
+  const [role, setRole] = useState<Role | null>(null);
+
+  const groups = useMemo(
+    () => [
+      {
+        key: 'dashboard' as const,
+        title: 'Dashboard',
+        kind: 'list' as const,
+        items: [{ href: '/admin', label: 'Overview' }]
+      },
+      {
+        key: 'products' as const,
+        title: 'Products',
+        kind: 'chips' as const,
+        items: [
+          { href: '/admin/products', label: 'All Products' },
+          { href: '/admin/products/create', label: 'Add Product' },
+          { href: '/admin/products/categories', label: 'Categories' }
+        ]
+      },
+      {
+        key: 'operations' as const,
+        title: 'Operations',
+        kind: 'list' as const,
+        items: [
+          { href: '/admin/chat', label: 'Chat' },
+          { href: '/admin/customers', label: 'Customers' },
+          { href: '/admin/sales', label: 'Sales' }
+        ]
+      },
+      {
+        key: 'admin' as const,
+        title: 'Admin',
+        kind: 'list' as const,
+        items: [{ href: '/admin/settings', label: 'Settings' }]
+      }
+    ],
+    []
+  );
+
+  const activeGroup = useMemo<GroupKey>(() => {
+    if (safePath.startsWith('/admin/products')) return 'products';
+    if (
+      safePath.startsWith('/admin/chat') ||
+      safePath.startsWith('/admin/customers') ||
+      safePath.startsWith('/admin/sales')
+    )
+      return 'operations';
+    if (safePath.startsWith('/admin/settings')) return 'admin';
+    return 'dashboard';
+  }, [safePath]);
+
+  const [open, setOpen] = useState<Record<GroupKey, boolean>>({
+    dashboard: false,
+    products: false,
+    operations: false,
+    admin: false
+  });
+
+  // 2) Effects declared always; guard inside them
+
+  // Auth gate (skip when on login path)
+  useEffect(() => {
+    if (onLogin) return; // ← important
+    if (status === 'loading') return;
+
+    const r: Role | undefined = hasRole(data?.user)
+      ? ((data!.user.role as Role | null) ?? undefined)
+      : undefined;
+
+    if (!data?.user || !r) {
+      const cb = encodeURIComponent(safePath);
+      router.replace(`/admin/login?callbackUrl=${cb}`);
+      return;
+    }
+    setRole(r);
+  }, [onLogin, status, data, router, safePath]);
+
+  // Restore open-state
+  useEffect(() => {
+    if (onLogin) return; // ← skip on login page
+    try {
+      const raw = localStorage.getItem('pf:admin:navOpen');
+      if (raw) setOpen((prev) => ({ ...prev, ...JSON.parse(raw) }));
+      else setOpen((prev) => ({ ...prev, [activeGroup]: true }));
+    } catch {
+      setOpen((prev) => ({ ...prev, [activeGroup]: true }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onLogin]);
+
+  // Persist changes
+  useEffect(() => {
+    if (onLogin) return; // ← skip on login page
+    try {
+      localStorage.setItem('pf:admin:navOpen', JSON.stringify(open));
+    } catch {}
+  }, [onLogin, open]);
+
+  // 3) After all hooks, short-circuit render on login
+  if (onLogin) return <>{children}</>;
+
+  if (status === 'loading' || !role) {
+    return <div style={{ padding: '2rem' }}>Loading…</div>;
+  }
+
+  const isActive = (href: string) => safePath === href || safePath.startsWith(`${href}/`);
+  const toggle = (key: GroupKey) => setOpen((o) => ({ ...o, [key]: !o[key] }));
+
+  return (
+    <div className={styles.adminWrapper}>
+      {role !== 'VIEWER' && <SetupPush />}
+
+      <aside className={styles.adminSidebar}>
+        <div className={styles.logo}>👑 Prince Foods</div>
+
+        {hasRole(data?.user) && data.user.email && (
+          <div className={styles.loggedIn}>
+            Logged in as:
+            <br />
+            <strong>{data.user.email}</strong>
+          </div>
+        )}
+
+        {groups.map((g) => (
+          <div key={g.key} className={styles.group}>
+            <button
+              type="button"
+              className={styles.groupHeaderBtn}
+              aria-expanded={open[g.key]}
+              onClick={() => toggle(g.key)}
+            >
+              <span className={styles.groupTitle}>{g.title}</span>
+              <span className={styles.groupIcon} aria-hidden>
+                {open[g.key] ? '−' : '+'}
+              </span>
+            </button>
+
+            {open[g.key] &&
+              (g.kind === 'chips' ? (
+                <div className={styles.pillBar}>
+                  {g.items.map((it) => (
+                    <Link
+                      key={it.href}
+                      href={it.href}
+                      className={`${styles.pill} ${isActive(it.href) ? styles.pillActive : ''}`}
+                    >
+                      {it.label}
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <nav className={styles.nav}>
+                  {g.items.map((it) => (
+                    <Link
+                      key={it.href}
+                      href={it.href}
+                      className={`${styles.navLink} ${isActive(it.href) ? styles.active : ''}`}
+                    >
+                      {it.label}
+                    </Link>
+                  ))}
+                </nav>
+              ))}
+          </div>
+        ))}
+
+        <div className={styles.group}>
+          <nav className={styles.nav}>
+            <Link href="/api/auth/signout?callbackUrl=/admin/login" className={styles.navLink}>
+              Log Out
+            </Link>
+          </nav>
+        </div>
+      </aside>
+
+      <main className={styles.adminMain}>{children}</main>
+    </div>
+  );
+}
