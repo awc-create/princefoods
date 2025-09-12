@@ -1,4 +1,4 @@
-// middleware.ts
+// middleware.ts (repo root or src/, pick ONE location only)
 import { getToken } from 'next-auth/jwt';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -13,7 +13,7 @@ const ADMIN_HOSTS = new Set(['admin.prince-v.com']);
 
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
-  const host = req.headers.get('host') ?? req.nextUrl.hostname; // nullish coalescing ✅
+  const host = req.headers.get('host') ?? req.nextUrl.hostname;
 
   // Always allow framework/static/api and both login pages
   if (
@@ -34,8 +34,12 @@ export async function middleware(req: NextRequest) {
   // === Public site rules ===
   if (PUBLIC_HOSTS.has(host)) {
     if (pathname.startsWith('/admin')) {
-      const res = NextResponse.redirect(new URL('/', req.url));
-      res.headers.set('x-mw', `public-block-admin:${host}`); // debug header
+      // redirect to "/" WITHOUT using new URL(...)
+      const url = req.nextUrl.clone();
+      url.pathname = '/';
+      url.search = '';
+      const res = NextResponse.redirect(url);
+      res.headers.set('x-mw', `public-block-admin:${host}`);
       return res;
     }
     const res = NextResponse.next();
@@ -52,7 +56,9 @@ export async function middleware(req: NextRequest) {
       })) as AppToken | null;
       const role = token?.role;
       if (!role || (role !== 'HEAD' && role !== 'STAFF')) {
-        const url = new URL('/admin/login', req.url);
+        // redirect to "/admin/login" WITHOUT using new URL(...)
+        const url = req.nextUrl.clone();
+        url.pathname = '/admin/login';
         url.searchParams.set('callbackUrl', pathname + search);
         const res = NextResponse.redirect(url);
         res.headers.set('x-mw', `admin-gate:${host}`);
@@ -64,7 +70,7 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
-  // Default allow (useful for localhost/preview)
+  // Default allow
   const res = NextResponse.next();
   res.headers.set('x-mw', `default-pass:${host}`);
   return res;
