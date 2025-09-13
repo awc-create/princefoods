@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_DATABASE_URL")
 }
 
@@ -98,7 +98,7 @@ model Category {
 }
 
 /* -------------------------
-   Users (+ Wix, + OAuth, + Welcome)
+   Users (+ Wix, + OAuth, + Welcome + Email Verify)
 -------------------------- */
 model User {
   id           String   @id @default(uuid())
@@ -125,14 +125,17 @@ model User {
   welcomeStatus WelcomeStatus @default(PENDING)
   welcomedAt    DateTime?
 
+  // NEW: for verification flow
+  emailVerified DateTime?
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   // OAuth relations
-  accounts     Account[]
-  sessions     Session[]
+  accounts       Account[]
+  sessions       Session[]
 
-  // 🔧 add this:
+  // OTP / token relations
   passwordTokens PasswordToken[]
 
   @@index([email])
@@ -196,6 +199,7 @@ model PasswordToken {
   id        String   @id @default(cuid())
   userId    String
   token     String   @unique
+  code      String?  // NEW: 6-digit code for email verification
   expiresAt DateTime
   usedAt    DateTime?
 

@@ -6,6 +6,20 @@ import { getResendOrThrow } from './resend';
 const FROM = process.env.EMAIL_FROM ?? 'Prince Foods <support@prince-foods.com>';
 const DEFAULT_TO = process.env.SUPPORT_EMAIL ?? 'support@prince-foods.com';
 
+/** Match the props your WelcomeEmail expects */
+export interface CategoryTeaser {
+  title: string;
+  href: string;
+  image: string;
+}
+export interface ProductTeaser {
+  id: string;
+  title: string;
+  href: string;
+  image: string;
+  price?: number | null;
+}
+
 /**
  * Send SLA breach email to support/admins
  */
@@ -24,7 +38,11 @@ export async function sendSlaEmailTemplate(params: {
       minutesOverdue={params.minutesOverdue}
       brand={{
         primary: '#D62828',
-        logoUrl: `${process.env.NEXT_PUBLIC_ADMIN_URL ?? process.env.SITE_URL ?? 'https://www.prince-foods.com'}/assets/prince-foods-logo.png`,
+        logoUrl: `${
+          process.env.NEXT_PUBLIC_ADMIN_URL ??
+          process.env.SITE_URL ??
+          'https://www.prince-foods.com'
+        }/assets/prince-foods-logo.png`,
         supportEmail: DEFAULT_TO
       }}
     />
@@ -46,7 +64,7 @@ export async function sendSlaEmailTemplate(params: {
 }
 
 /**
- * Send Welcome email to a newly registered customer
+ * Simple Welcome (no verification)
  */
 export async function sendWelcomeEmail(params: { to: string; name?: string }) {
   const siteUrl =
@@ -61,6 +79,46 @@ export async function sendWelcomeEmail(params: { to: string; name?: string }) {
     html,
     replyTo: process.env.REPLY_TO ?? process.env.SUPPORT_EMAIL ?? undefined,
     tags: [{ name: 'category', value: 'welcome' }]
+  });
+
+  if (error) throw error;
+}
+
+/**
+ * Welcome + verification (code + one-click link)
+ */
+export async function sendWelcomeVerifyEmail(params: {
+  to: string;
+  name?: string;
+  code: string; // e.g. "416829"
+  verifyUrl: string;
+  expiresInMinutes?: number;
+  categories?: CategoryTeaser[];
+  bestSellers?: ProductTeaser[];
+}) {
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com';
+
+  const html = await renderAsync(
+    <WelcomeEmail
+      name={params.name}
+      siteUrl={siteUrl}
+      verificationCode={params.code}
+      verifyUrl={params.verifyUrl}
+      expiresInMinutes={params.expiresInMinutes ?? 15}
+      categories={params.categories}
+      bestSellers={params.bestSellers}
+    />
+  );
+
+  const resend = getResendOrThrow();
+  const { error } = await resend.emails.send({
+    from: FROM,
+    to: params.to,
+    subject: 'Verify your Prince Foods account',
+    html,
+    replyTo: process.env.REPLY_TO ?? process.env.SUPPORT_EMAIL ?? undefined,
+    tags: [{ name: 'category', value: 'welcome-verify' }]
   });
 
   if (error) throw error;

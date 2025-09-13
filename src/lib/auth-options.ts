@@ -1,4 +1,3 @@
-// src/lib/auth-options.ts
 import { prisma } from '@/lib/prisma';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
@@ -107,7 +106,11 @@ export const authOptions: NextAuthOptions = {
             first && last ? `${first} ${last}` : (first ?? u.name ?? user.name ?? '');
           await prisma.user.update({
             where: { id: u.id },
-            data: { firstName: first, lastName: last, name: fullName || u.name || undefined }
+            data: {
+              firstName: first ?? undefined,
+              lastName: last ?? undefined,
+              name: fullName || u.name || undefined
+            }
           });
         }
       }
@@ -115,7 +118,7 @@ export const authOptions: NextAuthOptions = {
     }
   },
 
-  // Do NOT set pages.signIn here. Middleware handles /admin/login on admin host.
+  // Trigger verification email on first user creation
   events: {
     async createUser({ user }) {
       if (isAdapterUser(user)) {
@@ -123,6 +126,17 @@ export const authOptions: NextAuthOptions = {
           .update({ where: { id: user.id }, data: { role: 'VIEWER' } })
           .catch(() => {});
       }
+
+      // Fire-and-forget: call our API to generate token+code and send the email
+      const base =
+        process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com';
+      const url = `${base}/api/auth/send-verify`;
+      // no await on purpose
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email, name: user.name })
+      }).catch(() => {});
     }
   }
 };

@@ -1,4 +1,3 @@
-// src/emails/WelcomeEmail.tsx
 import {
   Body,
   Button,
@@ -31,24 +30,40 @@ export default function WelcomeEmail({
   name,
   siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com',
   Brand = {
-    logo: `${process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com'}/assets/prince-foods-logo.png`,
+    logo:
+      `${process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com'}` +
+      '/assets/prince-foods-logo.png',
     primary: '#111111'
   },
   categories,
-  bestSellers
+  bestSellers,
+  // NEW: verification bits
+  verificationCode, // e.g. "416829"
+  verifyUrl, // e.g. `${siteUrl}/verify?email=...&token=...`
+  expiresInMinutes = 15,
+  supportEmail = 'support@princefoods.co.uk'
 }: {
   name?: string;
   siteUrl?: string;
   Brand?: { logo?: string; primary?: string };
   categories?: CategoryTeaser[];
   bestSellers?: ProductTeaser[];
+  verificationCode?: string;
+  verifyUrl?: string;
+  expiresInMinutes?: number;
+  supportEmail?: string;
 }) {
   const first = (name ?? 'there').split(' ')[0];
+
+  const codePretty = (verificationCode ?? '').replace(/\s+/g, '').split('').join(' ') || undefined;
 
   return (
     <Html>
       <Head />
-      <Preview>Welcome to Prince Foods — your account is ready</Preview>
+      <Preview>
+        Welcome to Prince Foods —{' '}
+        {verificationCode ? 'Verify your email to finish setup' : 'your account is ready'}
+      </Preview>
       <Body style={styles.body}>
         <Container style={styles.container}>
           <Section style={{ textAlign: 'center', paddingTop: 24, paddingBottom: 8 }}>
@@ -67,6 +82,41 @@ export default function WelcomeEmail({
               and check out faster.
             </Text>
 
+            {(verificationCode || verifyUrl) && (
+              <>
+                <Hr style={styles.hr} />
+                <Text style={styles.sectionTitle}>Verify your email</Text>
+
+                {verificationCode && (
+                  <>
+                    <Text style={styles.p}>Enter this code to verify your account:</Text>
+                    <Section style={styles.otpWrap}>
+                      <Text style={styles.otp}>{codePretty}</Text>
+                    </Section>
+                    <Text style={styles.smallMuted}>
+                      This code expires in {expiresInMinutes} minutes.
+                    </Text>
+                  </>
+                )}
+
+                {verifyUrl && (
+                  <Section style={{ textAlign: 'center', marginTop: 12 }}>
+                    <Button
+                      href={verifyUrl}
+                      style={{ ...styles.cta, backgroundColor: Brand.primary ?? '#111' }}
+                    >
+                      Verify now
+                    </Button>
+                    <Text style={styles.small}>
+                      Or paste this link:&nbsp;
+                      <Link href={verifyUrl}>{verifyUrl}</Link>
+                    </Text>
+                  </Section>
+                )}
+              </>
+            )}
+
+            <Hr style={styles.hr} />
             <Section style={{ textAlign: 'center', marginTop: 10 }}>
               <Button
                 href={`${siteUrl}/account`}
@@ -131,7 +181,8 @@ export default function WelcomeEmail({
 
             <Hr style={styles.hr} />
             <Text style={styles.meta}>
-              If you didn’t create this account, reply to this email and we’ll help secure it.
+              If you didn’t create this account, reply to this email or contact us at{' '}
+              <Link href={`mailto:${supportEmail}`}>{supportEmail}</Link> and we’ll help secure it.
             </Text>
           </Section>
 
@@ -162,7 +213,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     display: 'inline-block'
   },
-  small: { marginTop: 10, fontSize: 12, color: '#666' },
+  small: { marginTop: 10, fontSize: 12, color: '#666', wordBreak: 'break-all' },
+  smallMuted: { marginTop: 6, fontSize: 12, color: '#8a8f98' },
 
   sectionTitle: { marginTop: 6, marginBottom: 8, fontSize: 14, fontWeight: 700 },
   grid3: {
@@ -188,6 +240,20 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cardTitle: { fontSize: 13, fontWeight: 600, margin: 0 },
   cardPrice: { fontSize: 12, color: '#555', marginTop: 2 },
+
+  otpWrap: { textAlign: 'center', marginTop: 8 },
+  otp: {
+    display: 'inline-block',
+    fontFamily:
+      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+    fontSize: 22,
+    letterSpacing: 6,
+    padding: '10px 14px',
+    borderRadius: 10,
+    border: '1px solid #e5e7eb',
+    background: '#f9fafb',
+    fontWeight: 700
+  },
 
   hr: { borderColor: '#eee', marginTop: 16, marginBottom: 12 },
   meta: { marginTop: 8, fontSize: 12, color: '#666' },
