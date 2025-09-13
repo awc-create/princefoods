@@ -1,6 +1,7 @@
 // src/app/admin/layout.tsx
 'use client';
 
+import '@/styles/Global.scss';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
