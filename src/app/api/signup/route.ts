@@ -1,4 +1,5 @@
-import { sendWelcomeEmail } from '@/lib/email';
+// src/app/api/signup/route.ts
+import { sendWelcomeEmail } from '@/lib/mailer';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import type { CountryCode } from 'libphonenumber-js';
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
       const p = cc ? parsePhoneNumber(phone, cc) : parsePhoneNumber(phone);
       if (p?.isValid()) phoneE164 = p.number;
     } catch {
-      // ignore parse failures
+      // ignore parse errors
     }
   }
 
@@ -58,10 +59,18 @@ export async function POST(req: Request) {
     }
   });
 
-  // fire-and-forget welcome email (don’t block signup)
-  sendWelcomeEmail({ to: email, name }).catch((e) => {
-    console.error('Welcome email failed:', e);
-  });
+  // Send welcome email (don’t block signup if it fails)
+  (async () => {
+    try {
+      await sendWelcomeEmail({ to: email, name });
+      await prisma.user.update({
+        where: { email },
+        data: { welcomeStatus: 'SENT', welcomedAt: new Date() }
+      });
+    } catch (err) {
+      console.error('[welcome-email] failed:', err);
+    }
+  })();
 
   return NextResponse.json({ ok: true });
 }

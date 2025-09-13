@@ -23,29 +23,27 @@ export default function AutoProductSlider(props: Props) {
     collection,
     sort = 'newest'
   } = props;
+
   const [items, setItems] = useState<SliderProduct[]>([]);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams();
     params.set('limit', String(limit));
-    params.set('sort', sort);
-    if (categoryId) params.set('categoryId', categoryId);
-    if (categorySlug) params.set('categorySlug', categorySlug);
-    if (parentSlug) params.set('parentSlug', parentSlug);
     if (collection) params.set('collection', collection);
+    if (categorySlug) params.set('collection', categorySlug); // alias
+    // NOTE: current API orders by newest; extend API if you want `sort`.
 
     fetch(`/api/products?${params.toString()}`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((data) => {
+        // API already returns: { id, name, price, image }
         const products = (data?.products ?? []) as SliderProduct[];
         setItems(products);
       })
       .finally(() => setReady(true));
   }, [limit, categoryId, categorySlug, parentSlug, collection, sort]);
 
-  if (!ready) return null;
-  if (!items.length) return null;
-
+  if (!ready || !items.length) return null;
   return <ProductSlider title={title} products={items} />;
 }

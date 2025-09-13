@@ -5,6 +5,13 @@ import Image from 'next/image';
 import { useState } from 'react';
 import s from './ProductCard.module.scss';
 
+const normalizeImage = (src: string | null | undefined): string => {
+  if (!src) return '/assets/prince-foods-logo.png';
+  let s = src.trim();
+  if (s.startsWith('//')) s = `https:${s}`;
+  return s;
+};
+
 export default function ProductCard({
   product,
   onAddToCart
@@ -13,13 +20,13 @@ export default function ProductCard({
   onAddToCart?: (id: string, qty: number) => void;
 }) {
   const [qty, setQty] = useState(1);
-  const img = product.imageUrl ?? '/assets/prince-foods-logo.png';
+  const img = normalizeImage(product.imageUrl ?? null);
 
   const change = (v: number) => setQty((n) => Math.max(1, n + v));
   const set = (v: number) => setQty(Math.max(1, v || 1));
 
   return (
-    <article className={s.card} tabIndex={-1}>
+    <article className={s.card} tabIndex={-1} data-special={product.special ? '1' : undefined}>
       <div className={s.imageWrap}>
         <Image
           src={img}
@@ -36,6 +43,12 @@ export default function ProductCard({
       <h3 className={s.title} title={product.title}>
         {product.title}
       </h3>
+
+      {product.description && (
+        <p className={s.desc} title={product.description}>
+          {product.description}
+        </p>
+      )}
 
       <div className={s.priceRow}>
         <span className={s.price}>£{product.price.toFixed(2)}</span>
@@ -54,9 +67,6 @@ export default function ProductCard({
             inputMode="numeric"
             aria-label="Quantity"
           />
-          <button type="button" onClick={() => change(1)} aria-label="Increase quantity">
-            +
-          </button>
         </div>
 
         <button type="button" className={s.add} onClick={() => onAddToCart?.(product.id, qty)}>

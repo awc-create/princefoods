@@ -16,12 +16,13 @@ export async function GET(req: NextRequest) {
     );
     const skip = (page - 1) * limit;
 
+    // optional price filters
     const minStr = url.searchParams.get('min');
     const maxStr = url.searchParams.get('max');
     const min = minStr != null && minStr !== '' ? Number(minStr) : undefined;
     const max = maxStr != null && maxStr !== '' ? Number(maxStr) : undefined;
 
-    const priceFilter =
+    const priceFilter: Prisma.ProductWhereInput =
       (min != null && !Number.isNaN(min)) || (max != null && !Number.isNaN(max))
         ? {
             price: {
@@ -31,8 +32,8 @@ export async function GET(req: NextRequest) {
           }
         : {};
 
+    // Category / collection filter:
     let categoryFilter: Prisma.ProductWhereInput = {};
-
     if (collectionParam) {
       const slug = collectionParam.toLowerCase();
       const cat = await prisma.category.findUnique({
@@ -44,13 +45,14 @@ export async function GET(req: NextRequest) {
         let ids: string[] = [cat.id];
         if (cat.parentId === null) {
           const children = await prisma.category.findMany({
-            where: { parentId: cat.id },
+            where: { parentId: cat.id, isActive: true },
             select: { id: true }
           });
           ids = [cat.id, ...children.map((c) => c.id)];
         }
         categoryFilter = { categoryId: { in: ids } };
       } else {
+        // fallback to legacy text collection field
         categoryFilter = { collection: { contains: collectionParam, mode: 'insensitive' } };
       }
     }
@@ -71,23 +73,58 @@ export async function GET(req: NextRequest) {
         select: {
           id: true,
           name: true,
+          description: true,
           price: true,
           productImageUrl: true,
-          ribbon: true
+          ribbon: true,
+          collection: true,
+          inventory: true, // string in schema; we’ll coerce if numeric
+          visible: true,
+          discountMode: true, // to help derive “special”
+          discountValue: true
         }
       })
     ]);
 
+    // helper to coerce your inventory string → number (if it’s numeric)
+    const coerceInventory = (inv: string | null): number | undefined => {
+      if (!inv) return undefined;
+      const n = Number(inv);
+      return Number.isFinite(n) ? n : undefined;
+    };
+
+    // derive "special" (you can tune this)
+    const isSpecial = (r: {
+      ribbon: string | null;
+      discountMode: string | null;
+      discountValue: number | null;
+    }) =>
+      Boolean(
+        (r.ribbon && /best|special|hot|deal/i.test(r.ribbon)) ??
+          (r.discountMode && r.discountValue && r.discountValue > 0)
+      );
+
+    // ✅ normalised to your Product interface
+    const products = rows.map((r) => ({
+      id: r.id,
+      title: r.name,
+      description: r.description ?? undefined,
+      price: r.price ?? 0,
+      imageUrl: r.productImageUrl ?? null,
+      slug: undefined, // (add if/when you add a product slug column)
+      collection: r.collection ?? undefined,
+      inventory: coerceInventory(r.inventory ?? null),
+      visible: r.visible ?? true,
+      tag: r.ribbon ?? undefined,
+      special: isSpecial({
+        ribbon: r.ribbon ?? null,
+        discountMode: r.discountMode ?? null,
+        discountValue: r.discountValue ?? null
+      })
+    }));
+
     const pageCount = Math.max(1, Math.ceil(total / limit));
     const hasNextPage = page < pageCount;
-
-    const products = rows.map((p) => ({
-      id: p.id,
-      title: p.name,
-      price: p.price ?? 0,
-      imageUrl: p.productImageUrl ?? null,
-      tag: p.ribbon ?? null
-    }));
 
     return NextResponse.json({
       ok: true,
@@ -98,7 +135,7 @@ export async function GET(req: NextRequest) {
       pageCount,
       hasNextPage
     });
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('[API /products] Error:', error);
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }

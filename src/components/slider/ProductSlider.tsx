@@ -8,7 +8,7 @@ export interface SliderProduct {
   id: string;
   name: string;
   price: number | null;
-  productImageUrl: string | null;
+  image: string | null; // ← simplified, matches API
 }
 
 interface Props {
@@ -24,8 +24,7 @@ const normalizeImage = (src: string | null | undefined): string => {
   let s = src.trim();
   if (s.startsWith('//')) s = `https:${s}`;
   if (/^https?:\/\//i.test(s)) return s;
-  // if you store relative names in DB, serve from /images
-  return `/images/${s.replace(/^\/+/, '')}`;
+  return `/${s.replace(/^\/+/, '')}`;
 };
 
 export default function ProductSlider({ title, products, initialVisible = 4 }: Props) {
@@ -37,7 +36,6 @@ export default function ProductSlider({ title, products, initialVisible = 4 }: P
   const [visibleCount, setVisibleCount] = useState(initialVisible);
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // responsive visible count
   const computeVisible = useCallback(
     (w: number) => {
       if (w < 520) return 1;
@@ -59,7 +57,6 @@ export default function ProductSlider({ title, products, initialVisible = 4 }: P
   }, [computeVisible]);
 
   useEffect(() => {
-    // clamp index when list/visible changes
     const maxStart = Math.max(0, products.length - visibleCount);
     setCurrentIndex((i) => Math.min(i, maxStart));
   }, [products.length, visibleCount]);
@@ -96,7 +93,7 @@ export default function ProductSlider({ title, products, initialVisible = 4 }: P
 
         <div className={styles.cards}>
           {windowed.map((product) => {
-            const src = normalizeImage(product.productImageUrl);
+            const src = normalizeImage(product.image);
             const price = product.price != null ? GBP.format(product.price) : '—';
             return (
               <div key={product.id} className={styles.card}>

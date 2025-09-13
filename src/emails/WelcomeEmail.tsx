@@ -1,8 +1,10 @@
+// src/emails/WelcomeEmail.tsx
 import {
   Body,
   Button,
   Container,
   Head,
+  Hr,
   Html,
   Img,
   Link,
@@ -12,17 +14,34 @@ import {
 } from '@react-email/components';
 import * as React from 'react';
 
+interface CategoryTeaser {
+  title: string;
+  href: string;
+  image: string;
+}
+interface ProductTeaser {
+  id: string;
+  title: string;
+  href: string;
+  image: string;
+  price?: number | null;
+}
+
 export default function WelcomeEmail({
   name,
   siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com',
   Brand = {
     logo: `${process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com'}/assets/prince-foods-logo.png`,
     primary: '#111111'
-  }
+  },
+  categories,
+  bestSellers
 }: {
   name?: string;
   siteUrl?: string;
   Brand?: { logo?: string; primary?: string };
+  categories?: CategoryTeaser[];
+  bestSellers?: ProductTeaser[];
 }) {
   const first = (name ?? 'there').split(' ')[0];
 
@@ -33,7 +52,12 @@ export default function WelcomeEmail({
       <Body style={styles.body}>
         <Container style={styles.container}>
           <Section style={{ textAlign: 'center', paddingTop: 24, paddingBottom: 8 }}>
-            <Img src={Brand.logo} alt="Prince Foods" width="120" style={{ margin: '0 auto' }} />
+            <Img
+              src={Brand.logo ?? ''}
+              alt="Prince Foods"
+              width="120"
+              style={{ margin: '0 auto' }}
+            />
           </Section>
 
           <Section style={styles.card}>
@@ -56,6 +80,56 @@ export default function WelcomeEmail({
               </Text>
             </Section>
 
+            {!!(bestSellers && bestSellers.length) && (
+              <>
+                <Hr style={styles.hr} />
+                <Text style={styles.sectionTitle}>Popular right now</Text>
+                <Section style={styles.grid3}>
+                  {bestSellers.slice(0, 6).map((p) => (
+                    <Link key={p.id} href={`${siteUrl}${p.href}`} style={styles.cardMini}>
+                      <Img
+                        src={p.image}
+                        alt={p.title}
+                        width="160"
+                        height="120"
+                        style={styles.thumb}
+                      />
+                      <Text style={styles.cardTitle}>{p.title}</Text>
+                      {p.price != null && (
+                        <Text style={styles.cardPrice}>£{Number(p.price).toFixed(2)}</Text>
+                      )}
+                    </Link>
+                  ))}
+                </Section>
+              </>
+            )}
+
+            {!!(categories && categories.length) && (
+              <>
+                <Hr style={styles.hr} />
+                <Text style={styles.sectionTitle}>Shop by category</Text>
+                <Section style={styles.grid3}>
+                  {categories.slice(0, 6).map((c, i) => (
+                    <Link
+                      key={`${c.href}-${i}`}
+                      href={`${siteUrl}${c.href}`}
+                      style={styles.cardMini}
+                    >
+                      <Img
+                        src={c.image}
+                        alt={c.title}
+                        width="160"
+                        height="120"
+                        style={styles.thumb}
+                      />
+                      <Text style={styles.cardTitle}>{c.title}</Text>
+                    </Link>
+                  ))}
+                </Section>
+              </>
+            )}
+
+            <Hr style={styles.hr} />
             <Text style={styles.meta}>
               If you didn’t create this account, reply to this email and we’ll help secure it.
             </Text>
@@ -89,6 +163,33 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-block'
   },
   small: { marginTop: 10, fontSize: 12, color: '#666' },
-  meta: { marginTop: 16, fontSize: 12, color: '#666' },
+
+  sectionTitle: { marginTop: 6, marginBottom: 8, fontSize: 14, fontWeight: 700 },
+  grid3: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: 10
+  },
+  cardMini: {
+    display: 'block',
+    textDecoration: 'none',
+    color: '#111',
+    border: '1px solid #eee',
+    borderRadius: 10,
+    padding: 10,
+    background: '#fff'
+  },
+  thumb: {
+    width: '100%',
+    height: 'auto',
+    borderRadius: 8,
+    display: 'block',
+    marginBottom: 6
+  },
+  cardTitle: { fontSize: 13, fontWeight: 600, margin: 0 },
+  cardPrice: { fontSize: 12, color: '#555', marginTop: 2 },
+
+  hr: { borderColor: '#eee', marginTop: 16, marginBottom: 12 },
+  meta: { marginTop: 8, fontSize: 12, color: '#666' },
   footer: { marginTop: 24, fontSize: 12, color: '#8a8f98', textAlign: 'center' }
 };
