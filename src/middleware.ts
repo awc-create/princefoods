@@ -70,7 +70,7 @@ export async function middleware(req: NextRequest) {
     }
 
     // 2) If you want /admin to always normalize to the internal root, redirect it
-    if (pathname === '/admin' || pathname === '/admin/') {
+    if (ADMIN_ROOT_INTERNAL !== '/admin' && (pathname === '/admin' || pathname === '/admin/')) {
       const url = req.nextUrl.clone();
       url.pathname = ADMIN_ROOT_INTERNAL;
       return NextResponse.redirect(url);
