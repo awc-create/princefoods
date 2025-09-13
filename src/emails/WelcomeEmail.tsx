@@ -82,7 +82,7 @@ export default function WelcomeEmail({
               and check out faster.
             </Text>
 
-            {(verificationCode || verifyUrl) && (
+            {(verificationCode ?? verifyUrl) && (
               <>
                 <Hr style={styles.hr} />
                 <Text style={styles.sectionTitle}>Verify your email</Text>

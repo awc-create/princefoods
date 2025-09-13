@@ -1,15 +1,39 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+
+export const dynamic = 'force-dynamic';
 
 export default function VerifyPage() {
+  return (
+    <Suspense fallback={<VerifyFallback />}>
+      <VerifyClient />
+    </Suspense>
+  );
+}
+
+function VerifyFallback() {
+  return (
+    <main className="mx-auto max-w-sm p-6">
+      <div className="animate-pulse space-y-3">
+        <div className="h-6 w-64 bg-gray-200 rounded" />
+        <div className="h-4 w-80 bg-gray-200 rounded" />
+        <div className="h-10 w-full bg-gray-200 rounded" />
+        <div className="h-10 w-full bg-gray-200 rounded" />
+        <div className="h-4 w-40 bg-gray-200 rounded" />
+      </div>
+    </main>
+  );
+}
+
+function VerifyClient() {
   const sp = useSearchParams();
   const router = useRouter();
 
-  // Safely read query params even if sp is momentarily null-ish
-  const initialEmail = useMemo(() => sp?.get('email') ?? '', [sp]);
-  const token = useMemo(() => sp?.get('token') ?? null, [sp]);
+  // Safely read query params with Suspense present
+  const initialEmail = useMemo(() => sp.get('email') ?? '', [sp]);
+  const token = useMemo(() => sp.get('token') ?? null, [sp]);
 
   const [email, setEmail] = useState(initialEmail);
   const [code, setCode] = useState('');
@@ -18,7 +42,7 @@ export default function VerifyPage() {
     setEmail(initialEmail);
   }, [initialEmail]);
 
-  // If we have a token in URL, auto-verify on mount
+  // Auto-verify if token present
   useEffect(() => {
     const auto = async () => {
       if (!email || !token) return;
@@ -28,9 +52,7 @@ export default function VerifyPage() {
         body: JSON.stringify({ email, token })
       });
       const data = await res.json();
-      if (data.ok) {
-        router.replace('/account');
-      }
+      if (data.ok) router.replace('/account');
     };
     void auto();
     // eslint-disable-next-line react-hooks/exhaustive-deps
