@@ -25,13 +25,12 @@ export default function AdminLoginClient() {
   const rawCb = sp?.get('callbackUrl') ?? null;
   const callbackUrl = safeCallbackUrl(rawCb);
 
-  // strip recursive callbackUrl chains to keep URL clean
   useEffect(() => {
     if (!rawCb) return;
     try {
       const target = decodeURIComponent(rawCb);
       if (target.startsWith('/admin/login')) {
-        const clean = window.location.pathname; // /admin/login[/]
+        const clean = window.location.pathname;
         window.history.replaceState({}, '', clean);
       }
     } catch {
@@ -40,9 +39,7 @@ export default function AdminLoginClient() {
   }, [rawCb]);
 
   useEffect(() => {
-    if (status === 'authenticated') {
-      router.replace(callbackUrl);
-    }
+    if (status === 'authenticated') router.replace(callbackUrl);
   }, [status, callbackUrl, router]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -50,90 +47,125 @@ export default function AdminLoginClient() {
     setErr(null);
     setPending(true);
     try {
-      await signIn('credentials', {
+      const res = await signIn('credentials', {
         email,
         password,
-        redirect: true,
+        redirect: false,
         callbackUrl
       });
+      if (res?.error) {
+        setErr('Invalid email or password.');
+        setPending(false);
+        return;
+      }
+      router.replace(callbackUrl);
     } catch {
-      setErr('Unexpected error. Try again.');
+      setErr('Unexpected error. Please try again.');
       setPending(false);
     }
   }
 
-  if (status === 'loading') return <div className={styles.container}>Checking session…</div>;
+  if (status === 'loading') {
+    return (
+      <div className={styles.screen}>
+        <div className={styles.loader} aria-label="Checking session" />
+      </div>
+    );
+  }
 
   return (
-    <div className={styles.container}>
-      <div className={styles.brand}>
-        <Image
-          src="/assets/prince-foods-logo.png"
-          alt="Prince Foods"
-          width={140}
-          height={74}
-          priority
-          className={styles.logo}
-        />
-        <h1 className={styles.title}>Admin Login</h1>
-        <p className={styles.subtitle}>Staff access only.</p>
-      </div>
-
-      <form onSubmit={onSubmit} className={styles.form} autoComplete="on">
-        <label className={styles.label} htmlFor="email">
-          Email
-        </label>
-        <div className={styles.field}>
-          <span className={styles.icon} aria-hidden>
-            ✉️
-          </span>
-          <input
-            id="email"
-            type="email"
-            placeholder="admin@prince-v.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoComplete="email"
-            className={styles.input}
+    <main className={styles.screen}>
+      <div className={styles.card} role="form" aria-labelledby="admin-login-title">
+        <div className={styles.brand}>
+          <Image
+            src="/assets/prince-foods-logo.png"
+            alt="Prince Foods"
+            width={120}
+            height={64}
+            priority
+            className={styles.logo}
           />
+          <h1 id="admin-login-title" className={styles.title}>
+            Admin Login
+          </h1>
+          <p className={styles.subtitle}>Staff access only</p>
         </div>
 
-        <div className={styles.rowBetween}>
-          <label className={styles.label} htmlFor="password">
-            Password
+        {err && (
+          <div className={styles.error} role="alert">
+            {err}
+          </div>
+        )}
+
+        <form onSubmit={onSubmit} className={styles.form} autoComplete="on">
+          <label className={styles.label} htmlFor="email">
+            Email
           </label>
-        </div>
-        <div className={styles.field}>
-          <span className={styles.icon} aria-hidden>
-            🔒
-          </span>
-          <input
-            id="password"
-            type={showPw ? 'text' : 'password'}
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-            className={styles.input}
-          />
-          <button
-            type="button"
-            className={styles.peek}
-            onClick={() => setShowPw((s) => !s)}
-            aria-label={showPw ? 'Hide password' : 'Show password'}
-          >
-            {showPw ? '🙈' : '👁️'}
+          <div className={styles.field}>
+            <span className={styles.icon} aria-hidden>
+              ✉️
+            </span>
+            <input
+              id="email"
+              type="email"
+              placeholder="admin@prince-v.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+              className={styles.input}
+              disabled={pending}
+            />
+          </div>
+
+          <div className={styles.rowBetween}>
+            <label className={styles.label} htmlFor="password">
+              Password
+            </label>
+            <button
+              type="button"
+              className={styles.linkBtn}
+              onClick={() => setShowPw((s) => !s)}
+              aria-pressed={showPw}
+            >
+              {showPw ? 'Hide' : 'Show'}
+            </button>
+          </div>
+
+          <div className={styles.field}>
+            <span className={styles.icon} aria-hidden>
+              🔒
+            </span>
+            <input
+              id="password"
+              type={showPw ? 'text' : 'password'}
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+              className={styles.input}
+              disabled={pending}
+            />
+          </div>
+
+          <button type="submit" className={styles.primaryBtn} disabled={pending}>
+            {pending ? 'Signing in…' : 'Sign in'}
           </button>
-        </div>
+        </form>
 
-        {err && <p className={styles.error}>{err}</p>}
-
-        <button type="submit" className={styles.primaryBtn} disabled={pending}>
-          {pending ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
-    </div>
+        <p className={styles.meta}>
+          By signing in you agree to our{' '}
+          <a href="/terms-of-service" className={styles.metaLink}>
+            Terms
+          </a>{' '}
+          &amp;{' '}
+          <a href="/privacy-policy" className={styles.metaLink}>
+            Privacy
+          </a>
+          .
+        </p>
+      </div>
+    </main>
   );
 }

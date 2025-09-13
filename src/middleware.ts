@@ -20,7 +20,7 @@ const isLoginPath = (p: string) =>
 const isFile = (p: string) => /\.[a-zA-Z0-9]+$/.test(p);
 
 function getHost(req: NextRequest) {
-  return req.headers.get('x-forwarded-host') || req.headers.get('host') || req.nextUrl.hostname;
+  return req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? req.nextUrl.hostname;
 }
 
 export async function middleware(req: NextRequest) {
