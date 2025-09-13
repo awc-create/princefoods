@@ -7,25 +7,42 @@ import { NextResponse } from 'next/server';
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
 type Token = (JWT & { role?: Role }) | null;
 
+/**
+ * Hosts
+ * - public:   site
+ * - admin:    admin portal
+ */
 const PUBLIC_HOSTS = new Set(['prince-v.com', 'www.prince-v.com']);
 const ADMIN_HOSTS = new Set(['admin.prince-v.com']);
 
+/** quick helpers */
 const isLoginPath = (p: string) =>
   p === '/login' || p === '/login/' || p === '/admin/login' || p === '/admin/login/';
 
-const isFrameworkPath = (p: string) =>
-  p.startsWith('/_next') ||
-  p.startsWith('/api') ||
-  p.startsWith('/assets') ||
-  p.startsWith('/public');
+const isFile = (p: string) => /\.[a-zA-Z0-9]+$/.test(p);
+
+/** prefer proxy headers (Traefik) */
+function getHost(req: NextRequest) {
+  return req.headers.get('x-forwarded-host') || req.headers.get('host') || req.nextUrl.hostname;
+}
 
 export async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl; // ← remove unused searchParams
-  const host = req.headers.get('host') ?? req.nextUrl.hostname;
+  const { pathname, search } = req.nextUrl;
+  const host = getHost(req);
 
-  // Always allow framework/static & BOTH login variants (+ signups)
+  // --- Hard bypasses (NEVER touched by middleware) ---
+  // Framework + static + API + health + auth + files
   if (
-    isFrameworkPath(pathname) ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/assets') ||
+    pathname.startsWith('/public') ||
+    pathname.startsWith('/api/healthz') ||
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/') || // any other API
+    pathname === '/favicon.ico' ||
+    pathname === '/robots.txt' ||
+    pathname === '/sitemap.xml' ||
+    isFile(pathname) ||
     isLoginPath(pathname) ||
     pathname.startsWith('/signup') ||
     pathname.startsWith('/admin/signup')
@@ -33,9 +50,9 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // === Public host rules ===
+  // --- Public host rules ---
   if (PUBLIC_HOSTS.has(host)) {
-    // Never allow /admin on the public host (with or without slash)
+    // Block accidental /admin on public host
     if (pathname === '/admin' || pathname.startsWith('/admin/')) {
       const url = req.nextUrl.clone();
       url.pathname = '/';
@@ -45,27 +62,39 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // === Admin host rules ===
+  // --- Admin host rules ---
   if (ADMIN_HOSTS.has(host)) {
+    // We gate everything under /admin (except /admin/login which we bypassed above)
     if (pathname === '/admin' || pathname.startsWith('/admin/')) {
-      // Gate everything under /admin (except /admin/login which is already whitelisted above)
       const token = (await getToken({ req, secret: process.env.NEXTAUTH_SECRET })) as Token;
       const role: Role | undefined = token?.role;
 
-      if (!token || !(role === 'HEAD' || role === 'STAFF')) {
+      const authorised = !!token && (role === 'HEAD' || role === 'STAFF');
+      if (!authorised) {
         const url = req.nextUrl.clone();
-        url.pathname = '/admin/login'; // trailingSlash is handled by Next
-        // Prevent infinite nesting by normalising callback target
-        const cb = isLoginPath(pathname) ? '/admin' : `${pathname}${req.nextUrl.search}`;
-        url.searchParams.set('callbackUrl', cb);
+        url.pathname = '/admin/login';
+        // Normalise callback target; never point to /admin/login itself
+        const cbTarget = isLoginPath(pathname) ? '/admin' : `${pathname}${search}`;
+        url.searchParams.set('callbackUrl', cbTarget || '/admin');
         return NextResponse.redirect(url);
       }
     }
     return NextResponse.next();
   }
 
-  // Default allow (localhost/preview)
+  // --- Anything else (localhost, preview, etc.) ---
   return NextResponse.next();
 }
 
-export const config = { matcher: ['/:path*'] };
+/**
+ * Matcher:
+ * - exclude framework, static, files, and *all* API routes (incl health/auth)
+ *   so we never even run for those paths (faster + safer).
+ */
+export const config = {
+  matcher: [
+    // run on everything that is NOT one of:
+    // _next, api/*, assets/*, public/*, favicon/robots/sitemap, and files with extensions
+    '/((?!_next/|api/|assets/|public/|favicon.ico|robots.txt|sitemap.xml|.*\\..*).*)'
+  ]
+};
