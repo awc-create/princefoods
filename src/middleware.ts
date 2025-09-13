@@ -7,21 +7,18 @@ import { NextResponse } from 'next/server';
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
 type Token = (JWT & { role?: Role }) | null;
 
-/**
- * Hosts
- * - public:   site
- * - admin:    admin portal
- */
+/** Public and admin hosts */
 const PUBLIC_HOSTS = new Set(['prince-v.com', 'www.prince-v.com']);
 const ADMIN_HOSTS = new Set(['admin.prince-v.com']);
 
-/** quick helpers */
+/** If your real admin app is NOT at /admin, change this to '/app/admin' (or similar) */
+const ADMIN_ROOT_INTERNAL = '/admin';
+
 const isLoginPath = (p: string) =>
   p === '/login' || p === '/login/' || p === '/admin/login' || p === '/admin/login/';
 
 const isFile = (p: string) => /\.[a-zA-Z0-9]+$/.test(p);
 
-/** prefer proxy headers (Traefik) */
 function getHost(req: NextRequest) {
   return req.headers.get('x-forwarded-host') || req.headers.get('host') || req.nextUrl.hostname;
 }
@@ -30,15 +27,14 @@ export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const host = getHost(req);
 
-  // --- Hard bypasses (NEVER touched by middleware) ---
-  // Framework + static + API + health + auth + files
+  // --- Bypass framework/static/API/auth/health/files/login/signup ---
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/assets') ||
     pathname.startsWith('/public') ||
     pathname.startsWith('/api/healthz') ||
     pathname.startsWith('/api/auth') ||
-    pathname.startsWith('/api/') || // any other API
+    pathname.startsWith('/api/') ||
     pathname === '/favicon.ico' ||
     pathname === '/robots.txt' ||
     pathname === '/sitemap.xml' ||
@@ -64,33 +60,51 @@ export async function middleware(req: NextRequest) {
 
   // --- Admin host rules ---
   if (ADMIN_HOSTS.has(host)) {
-    // We gate everything under /admin (except /admin/login which we bypassed above)
-    if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+    // 1) Make bare admin root land on your admin app
+    if (pathname === '/' || pathname === '') {
+      const url = req.nextUrl.clone();
+      url.pathname = ADMIN_ROOT_INTERNAL;
+      url.search = '';
+      // Use redirect so the browser location shows /admin (or your chosen path)
+      return NextResponse.redirect(url);
+    }
+
+    // 2) If you want /admin to always normalize to the internal root, redirect it
+    if (pathname === '/admin' || pathname === '/admin/') {
+      const url = req.nextUrl.clone();
+      url.pathname = ADMIN_ROOT_INTERNAL;
+      return NextResponse.redirect(url);
+    }
+
+    // 3) Gate the admin area (wherever it actually is)
+    if (
+      pathname === ADMIN_ROOT_INTERNAL ||
+      pathname.startsWith(
+        ADMIN_ROOT_INTERNAL.endsWith('/') ? ADMIN_ROOT_INTERNAL : `${ADMIN_ROOT_INTERNAL}/`
+      )
+    ) {
       const token = (await getToken({ req, secret: process.env.NEXTAUTH_SECRET })) as Token;
       const role: Role | undefined = token?.role;
-
       const authorised = !!token && (role === 'HEAD' || role === 'STAFF');
+
       if (!authorised) {
         const url = req.nextUrl.clone();
         url.pathname = '/admin/login';
-        // Normalise callback target; never point to /admin/login itself
-        const cbTarget = isLoginPath(pathname) ? '/admin' : `${pathname}${search}`;
-        url.searchParams.set('callbackUrl', cbTarget || '/admin');
+        // Never point callback to /admin/login itself
+        const cbTarget = isLoginPath(pathname)
+          ? ADMIN_ROOT_INTERNAL
+          : `${pathname}${search || ''}` || ADMIN_ROOT_INTERNAL;
+        url.searchParams.set('callbackUrl', cbTarget);
         return NextResponse.redirect(url);
       }
     }
     return NextResponse.next();
   }
 
-  // --- Anything else (localhost, preview, etc.) ---
+  // --- Anything else (localhost/preview/etc.) ---
   return NextResponse.next();
 }
 
-/**
- * Matcher:
- * - exclude framework, static, files, and *all* API routes (incl health/auth)
- *   so we never even run for those paths (faster + safer).
- */
 export const config = {
   matcher: [
     // run on everything that is NOT one of:
