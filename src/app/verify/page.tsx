@@ -28,7 +28,8 @@ function VerifyFallback() {
 }
 
 function VerifyClient() {
-  const sp = useSearchParams();
+  // Non-null assert for stricter TS setups
+  const sp = useSearchParams()!;
   const router = useRouter();
 
   // Safely read query params with Suspense present
