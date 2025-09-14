@@ -10,3 +10,6 @@ deploy_targets:
   main-hetz: hetzner
   dev: vercel
   preview: vercel
+
+pgadmin_subdomain: dbui
+pgadmin_subdomain: db
