@@ -1,3 +1,4 @@
+// src/lib/auth-options.ts
 import { prisma } from '@/lib/prisma';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
@@ -54,11 +55,27 @@ export const authOptions: NextAuthOptions = {
       authorize: async (raw) => {
         const parsed = CredentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
+
         const { email, password } = parsed.data;
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user || !user.password) return null;
+
         const ok = await bcrypt.compare(password, user.password);
         if (!ok) return null;
+
+        // BLOCK credentials login if there is any unexpired verification token for this email
+        // (User hasn’t verified yet via link or code.)
+        const pending = await prisma.verificationToken.findFirst({
+          where: {
+            identifier: email,
+            expires: { gt: new Date() }
+          }
+        });
+        if (pending) {
+          // Returning null = "CredentialsSignin" error; UI should prompt to verify.
+          return null;
+        }
+
         return { id: user.id, name: user.name, email: user.email, role: user.role as Role };
       }
     })
@@ -97,6 +114,7 @@ export const authOptions: NextAuthOptions = {
 
     async signIn({ user, account }) {
       if (account?.provider === 'google' && isAdapterUser(user)) {
+        // Optional: treat Google as already-verified, but still keep profile fresh
         const u = await prisma.user.findUnique({ where: { id: user.id } });
         if (u) {
           const parts = (user.name ?? '').trim().split(/\s+/);
@@ -118,7 +136,7 @@ export const authOptions: NextAuthOptions = {
     }
   },
 
-  // Trigger verification email on first user creation
+  // Trigger verification email on first user creation (works for OAuth-created users too)
   events: {
     async createUser({ user }) {
       if (isAdapterUser(user)) {
@@ -131,6 +149,7 @@ export const authOptions: NextAuthOptions = {
       const base =
         process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com';
       const url = `${base}/api/auth/send-verify`;
+
       // no await on purpose
       fetch(url, {
         method: 'POST',

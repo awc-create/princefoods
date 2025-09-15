@@ -1,72 +1,66 @@
+// src/app/api/auth/send-verify/route.ts
+import { getFeaturedCategories } from '@/lib/catalog';
 import { sendWelcomeVerifyEmail } from '@/lib/email';
 import { prisma } from '@/lib/prisma';
+import { issueEmailVerification } from '@/lib/verify';
 import { NextResponse } from 'next/server';
-import crypto from 'node:crypto';
-
-const EXP_MIN = Number(process.env.EMAIL_CODE_EXP_MIN ?? 15);
-
-function code6() {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
 
 export async function POST(req: Request) {
   try {
-    const { email, name, categories, bestSellers } = await req.json();
-    if (!email) {
-      return NextResponse.json({ ok: false, error: 'Email required' }, { status: 400 });
+    const {
+      email,
+      name,
+      next = '/'
+    } = (await req.json()) as {
+      email: string;
+      name?: string | null;
+      next?: string;
+    };
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, name: true, emailVerified: true }
+    });
+
+    if (!user) {
+      return NextResponse.json({ ok: false, error: 'User not found' }, { status: 404 });
     }
 
-    // Ensure user exists
-    const user =
-      (await prisma.user.findUnique({ where: { email } })) ??
-      (await prisma.user.create({
-        data: {
-          email,
-          name: name ?? email.split('@')[0],
-          role: 'VIEWER'
-        }
-      }));
-
-    // Cleanup expired tokens
-    const now = new Date();
-    await prisma.passwordToken.deleteMany({
-      where: { userId: user.id, usedAt: null, expiresAt: { lt: now } }
-    });
-
-    // Throttle: if there is an active token, avoid re-sending
-    const active = await prisma.passwordToken.findFirst({
-      where: { userId: user.id, usedAt: null, expiresAt: { gt: now } }
-    });
-    if (active) {
-      return NextResponse.json({ ok: true, alreadySent: true });
+    // If already verified, you can treat as OK (idempotent) or return a soft error.
+    if (user.emailVerified) {
+      return NextResponse.json({ ok: true, alreadyVerified: true });
     }
 
-    // Create fresh token + code
-    const token = crypto.randomUUID();
-    const code = code6();
-    const expiresAt = new Date(Date.now() + EXP_MIN * 60 * 1000);
-
-    await prisma.passwordToken.create({
-      data: { userId: user.id, token, code, expiresAt }
-    });
+    const issued = await issueEmailVerification(email);
+    if (!issued.ok) {
+      // throttled — return success so UI doesn't loop; you can include a hint
+      return NextResponse.json({
+        ok: true,
+        throttled: true,
+        retryInSeconds: issued.retryInSeconds
+      });
+    }
 
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com';
-    const verifyUrl = `${siteUrl}/verify?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`;
+    const verifyUrl = `${siteUrl}/verify?email=${encodeURIComponent(email)}&token=${encodeURIComponent(
+      issued.tokenRaw
+    )}&next=${encodeURIComponent(next || '/')}`;
+
+    const categories = await getFeaturedCategories(6).catch(() => []);
 
     await sendWelcomeVerifyEmail({
       to: email,
-      name,
-      code,
+      name: name ?? user.name ?? undefined,
+      code: issued.code,
       verifyUrl,
-      expiresInMinutes: EXP_MIN,
       categories,
-      bestSellers
+      expiresInMinutes: issued.expiresInMinutes
     });
 
     return NextResponse.json({ ok: true });
-  } catch (err) {
-    console.error('send-verify error', err);
-    return NextResponse.json({ ok: false, error: 'Failed to send' }, { status: 500 });
+  } catch (e) {
+    console.error('[send-verify] error', e);
+    return NextResponse.json({ ok: false, error: 'Server error' }, { status: 500 });
   }
 }

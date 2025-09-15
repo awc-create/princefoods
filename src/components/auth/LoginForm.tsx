@@ -6,7 +6,7 @@ import { safePublicCallbackUrl } from '@/lib/auth-redirect';
 import { signIn } from 'next-auth/react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 interface LoginFormProps {
@@ -15,6 +15,7 @@ interface LoginFormProps {
 }
 
 export default function LoginForm({ callbackUrl: propCallback }: LoginFormProps) {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -22,7 +23,6 @@ export default function LoginForm({ callbackUrl: propCallback }: LoginFormProps)
   const [pending, setPending] = useState(false);
 
   const sp = useSearchParams();
-
   // If a prop is provided, use it directly; otherwise normalise the query value
   const callbackUrl = propCallback ?? safePublicCallbackUrl(sp?.get('callbackUrl') ?? null);
 
@@ -31,12 +31,31 @@ export default function LoginForm({ callbackUrl: propCallback }: LoginFormProps)
     setErr(null);
     setPending(true);
     try {
-      await signIn('credentials', {
+      // Use redirect: false to inspect the response
+      const res = await signIn('credentials', {
         email,
         password,
-        redirect: true,
+        redirect: false,
         callbackUrl
       });
+
+      if (!res) {
+        setErr('Unexpected error. Try again.');
+        setPending(false);
+        return;
+      }
+
+      if (res.error) {
+        // Likely unverified or bad credentials
+        // If you only want to push unverified users, you could check message content.
+        router.push(
+          `/verify?email=${encodeURIComponent(email)}&next=${encodeURIComponent(callbackUrl)}`
+        );
+        return;
+      }
+
+      // success path
+      router.push(res.url ?? callbackUrl);
     } catch {
       setErr('Unexpected error. Try again.');
       setPending(false);

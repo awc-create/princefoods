@@ -1,45 +1,39 @@
-import { prisma } from '@/lib/prisma';
+import { consumeVerificationByCode, consumeVerificationByToken } from '@/lib/verify';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
-  const { email, code, token } = await req.json();
+  try {
+    const { email, code, token } = (await req.json()) as {
+      email?: string;
+      code?: string;
+      token?: string;
+    };
+    if (!email) return NextResponse.json({ ok: false, error: 'Missing email' }, { status: 400 });
 
-  if (!email || (!code && !token)) {
-    return NextResponse.json({ ok: false, error: 'Missing email and code/token' }, { status: 400 });
-  }
-
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) {
-    return NextResponse.json({ ok: false, error: 'Invalid or expired' }, { status: 400 });
-  }
-
-  const now = new Date();
-
-  const pt = await prisma.passwordToken.findFirst({
-    where: {
-      userId: user.id,
-      usedAt: null,
-      expiresAt: { gt: now },
-      ...(token ? { token } : {}),
-      ...(code ? { code } : {})
+    let result;
+    if (token) {
+      result = await consumeVerificationByToken(email, token);
+    } else if (code) {
+      result = await consumeVerificationByCode(email, String(code).trim());
+    } else {
+      return NextResponse.json({ ok: false, error: 'Missing code or token' }, { status: 400 });
     }
-  });
 
-  if (!pt) {
-    return NextResponse.json({ ok: false, error: 'Invalid or expired' }, { status: 400 });
+    if (!result.ok) {
+      const map: Record<string, string> = {
+        'no-user': 'No matching user',
+        'bad-token': 'Invalid or expired link',
+        'bad-code': 'Invalid or expired code'
+      };
+      return NextResponse.json(
+        { ok: false, error: map[result.reason] ?? 'Verification failed' },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error('[verify-code] error', e);
+    return NextResponse.json({ ok: false, error: 'Server error' }, { status: 500 });
   }
-
-  await prisma.$transaction([
-    prisma.passwordToken.update({ where: { id: pt.id }, data: { usedAt: new Date() } }),
-    prisma.user.update({
-      where: { id: user.id },
-      data: {
-        emailVerified: new Date(),
-        welcomeStatus: 'COMPLETED',
-        welcomedAt: new Date()
-      }
-    })
-  ]);
-
-  return NextResponse.json({ ok: true });
 }

@@ -1,3 +1,4 @@
+// src/app/verify/page.tsx
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -28,32 +29,40 @@ function VerifyFallback() {
 }
 
 function VerifyClient() {
-  // Non-null assert for stricter TS setups
   const sp = useSearchParams()!;
   const router = useRouter();
 
-  // Safely read query params with Suspense present
   const initialEmail = useMemo(() => sp.get('email') ?? '', [sp]);
   const token = useMemo(() => sp.get('token') ?? null, [sp]);
+  const nextUrl = useMemo(() => sp.get('next') ?? '/', [sp]); // default home
 
   const [email, setEmail] = useState(initialEmail);
   const [code, setCode] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    setEmail(initialEmail);
-  }, [initialEmail]);
+  useEffect(() => setEmail(initialEmail), [initialEmail]);
 
   // Auto-verify if token present
   useEffect(() => {
     const auto = async () => {
       if (!email || !token) return;
-      const res = await fetch('/api/auth/verify-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, token })
-      });
-      const data = await res.json();
-      if (data.ok) router.replace('/account');
+      setBusy(true);
+      setErr(null);
+      try {
+        const res = await fetch('/api/auth/verify-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, token })
+        });
+        const data = await res.json();
+        if (data.ok) router.replace(nextUrl);
+        else setErr(data.error ?? 'Verification failed');
+      } catch {
+        setErr('Verification failed');
+      } finally {
+        setBusy(false);
+      }
     };
     void auto();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -61,31 +70,49 @@ function VerifyClient() {
 
   async function submit() {
     if (!email || !code) return;
-    const res = await fetch('/api/auth/verify-code', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, code })
-    });
-    const data = await res.json();
-    if (data.ok) router.push('/account');
-    else alert(data.error ?? 'Verification failed');
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch('/api/auth/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code })
+      });
+      const data = await res.json();
+      if (data.ok) router.replace(nextUrl);
+      else setErr(data.error ?? 'Verification failed');
+    } catch {
+      setErr('Verification failed');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function resend() {
     if (!email) return alert('Enter your email first.');
-    const res = await fetch('/api/auth/send-verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email })
-    });
-    const data = await res.json();
-    if (data.ok) alert('Code sent');
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch('/api/auth/send-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (data.ok) alert('Code sent');
+      else setErr(data.error ?? 'Could not resend code');
+    } catch {
+      setErr('Could not resend code');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <main className="mx-auto max-w-sm p-6">
       <h1 className="text-xl font-semibold mb-2">Verify your account</h1>
       <p className="text-sm mb-4">Enter the 6-digit code we emailed to you.</p>
+
       <input
         value={email}
         onChange={(e) => setEmail(e.target.value)}
@@ -94,6 +121,7 @@ function VerifyClient() {
         type="email"
         autoComplete="email"
       />
+
       <input
         value={code}
         onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -102,10 +130,13 @@ function VerifyClient() {
         inputMode="numeric"
         autoComplete="one-time-code"
       />
-      <button onClick={submit} className="w-full border rounded p-2">
-        Verify
+
+      {err && <p className="text-red-600 mb-2">{err}</p>}
+
+      <button onClick={submit} className="w-full border rounded p-2" disabled={busy}>
+        {busy ? 'Verifying…' : 'Verify'}
       </button>
-      <button onClick={resend} className="w-full mt-3 underline text-sm">
+      <button onClick={resend} className="w-full mt-3 underline text-sm" disabled={busy}>
         Resend code
       </button>
     </main>
