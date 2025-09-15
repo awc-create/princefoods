@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "guard:url": "node scripts/guard-url.mjs",
-    "prebuild": "prisma generate && npm run guard:url && node scripts/check-base.mjs",
+    "prebuild": "prisma generate && npm run guard:url && node scripts/check-base.mjs && tsc -p tsconfig.scripts.json",
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
@@ -14,7 +14,7 @@
     "prepare": "husky install",
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "prisma:seed": "tsx prisma/seed.ts",
+    "prisma:seed": "node dist/prisma/seed.cjs",
     "db:deploy-and-seed": "npm run prisma:migrate:deploy && npm run prisma:seed",
     "typecheck": "tsc --noEmit",
     "validate": "yarn lint && yarn typecheck && yarn build",
