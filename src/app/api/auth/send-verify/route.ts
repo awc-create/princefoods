@@ -26,23 +26,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: 'User not found' }, { status: 404 });
     }
 
-    // If already verified, you can treat as OK (idempotent) or return a soft error.
     if (user.emailVerified) {
+      // already verified – treat as success (idempotent)
       return NextResponse.json({ ok: true, alreadyVerified: true });
     }
 
     const issued = await issueEmailVerification(email);
     if (!issued.ok) {
-      // throttled — return success so UI doesn't loop; you can include a hint
-      return NextResponse.json({
-        ok: true,
-        throttled: true,
-        retryInSeconds: issued.retryInSeconds
-      });
+      // throttled/cooldown – don’t expose fields that aren’t in the type
+      return NextResponse.json({ ok: true, throttled: true });
     }
 
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com';
+
     const verifyUrl = `${siteUrl}/verify?email=${encodeURIComponent(email)}&token=${encodeURIComponent(
       issued.tokenRaw
     )}&next=${encodeURIComponent(next || '/')}`;
