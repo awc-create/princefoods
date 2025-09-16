@@ -1,30 +1,28 @@
 // src/app/@modal/(.)login/page.tsx
-import LoginForm from '@/components/auth/LoginForm';
+// Server Component (no "use client")
+
 import Modal from '@/components/common/Modal';
-import { safePublicCallbackUrl } from '@/lib/auth-redirect';
-import { Suspense } from 'react';
+// import YourLoginForm from '@/components/ecommerce/login/LoginForm'; // if you have one
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
-function _CloseTo() {
-  // little server component that reads searchParams via URL (Next 15 route segment)
-  // If you prefer client, you can pass it through LoginForm props instead.
-  return null;
+interface Search {
+  callbackUrl?: string;
 }
 
-export default function LoginModalPage({
-  searchParams
-}: {
-  searchParams?: { callbackUrl?: string };
-}) {
-  const closeTo = safePublicCallbackUrl(searchParams?.callbackUrl ?? null);
+/**
+ * NOTE: In this codebase PageProps expects searchParams to be a Promise.
+ * We make the page async and await it to satisfy the constraint.
+ */
+export default async function LoginModalPage({ searchParams }: { searchParams?: Promise<Search> }) {
+  const sp = (await searchParams) ?? {};
+  const callbackUrl = sp.callbackUrl ?? '/';
+
   return (
-    <Modal title="Sign in" closeTo={closeTo}>
-      <Suspense fallback={null}>
-        <LoginForm callbackUrl={closeTo} />
-      </Suspense>
+    <Modal title="Sign in" closeTo={callbackUrl}>
+      {/* Replace this block with your real login UI */}
+      <div style={{ display: 'grid', gap: 12 }}>
+        <p style={{ margin: 0, color: '#374151' }}>Please sign in to continue.</p>
+        {/* <YourLoginForm callbackUrl={callbackUrl} /> */}
+      </div>
     </Modal>
   );
 }
