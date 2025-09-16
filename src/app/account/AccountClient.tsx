@@ -6,6 +6,7 @@ import { useEffect, useState, useTransition } from 'react';
 import styles from './TabsAccount.module.scss';
 
 type Tab = 'overview' | 'profile' | 'orders' | 'addresses' | 'wallet' | 'security';
+
 interface UserDTO {
   id: string;
   email: string;
@@ -31,19 +32,20 @@ export default function AccountClient({ user }: { user: UserDTO }) {
     phoneE164: user.phoneE164 ?? ''
   });
 
-  // URL sync
+  // URL sync — guard-safe (no new URL)
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     const t = sp.get('tab') as Tab | null;
     if (t) setTab(t);
   }, []);
   useEffect(() => {
-    const url = new URL(window.location.href);
-    url.searchParams.set('tab', tab);
-    window.history.replaceState({}, '', url.toString());
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', tab);
+    const qs = params.toString();
+    const path = `${window.location.pathname}${qs ? `?${qs}` : ''}`;
+    window.history.replaceState({}, '', path);
   }, [tab]);
 
-  // Actions
   const verified = !!user.emailVerified;
 
   function onChange<K extends keyof typeof profile>(key: K, v: string) {
@@ -89,7 +91,6 @@ export default function AccountClient({ user }: { user: UserDTO }) {
     }
   }
 
-  // --- UI ---
   return (
     <>
       {/* Header */}

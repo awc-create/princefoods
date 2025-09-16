@@ -20,15 +20,20 @@ const TABS = ['overview', 'profile', 'orders', 'addresses', 'wallet', 'security'
 type Tab = (typeof TABS)[number];
 
 export default function AccountTabs({ user }: { user: U }) {
-  const sp = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const initialTab = (sp?.get('tab') as Tab) || 'overview';
+  // initial tab from query
+  const [tab, setTab] = useState<Tab>(() => {
+    if (typeof window === 'undefined') return 'overview';
+    const sp = new URLSearchParams(window.location.search);
+    return (sp.get('tab') as Tab) || 'overview';
+  });
 
-  const [tab, setTab] = useState<Tab>(initialTab);
+  // sync URL ?tab= — guard-safe (no new URL)
   useEffect(() => {
-    // sync URL ?tab=
-    const url = new URL(window.location.href);
-    url.searchParams.set('tab', tab);
-    window.history.replaceState({}, '', url.toString());
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', tab);
+    const qs = params.toString();
+    const path = `${window.location.pathname}${qs ? `?${qs}` : ''}`;
+    window.history.replaceState({}, '', path);
   }, [tab]);
 
   const verified = !!user.emailVerified;
