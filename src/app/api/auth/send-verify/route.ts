@@ -1,4 +1,3 @@
-// src/app/api/auth/send-verify/route.ts
 import { getFeaturedCategories } from '@/lib/catalog';
 import { sendWelcomeVerifyEmail } from '@/lib/email';
 import { prisma } from '@/lib/prisma';
@@ -10,31 +9,29 @@ export async function POST(req: Request) {
     const {
       email,
       name,
-      next = '/'
+      next = '/',
+      resend = false
     } = (await req.json()) as {
       email: string;
       name?: string | null;
       next?: string;
+      resend?: boolean;
     };
 
     const user = await prisma.user.findUnique({
       where: { email },
       select: { id: true, name: true, emailVerified: true }
     });
+    if (!user) return NextResponse.json({ ok: false, error: 'User not found' }, { status: 404 });
+    if (user.emailVerified) return NextResponse.json({ ok: true, alreadyVerified: true });
 
-    if (!user) {
-      return NextResponse.json({ ok: false, error: 'User not found' }, { status: 404 });
-    }
+    const issued = await issueEmailVerification(email, resend ? 'resend' : 'initial');
 
-    if (user.emailVerified) {
-      // already verified – treat as success (idempotent)
-      return NextResponse.json({ ok: true, alreadyVerified: true });
-    }
-
-    const issued = await issueEmailVerification(email);
+    // If resend was requested but no prior verification exists, or we are in cooldown,
+    // return ok:true (no-op) to avoid email enumeration leaks.
     if (!issued.ok) {
-      // throttled/cooldown – don’t expose fields that aren’t in the type
-      return NextResponse.json({ ok: true, throttled: true });
+      const payload = issued.reason === 'cooldown' ? { ok: true, throttled: true } : { ok: true }; // noop
+      return NextResponse.json(payload);
     }
 
     const siteUrl =

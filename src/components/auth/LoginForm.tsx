@@ -5,14 +5,14 @@ import { safePublicCallbackUrl } from '@/lib/auth-redirect';
 import { signIn } from 'next-auth/react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 interface LoginFormProps {
   /** Pass a pre-normalised callbackUrl from page/client. */
   callbackUrl?: string;
   /** Sentinel error string used by your Credentials authorize() for unverified users. */
-  unverifiedErrorCode?: string; // default below
+  unverifiedErrorCode?: string;
   /** Custom provider ids if you renamed them. */
   googleProviderId?: string;
   credentialsProviderId?: string;
@@ -26,6 +26,7 @@ export default function LoginForm({
 }: LoginFormProps) {
   const router = useRouter();
   const sp = useSearchParams();
+  const pathname = usePathname() ?? '/';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,8 +34,12 @@ export default function LoginForm({
   const [err, setErr] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  // Fallback to public-safe normalisation only if not provided
-  const callbackUrl = propCallback ?? safePublicCallbackUrl(sp?.get('callbackUrl') ?? null);
+  // Build current full URL (path + query) for callbackUrl default
+  const currentFull = (() => {
+    const qs = sp?.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  })();
+  const callbackUrl = propCallback ?? safePublicCallbackUrl(sp?.get('callbackUrl') ?? currentFull);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -55,8 +60,6 @@ export default function LoginForm({
       }
 
       if (res.error) {
-        // If your authorize() returns/throws a known code for unverified users,
-        // route them to /verify; otherwise show generic invalid-credentials.
         if (res.error === unverifiedErrorCode) {
           router.replace(
             `/verify?email=${encodeURIComponent(email)}&next=${encodeURIComponent(callbackUrl)}`
@@ -69,7 +72,7 @@ export default function LoginForm({
         return;
       }
 
-      // Success: replace so modal closes (if we’re on a modal route)
+      // Success: replace so any modal closes
       router.replace(res.url ?? callbackUrl);
       router.refresh();
     } catch {
@@ -77,6 +80,17 @@ export default function LoginForm({
       setPending(false);
     }
   }
+
+  // For the switch link, keep existing params but flip to modal=signup
+  const qsObj = Object.fromEntries(sp ?? []);
+  const switchHref = {
+    pathname,
+    query: {
+      ...qsObj,
+      modal: 'signup',
+      callbackUrl: callbackUrl
+    }
+  } as const;
 
   return (
     <div className={styles.container}>
@@ -167,10 +181,7 @@ export default function LoginForm({
 
       <p className={styles.switchAuth}>
         New here?{' '}
-        <Link
-          href={`/signup?callbackUrl=${encodeURIComponent(callbackUrl)}`}
-          className={styles.link}
-        >
+        <Link href={switchHref} replace className={styles.link}>
           Sign up now
         </Link>
       </p>

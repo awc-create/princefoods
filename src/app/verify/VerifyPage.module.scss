@@ -1,0 +1,236 @@
+/* Container */
+.page {
+  min-height: 70vh;
+  display: grid;
+  place-items: center;
+  padding: clamp(1rem, 2vw, 2rem);
+  background: inherit; /* sit on your theme background */
+}
+
+.wrapper {
+  width: 100%;
+  max-width: 560px;
+}
+
+/* Card */
+.card {
+  border-radius: 16px;
+  padding: clamp(1.25rem, 2vw, 2rem);
+  background: color-mix(in oklab, #fff 92%, transparent);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
+  border: 1px solid color-mix(in oklab, currentColor 10%, transparent);
+}
+
+.header {
+  margin-bottom: 1rem;
+  text-align: center;
+}
+.title {
+  margin: 0 0 0.5rem 0;
+  font-size: clamp(1.4rem, 2.4vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: currentColor;
+}
+.subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  color: color-mix(in oklab, currentColor 55%, transparent);
+}
+
+.label {
+  display: block;
+  margin-top: 1rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.92rem;
+  color: currentColor;
+}
+
+.input {
+  width: 100%;
+  height: 46px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #0f172a;
+  font-size: 1rem;
+  transition:
+    box-shadow 0.16s,
+    border-color 0.16s,
+    transform 0.08s;
+}
+.input:focus {
+  outline: none;
+  /* brand-ish ring; override by scoping .verify--brand and changing color */
+  border-color: #6366f1;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.18);
+}
+
+/* OTP */
+.otpWrap {
+  margin-top: 0.25rem;
+}
+.otpGrid {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0.75rem 0 0.5rem;
+}
+.otpBox {
+  flex: 1;
+  aspect-ratio: 1 / 1;
+  max-width: 68px;
+  border-radius: 14px;
+  border: none;
+  background: #f3f4f6;
+  color: #0f172a;
+  text-align: center;
+  font-size: 1.6rem;
+  letter-spacing: 0.12em;
+  box-shadow: 0 6px 14px rgba(2, 6, 23, 0.06);
+  transition:
+    transform 0.12s,
+    box-shadow 0.16s,
+    background 0.16s;
+}
+.otpBox:hover {
+  background: #e5e7eb;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.1);
+}
+.otpBox:focus {
+  outline: none;
+  background: #fff;
+  box-shadow:
+    0 0 0 4px rgba(99, 102, 241, 0.18),
+    0 12px 28px rgba(2, 6, 23, 0.16);
+}
+
+.helper {
+  font-size: 0.82rem;
+  color: color-mix(in oklab, currentColor 55%, transparent);
+  margin-bottom: 0.25rem;
+}
+
+/* Status + shake */
+.status {
+  font-size: 0.92rem;
+  margin: 0.25rem 0 0.5rem;
+}
+.status.error {
+  color: #dc2626;
+}
+.status.success {
+  color: #059669;
+}
+.shake {
+  animation: shake 0.32s ease-in-out;
+}
+@keyframes shake {
+  0% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-6px);
+  }
+  50% {
+    transform: translateX(6px);
+  }
+  75% {
+    transform: translateX(-4px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/* Actions */
+.actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 0.75rem;
+}
+.btn {
+  height: 46px;
+  border-radius: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  border: none;
+  transition:
+    transform 0.1s,
+    box-shadow 0.16s,
+    opacity 0.12s,
+    background 0.16s,
+    color 0.16s;
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.primary {
+  background: color-mix(in oklab, currentColor 90%, #111827 10%); /* harmonise with theme text */
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.18);
+}
+.primary:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+.linky {
+  background: transparent;
+  color: color-mix(in oklab, currentColor 70%, transparent);
+  border: 1px dashed color-mix(in oklab, currentColor 35%, transparent);
+}
+.linky:hover:not(:disabled) {
+  background: color-mix(in oklab, currentColor 6%, transparent);
+}
+
+.clear {
+  background: transparent;
+  color: color-mix(in oklab, currentColor 55%, transparent);
+}
+.clear:hover {
+  color: currentColor;
+}
+
+.footer {
+  text-align: center;
+  font-size: 0.85rem;
+  color: color-mix(in oklab, currentColor 55%, transparent);
+  margin-top: 0.9rem;
+}
+
+/* Subtle dark-mode (inherits theme colors) */
+@media (prefers-color-scheme: dark) {
+  .card {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+  .input {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: #e6e8ee;
+  }
+  .otpBox {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e6e8ee;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.32);
+  }
+  .otpBox:hover {
+    background: rgba(255, 255, 255, 0.16);
+  }
+  .otpBox:focus {
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .primary {
+    color: #0b1220;
+    background: #e6e8ee;
+  }
+}

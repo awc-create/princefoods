@@ -1,4 +1,3 @@
-// src/components/navbar/Navbar.tsx  (adjust the path if yours differs)
 'use client';
 
 import { NAV_LINKS } from '@/config/menu.config';
@@ -6,8 +5,8 @@ import { Menu, Search, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from './Navbar.module.scss';
 
 const CartIcon = dynamic(() => import('@/components/ecommerce/basket/CartIcon'), { ssr: false });
@@ -15,10 +14,17 @@ const LoginButton = dynamic(() => import('@/components/ecommerce/login/LoginButt
   ssr: false
 });
 
-export default function Navbar({ isEcommerce = true }: { isEcommerce?: boolean }) {
-  const pathname = usePathname();
-  const [menuOpen, setMenuOpen] = useState(false);
+export default function Navbar() {
+  const pathname = usePathname() ?? '/';
+  const sp = useSearchParams();
 
+  // Build current path+query (use later if LoginButton adds support)
+  const _current = useMemo(() => {
+    const qs = sp?.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  }, [pathname, sp]);
+
+  const [menuOpen, setMenuOpen] = useState(false);
   const toggleMenu = useCallback(() => setMenuOpen((prev) => !prev), []);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
@@ -83,12 +89,11 @@ export default function Navbar({ isEcommerce = true }: { isEcommerce?: boolean }
           </div>
         )}
 
-        {isEcommerce && (
-          <div className={styles.actions}>
-            <CartIcon />
-            <LoginButton />
-          </div>
-        )}
+        <div className={styles.actions}>
+          <CartIcon />
+          {/* When LoginButton supports it, pass: fromHref={current} */}
+          <LoginButton />
+        </div>
       </nav>
 
       {menuOpen && (

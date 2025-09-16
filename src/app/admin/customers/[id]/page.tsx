@@ -2,14 +2,14 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styles from './Detail.module.scss';
 
 interface Contact {
   id: string;
   name: string;
   email: string;
-  phone?: string;
+  phone?: string | null;
   role: 'HEAD' | 'STAFF' | 'VIEWER';
   source: 'LOCAL' | 'WIX';
   welcomeStatus: 'PENDING' | 'SENT' | 'COMPLETED';
@@ -27,8 +27,8 @@ interface Thread {
   status: string;
   lastMessagePreview: string;
   createdAt: string;
-  lastUserAt?: string;
-  lastAdminAt?: string;
+  lastUserAt?: string | null;
+  lastAdminAt?: string | null;
 }
 
 interface OrderRow {
@@ -41,7 +41,6 @@ interface OrderRow {
 }
 
 export default function CustomerDetailPage() {
-  // ✅ Non-null assertion so TS knows params will exist
   const params = useParams<{ id: string }>()!;
   const id = params.id;
 
@@ -51,30 +50,42 @@ export default function CustomerDetailPage() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [ordersNote, setOrdersNote] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
     (async () => {
-      setLoading(true);
-      const [cRes, oRes] = await Promise.all([
-        fetch(`/api/customers/${id}`),
-        fetch(`/api/customers/${id}/orders`)
-      ]);
-      const c = await cRes.json();
-      const o = await oRes.json();
-      if (ignore) return;
+      try {
+        setLoading(true);
+        setErr(null);
+        const [cRes, oRes] = await Promise.all([
+          fetch(`/api/customers/${id}`, { cache: 'no-store' }),
+          fetch(`/api/customers/${id}/orders`, { cache: 'no-store' })
+        ]);
+        const c = await cRes.json();
+        const o = await oRes.json();
+        if (ignore) return;
 
-      setContact(c.contact);
-      setStats(c.stats);
-      setThreads(c.recentThreads ?? []);
-      setOrders(o.items ?? []);
-      setOrdersNote(o.note ?? null);
-      setLoading(false);
+        setContact(c.contact ?? null);
+        setStats(c.stats ?? null);
+        setThreads(c.recentThreads ?? []);
+        setOrders(o.items ?? []);
+        setOrdersNote(o.note ?? null);
+      } catch {
+        if (!ignore) setErr('Failed to load customer.');
+      } finally {
+        if (!ignore) setLoading(false);
+      }
     })();
     return () => {
       ignore = true;
     };
   }, [id]);
+
+  const joinedDate = useMemo(
+    () => (contact ? new Date(contact.createdAt).toLocaleDateString() : ''),
+    [contact]
+  );
 
   if (loading)
     return (
@@ -82,10 +93,14 @@ export default function CustomerDetailPage() {
         <p>Loading…</p>
       </div>
     );
-  if (!contact)
+
+  if (err || !contact)
     return (
       <div className={styles.wrapper}>
-        <p>Not found.</p>
+        <Link href="/admin/customers" className={styles.back}>
+          &larr; Customers
+        </Link>
+        <p>{err ?? 'Not found.'}</p>
       </div>
     );
 
@@ -100,10 +115,11 @@ export default function CustomerDetailPage() {
         <div className={styles.identity}>
           <h1>{contact.name}</h1>
           <div className={styles.meta}>
-            <span>{contact.email}</span>
+            <a href={`mailto:${contact.email}`}>{contact.email}</a>
             {contact.phone && <span>· {contact.phone}</span>}
             <span>· role: {contact.role}</span>
             <span>· welcome: {contact.welcomeStatus}</span>
+            <span>· source: {contact.source}</span>
           </div>
         </div>
       </header>
@@ -122,7 +138,7 @@ export default function CustomerDetailPage() {
             </li>
             <li>
               <strong>Joined</strong>
-              <span>{new Date(contact.createdAt).toLocaleDateString()}</span>
+              <span>{joinedDate}</span>
             </li>
           </ul>
         </div>

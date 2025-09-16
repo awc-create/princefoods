@@ -1,12 +1,12 @@
 // src/lib/auth-redirect.ts
-/** Normalise callback URLs for the PUBLIC site. */
+/** Normalise callback URLs for PUBLIC site (customers). */
 export function safePublicCallbackUrl(raw?: string | null) {
-  if (!raw) return '/'; // default after public login
-  return raw.startsWith('/admin/login') ? '/' : raw; // avoid loops
+  if (!raw) return '/';
+  return raw.startsWith('/admin/login') ? '/' : raw;
 }
 
-/** Normalise callback URLs for the ADMIN area. */
+/** Normalise callback URLs for ADMIN site (staff). */
 export function safeAdminCallbackUrl(raw?: string | null) {
-  if (!raw) return '/admin'; // default after admin login
-  return raw.startsWith('/admin/login') ? '/admin' : raw; // avoid loops
+  if (!raw) return '/admin';
+  return raw.startsWith('/admin/login') ? '/admin' : raw;
 }

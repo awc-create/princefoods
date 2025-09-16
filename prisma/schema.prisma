@@ -190,6 +190,7 @@ model VerificationToken {
   identifier String
   token      String   @unique
   expires    DateTime
+  createdAt  DateTime @default(now())   // <— add this
 
   @@unique([identifier, token])
 }

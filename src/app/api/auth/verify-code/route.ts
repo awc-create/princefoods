@@ -1,3 +1,4 @@
+import { prisma } from '@/lib/prisma';
 import { consumeVerificationByCode, consumeVerificationByToken } from '@/lib/verify';
 import { NextResponse } from 'next/server';
 
@@ -11,17 +12,12 @@ export async function POST(req: Request) {
     if (!email) return NextResponse.json({ ok: false, error: 'Missing email' }, { status: 400 });
 
     let result;
-    if (token) {
-      result = await consumeVerificationByToken(email, token);
-    } else if (code) {
-      result = await consumeVerificationByCode(email, String(code).trim());
-    } else {
-      return NextResponse.json({ ok: false, error: 'Missing code or token' }, { status: 400 });
-    }
+    if (token) result = await consumeVerificationByToken(email, token);
+    else if (code) result = await consumeVerificationByCode(email, String(code).trim());
+    else return NextResponse.json({ ok: false, error: 'Missing code or token' }, { status: 400 });
 
     if (!result.ok) {
       const map: Record<string, string> = {
-        'no-user': 'No matching user',
         'bad-token': 'Invalid or expired link',
         'bad-code': 'Invalid or expired code'
       };
@@ -30,6 +26,16 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    // ✅ Mark user verified (idempotent)
+    await prisma.user.update({
+      where: { email },
+      data: {
+        emailVerified: new Date(),
+        welcomeStatus: 'COMPLETED',
+        welcomedAt: new Date()
+      }
+    });
 
     return NextResponse.json({ ok: true });
   } catch (e) {

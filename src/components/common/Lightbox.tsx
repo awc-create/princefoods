@@ -1,29 +1,21 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-interface ModalProps {
+interface Props {
   title?: string;
   children: React.ReactNode;
-  /** Where to go when closing; falls back to ?from or '/'. */
-  closeTo?: string;
+  onClose: () => void;
 }
 
-export default function Modal({ title, children, closeTo }: ModalProps) {
-  const router = useRouter();
-  const sp = useSearchParams();
+export default function Lightbox({ title, children, onClose }: Props) {
   const [mounted, setMounted] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Decide close target once on mount so it doesn't flicker
-  const target = closeTo ?? sp?.get('from') ?? '/';
-  const close = useCallback(() => router.replace(target), [router, target]);
-
   useEffect(() => setMounted(true), []);
 
-  // Body scroll lock
+  // lock scroll
   useEffect(() => {
     if (!mounted) return;
     const prev = document.body.style.overflow;
@@ -36,12 +28,12 @@ export default function Modal({ title, children, closeTo }: ModalProps) {
   // ESC to close
   useEffect(() => {
     if (!mounted) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [mounted, close]);
+  }, [mounted, onClose]);
 
-  // Focus panel for accessibility
+  // focus
   useEffect(() => {
     if (mounted) panelRef.current?.focus();
   }, [mounted]);
@@ -53,8 +45,7 @@ export default function Modal({ title, children, closeTo }: ModalProps) {
     inset: 0,
     zIndex: 2147483647,
     display: 'grid',
-    placeItems: 'center',
-    pointerEvents: 'auto'
+    placeItems: 'center'
   };
   const backdrop: React.CSSProperties = {
     position: 'absolute',
@@ -88,9 +79,9 @@ export default function Modal({ title, children, closeTo }: ModalProps) {
 
   return createPortal(
     <div style={overlay} role="dialog" aria-modal="true">
-      <div style={backdrop} onClick={close} />
+      <div style={backdrop} onClick={onClose} />
       <div ref={panelRef} tabIndex={-1} style={panel} aria-label={title ?? 'Dialog'}>
-        <button style={closeBtn} onClick={close} aria-label="Close">
+        <button style={closeBtn} onClick={onClose} aria-label="Close">
           ×
         </button>
         {title && <h2 style={h2}>{title}</h2>}

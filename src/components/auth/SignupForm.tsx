@@ -1,4 +1,3 @@
-// src/components/auth/SignupForm.tsx
 'use client';
 
 import styles from '@/app/signup/SignupPage.module.scss';
@@ -20,8 +19,14 @@ export default function SignupForm() {
 
   const router = useRouter();
   const sp = useSearchParams();
-  const pathname = usePathname();
-  const callbackUrl = sp?.get('callbackUrl') ?? pathname ?? '/';
+  const pathname = usePathname() ?? '/';
+
+  // Current full URL (path + query) for callback defaults
+  const currentFull = (() => {
+    const qs = sp?.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  })();
+  const callbackUrl = sp?.get('callbackUrl') ?? currentFull;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -49,21 +54,29 @@ export default function SignupForm() {
           return;
         }
 
-        // ✅ Don’t auto sign-in (credentials are blocked until verified).
-        // Send them to the verification page with email + optional callback.
+        // Always go to verify page (replace to clear modal stack)
         const params = new URLSearchParams();
         params.set('email', email);
-        // where to go after success; choose "/" (home) or "/account"
-        params.set('next', sp?.get('next') ?? '/'); // you can change default to '/account'
+        params.set('next', sp?.get('next') ?? '/'); // after verify, home or /account
 
         router.replace(`/verify?${params.toString()}`);
-        router.refresh();
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'Unexpected error.';
         setErr(msg);
       }
     });
   }
+
+  // For the switch link, keep existing params but flip to modal=login
+  const qsObj = Object.fromEntries(sp ?? []);
+  const switchHref = {
+    pathname,
+    query: {
+      ...qsObj,
+      modal: 'login',
+      callbackUrl
+    }
+  } as const;
 
   return (
     <div className={styles.container}>
@@ -199,8 +212,7 @@ export default function SignupForm() {
         <span>or</span>
       </div>
 
-      {/* If you keep Google sign-in, you can still send them to /verify on createUser event */}
-      <Link href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`} className={styles.link}>
+      <Link href={switchHref} replace className={styles.link}>
         Already a member? Log in
       </Link>
     </div>

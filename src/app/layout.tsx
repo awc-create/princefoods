@@ -4,6 +4,7 @@ import { urlFrom } from '@/lib/url';
 import '@/styles/Global.scss';
 import type { Metadata } from 'next';
 import ClientShell from './ClientShell';
+import ModalLayer from './ModalLayer';
 import Providers from './providers';
 
 export const metadata: Metadata = {
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body>
         <Providers>
           <ClientShell modal={modal}>{children}</ClientShell>
+          <ModalLayer />
         </Providers>
       </body>
     </html>
