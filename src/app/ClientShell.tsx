@@ -7,8 +7,6 @@ import { usePathname } from 'next/navigation';
 import React from 'react';
 import Providers from './providers';
 
-const isEcommerce = process.env.NEXT_PUBLIC_SITE_MODE === 'ecommerce';
-
 export default function ClientShell({
   children,
   modal
@@ -21,7 +19,7 @@ export default function ClientShell({
 
   return (
     <Providers>
-      <Navbar isEcommerce={isEcommerce} />
+      <Navbar />
       <main>{children}</main>
       {modal}
       {!isAdmin && <PrinceChat />}
