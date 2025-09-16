@@ -1,3 +1,4 @@
+// src/app/admin/login/AdminLoginClient.tsx
 'use client';
 
 import { signIn, useSession } from 'next-auth/react';
@@ -6,7 +7,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import styles from './Login.module.scss';
 
-function safeCallbackUrl(raw?: string | null) {
+/** Normalise callback URLs for the admin area. */
+function safeAdminCallbackUrl(raw?: string | null) {
   if (!raw) return '/admin';
   return raw.startsWith('/admin/login') ? '/admin' : raw;
 }
@@ -23,8 +25,9 @@ export default function AdminLoginClient() {
   const router = useRouter();
 
   const rawCb = sp?.get('callbackUrl') ?? null;
-  const callbackUrl = safeCallbackUrl(rawCb);
+  const callbackUrl = safeAdminCallbackUrl(rawCb);
 
+  // If someone landed with a bad callback, clean the URL in the browser
   useEffect(() => {
     if (!rawCb) return;
     try {
@@ -38,8 +41,12 @@ export default function AdminLoginClient() {
     }
   }, [rawCb]);
 
+  // Already authenticated → kick them to dashboard
   useEffect(() => {
-    if (status === 'authenticated') router.replace(callbackUrl);
+    if (status === 'authenticated') {
+      router.replace(callbackUrl);
+      router.refresh();
+    }
   }, [status, callbackUrl, router]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -53,12 +60,23 @@ export default function AdminLoginClient() {
         redirect: false,
         callbackUrl
       });
-      if (res?.error) {
+
+      if (!res) {
+        setErr('Unexpected error. Try again.');
+        setPending(false);
+        return;
+      }
+
+      if (res.error) {
+        // if you want, handle a special "EmailNotVerified" error here
         setErr('Invalid email or password.');
         setPending(false);
         return;
       }
-      router.replace(callbackUrl);
+
+      // ✅ Success — replace so the login modal/page closes properly
+      router.replace(res.url ?? callbackUrl);
+      router.refresh();
     } catch {
       setErr('Unexpected error. Please try again.');
       setPending(false);

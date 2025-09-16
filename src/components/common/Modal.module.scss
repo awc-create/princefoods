@@ -1,8 +1,7 @@
-/* components/common/Modal.module.scss */
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 2147483647; // sit above everything
   display: grid;
   place-items: center;
 }
@@ -10,7 +9,7 @@
 .backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0,0,0,.5);
+  background: rgba(0, 0, 0, 0.5);
 }
 
 .panel {
@@ -23,8 +22,8 @@
   background: #fff;
   padding: 24px;
   box-shadow:
-    0 20px 40px rgba(0,0,0,.18),
-    0 2px 8px rgba(0,0,0,.08);
+    0 20px 40px rgba(0, 0, 0, 0.18),
+    0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .closeBtn {
@@ -44,7 +43,7 @@
   font-weight: 600;
 }
 
-/* Fullscreen on very small screens */
+/* Fullscreen fallback on small screens */
 @media (max-width: 640px) {
   .panel {
     width: 100vw;

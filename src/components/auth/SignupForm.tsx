@@ -56,7 +56,8 @@ export default function SignupForm() {
         // where to go after success; choose "/" (home) or "/account"
         params.set('next', sp?.get('next') ?? '/'); // you can change default to '/account'
 
-        router.push(`/verify?${params.toString()}`);
+        router.replace(`/verify?${params.toString()}`);
+        router.refresh();
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'Unexpected error.';
         setErr(msg);

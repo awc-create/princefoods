@@ -1,16 +1,12 @@
 // src/lib/auth-redirect.ts
-/** Normalise callback URLs for the PUBLIC site (customers). */
+/** Normalise callback URLs for the PUBLIC site. */
 export function safePublicCallbackUrl(raw?: string | null) {
-  // Default to home (or change to '/account' if you add one)
-  if (!raw) return '/';
-  // Never bounce back to the admin login route
-  return raw.startsWith('/admin/login') ? '/' : raw;
+  if (!raw) return '/'; // default after public login
+  return raw.startsWith('/admin/login') ? '/' : raw; // avoid loops
 }
 
-/** Normalise callback URLs for the ADMIN site (staff). */
+/** Normalise callback URLs for the ADMIN area. */
 export function safeAdminCallbackUrl(raw?: string | null) {
-  // Default to the admin dashboard
-  if (!raw) return '/admin';
-  // Avoid loops to admin login
-  return raw.startsWith('/admin/login') ? '/admin' : raw;
+  if (!raw) return '/admin'; // default after admin login
+  return raw.startsWith('/admin/login') ? '/admin' : raw; // avoid loops
 }

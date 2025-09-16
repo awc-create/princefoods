@@ -1,4 +1,3 @@
-// src/components/auth/LoginForm.tsx
 'use client';
 
 import styles from '@/app/login/LoginPage.module.scss';
@@ -10,20 +9,31 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 interface LoginFormProps {
-  /** Prefer passing a pre-normalised callbackUrl from the page/client. */
+  /** Pass a pre-normalised callbackUrl from page/client. */
   callbackUrl?: string;
+  /** Sentinel error string used by your Credentials authorize() for unverified users. */
+  unverifiedErrorCode?: string; // default below
+  /** Custom provider ids if you renamed them. */
+  googleProviderId?: string;
+  credentialsProviderId?: string;
 }
 
-export default function LoginForm({ callbackUrl: propCallback }: LoginFormProps) {
+export default function LoginForm({
+  callbackUrl: propCallback,
+  unverifiedErrorCode = 'EmailNotVerified',
+  googleProviderId = 'google',
+  credentialsProviderId = 'credentials'
+}: LoginFormProps) {
   const router = useRouter();
+  const sp = useSearchParams();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  const sp = useSearchParams();
-  // If a prop is provided, use it directly; otherwise normalise the query value
+  // Fallback to public-safe normalisation only if not provided
   const callbackUrl = propCallback ?? safePublicCallbackUrl(sp?.get('callbackUrl') ?? null);
 
   async function onSubmit(e: React.FormEvent) {
@@ -31,8 +41,7 @@ export default function LoginForm({ callbackUrl: propCallback }: LoginFormProps)
     setErr(null);
     setPending(true);
     try {
-      // Use redirect: false to inspect the response
-      const res = await signIn('credentials', {
+      const res = await signIn(credentialsProviderId, {
         email,
         password,
         redirect: false,
@@ -46,16 +55,23 @@ export default function LoginForm({ callbackUrl: propCallback }: LoginFormProps)
       }
 
       if (res.error) {
-        // Likely unverified or bad credentials
-        // If you only want to push unverified users, you could check message content.
-        router.push(
-          `/verify?email=${encodeURIComponent(email)}&next=${encodeURIComponent(callbackUrl)}`
-        );
+        // If your authorize() returns/throws a known code for unverified users,
+        // route them to /verify; otherwise show generic invalid-credentials.
+        if (res.error === unverifiedErrorCode) {
+          router.replace(
+            `/verify?email=${encodeURIComponent(email)}&next=${encodeURIComponent(callbackUrl)}`
+          );
+          router.refresh();
+          return;
+        }
+        setErr('Invalid email or password.');
+        setPending(false);
         return;
       }
 
-      // success path
-      router.push(res.url ?? callbackUrl);
+      // Success: replace so modal closes (if we’re on a modal route)
+      router.replace(res.url ?? callbackUrl);
+      router.refresh();
     } catch {
       setErr('Unexpected error. Try again.');
       setPending(false);
@@ -143,7 +159,7 @@ export default function LoginForm({ callbackUrl: propCallback }: LoginFormProps)
 
       <button
         type="button"
-        onClick={() => signIn('google', { callbackUrl })}
+        onClick={() => signIn(googleProviderId, { callbackUrl })}
         className={styles.googleBtn}
       >
         Continue with Google
