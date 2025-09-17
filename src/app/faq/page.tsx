@@ -1,5 +1,4 @@
-import React from 'react';
-
+import { Suspense } from 'react';
 import FaqClient from './FaqClient';
 
 export const metadata = {
@@ -10,7 +9,9 @@ export const metadata = {
 export default function FaqPage() {
   return (
     <div style={{ backgroundColor: '#000', minHeight: '100vh' }}>
-      <FaqClient />
+      <Suspense fallback={<p style={{ color: '#fff', padding: '2rem' }}>Loading…</p>}>
+        <FaqClient />
+      </Suspense>
     </div>
   );
 }
