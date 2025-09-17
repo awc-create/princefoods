@@ -5,16 +5,27 @@ import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import styles from './Detail.module.scss';
 
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+type Source = 'LOCAL' | 'WIX';
+type WelcomeStatus = 'PENDING' | 'SENT' | 'COMPLETED';
+
 interface Contact {
   id: string;
   name: string;
   email: string;
   phone?: string | null;
-  role: 'HEAD' | 'STAFF' | 'VIEWER';
-  source: 'LOCAL' | 'WIX';
-  welcomeStatus: 'PENDING' | 'SENT' | 'COMPLETED';
+  role: Role;
+  source: Source;
+  welcomeStatus: WelcomeStatus;
   createdAt: string;
   updatedAt: string;
+
+  // new flags
+  deletedAt?: string | null;
+  restrictionNote?: string | null;
+  deletionReason?: string | null;
+  isAnonymized?: boolean;
+  anonymizedAt?: string | null;
 }
 
 interface Stat {
@@ -66,7 +77,7 @@ export default function CustomerDetailPage() {
         const o = await oRes.json();
         if (ignore) return;
 
-        setContact(c.contact ?? null);
+        setContact((c.contact ?? null) as Contact | null);
         setStats(c.stats ?? null);
         setThreads(c.recentThreads ?? []);
         setOrders(o.items ?? []);
@@ -104,6 +115,7 @@ export default function CustomerDetailPage() {
       </div>
     );
 
+  // from here on, `contact` is non-null
   return (
     <div className={styles.wrapper}>
       <Link href="/admin/customers" className={styles.back}>
@@ -123,6 +135,9 @@ export default function CustomerDetailPage() {
           </div>
         </div>
       </header>
+
+      {/* Restriction/Erasure status + actions */}
+      <RestrictEraseCard contact={contact} />
 
       <section className={styles.grid}>
         <div className={styles.card}>
@@ -200,5 +215,69 @@ export default function CustomerDetailPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+/** Child component with a non-null `contact` prop, avoiding "possibly null" */
+function RestrictEraseCard({ contact }: { contact: Contact }) {
+  async function post(path: string, body?: unknown) {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (!res.ok) {
+      const t = await res.json().catch(() => ({}));
+      throw new Error(t?.error ?? 'Action failed');
+    }
+    // naive reload after action
+    window.location.reload();
+  }
+
+  return (
+    <section className={styles.grid}>
+      <div className={styles.card}>
+        <h3>Restriction / Erasure</h3>
+
+        <div className={styles.muted} style={{ marginBottom: '.5rem' }}>
+          Prefer <strong>soft-delete (restrict)</strong> or <strong>anonymize</strong> when
+          transactional history exists.
+        </div>
+
+        <div className={styles.flags}>
+          {contact.deletedAt && (
+            <span className={styles.badge}>
+              Restricted since {new Date(contact.deletedAt).toLocaleDateString()}
+            </span>
+          )}
+          {contact.isAnonymized && (
+            <span className={styles.badge}>
+              Anonymized
+              {contact.anonymizedAt
+                ? ` on ${new Date(contact.anonymizedAt).toLocaleDateString()}`
+                : ''}
+            </span>
+          )}
+          {contact.deletionReason && (
+            <span className={styles.badge}>Reason: {contact.deletionReason}</span>
+          )}
+          {contact.restrictionNote && (
+            <span className={styles.badge}>Note: {contact.restrictionNote}</span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: '.5rem', marginTop: '.75rem', flexWrap: 'wrap' }}>
+          <button
+            onClick={() =>
+              post(`/api/customers/${contact.id}/restrict`, { reason: 'Admin request' })
+            }
+          >
+            Restrict (Soft-delete)
+          </button>
+          <button onClick={() => post(`/api/customers/${contact.id}/anonymize`)}>Anonymize</button>
+          <button onClick={() => post(`/api/customers/${contact.id}/restore`)}>Restore</button>
+        </div>
+      </div>
+    </section>
   );
 }

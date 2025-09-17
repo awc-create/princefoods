@@ -1,16 +1,8 @@
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
-
-interface UserRow {
-  id: string;
-  name: string;
-  email: string;
-  phoneRaw: string | null;
-  role: 'HEAD' | 'STAFF' | 'VIEWER';
-  createdAt: Date;
-}
 
 interface GroupByUserKey {
   userKey: string;
@@ -31,19 +23,32 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = (searchParams.get('search') ?? '').trim();
   const page = Math.max(1, Number(searchParams.get('page') ?? '1'));
-  const limit = 20;
+  const limit = Math.min(100, Number(searchParams.get('limit') ?? '20'));
   const skip = (page - 1) * limit;
 
-  const where =
-    q.length > 0
-      ? {
-          OR: [
-            { name: { contains: q, mode: 'insensitive' as const } },
-            { email: { contains: q, mode: 'insensitive' as const } },
-            { phoneRaw: { contains: q, mode: 'insensitive' as const } }
-          ]
-        }
-      : {};
+  const roleFilter = searchParams.get('role') as 'HEAD' | 'STAFF' | 'VIEWER' | null;
+  const sourceFilter = searchParams.get('source') as 'LOCAL' | 'WIX' | null;
+  const status = searchParams.get('status'); // 'restricted' | 'anonymized' | 'active' | 'all'
+
+  const where: Prisma.UserWhereInput = {};
+
+  if (q) {
+    where.OR = [
+      { name: { contains: q, mode: 'insensitive' } },
+      { email: { contains: q, mode: 'insensitive' } },
+      { phoneRaw: { contains: q, mode: 'insensitive' } }
+    ];
+  }
+  if (roleFilter) where.role = roleFilter;
+  if (sourceFilter) where.source = sourceFilter;
+
+  if (status === 'restricted') {
+    where.deletedAt = { not: null };
+  } else if (status === 'anonymized') {
+    where.isAnonymized = true;
+  } else if (status !== 'all') {
+    where.deletedAt = null;
+  }
 
   const [users, total] = await Promise.all([
     prisma.user.findMany({
@@ -57,14 +62,16 @@ export async function GET(req: NextRequest) {
         email: true,
         phoneRaw: true,
         role: true,
-        createdAt: true
+        createdAt: true,
+        deletedAt: true,
+        isAnonymized: true
       }
-    }) as unknown as Promise<UserRow[]>,
+    }),
     prisma.user.count({ where })
   ]);
 
-  const userIds = users.map((u: UserRow) => u.id);
-  const emails = users.map((u: UserRow) => u.email);
+  const userIds = users.map((u) => u.id);
+  const emails = users.map((u) => u.email);
 
   const [threadsByUserKey, threadsByEmail] = await Promise.all([
     prisma.chatThread.groupBy({
@@ -85,16 +92,12 @@ export async function GET(req: NextRequest) {
     orderBy: [{ lastUserAt: 'desc' }, { lastAdminAt: 'desc' }]
   })) as LatestThread[];
 
-  const items = users.map((u: UserRow) => {
-    const byId = threadsByUserKey.find((t: GroupByUserKey) => t.userKey === u.id)?._count._all ?? 0;
-    const byEmail =
-      threadsByEmail.find((t: GroupByEmail) => t.customerEmail === u.email)?._count._all ?? 0;
+  const items = users.map((u) => {
+    const byId = threadsByUserKey.find((t) => t.userKey === u.id)?._count._all ?? 0;
+    const byEmail = threadsByEmail.find((t) => t.customerEmail === u.email)?._count._all ?? 0;
     const conversations = byId + byEmail;
 
-    const latest = latestByUserId.find(
-      (t: LatestThread) => t.userKey === u.id || t.customerEmail === u.email
-    );
-
+    const latest = latestByUserId.find((t) => t.userKey === u.id || t.customerEmail === u.email);
     const lastActivity = latest
       ? new Date(
           Math.max(latest.lastUserAt?.getTime() ?? 0, latest.lastAdminAt?.getTime() ?? 0)
@@ -109,7 +112,9 @@ export async function GET(req: NextRequest) {
       role: u.role,
       createdAt: u.createdAt,
       conversations,
-      lastActivity
+      lastActivity,
+      restricted: u.deletedAt != null,
+      anonymized: u.isAnonymized ?? false
     };
   });
 

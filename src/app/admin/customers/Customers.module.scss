@@ -6,14 +6,19 @@
   margin: 0 0 1rem;
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
 
-  input {
+  input,
+  select {
     padding: 0.6rem 0.8rem;
-    width: 360px;
-    max-width: 100%;
     border-radius: 10px;
     border: 1px solid #e5e7eb;
     background: #fff;
+  }
+
+  input {
+    width: 360px;
+    max-width: 100%;
   }
 }
 
@@ -46,6 +51,15 @@
   color: #0070f3;
   font-weight: 600;
   text-decoration: none;
+  margin-right: 8px;
+}
+
+.deleteLink {
+  color: #b91c1c;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
 
 .pager {
@@ -75,6 +89,16 @@
 }
 .head {
   background: #fef3c7;
+}
+
+.badgeMuted {
+  margin-left: 0.4rem;
+  font-size: 0.75rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #6b7280;
 }
 
 .hideSm {

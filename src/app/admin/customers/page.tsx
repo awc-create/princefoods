@@ -12,6 +12,8 @@ interface Row {
   role: 'HEAD' | 'STAFF' | 'VIEWER';
   conversations: number;
   lastActivity?: string | null;
+  restricted?: boolean;
+  anonymized?: boolean;
 }
 
 export default function CustomersPage() {
@@ -21,6 +23,11 @@ export default function CustomersPage() {
   const [debouncedQ, setDebouncedQ] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
+  // new filters (optional)
+  const [status, setStatus] = useState<'active' | 'restricted' | 'anonymized' | 'all'>('active');
+  const [roleFilter, setRoleFilter] = useState<'' | 'HEAD' | 'STAFF' | 'VIEWER'>('');
+  const [sourceFilter, setSourceFilter] = useState<'' | 'LOCAL' | 'WIX'>('');
 
   // simple debounce
   useEffect(() => {
@@ -32,7 +39,15 @@ export default function CustomersPage() {
     let ignore = false;
     (async () => {
       setLoading(true);
-      const url = `/api/customers?search=${encodeURIComponent(debouncedQ)}&page=${page}`;
+      const params = new URLSearchParams({
+        search: debouncedQ,
+        page: String(page)
+      });
+      if (status) params.set('status', status);
+      if (roleFilter) params.set('role', roleFilter);
+      if (sourceFilter) params.set('source', sourceFilter);
+
+      const url = `/api/customers?${params.toString()}`;
       const res = await fetch(url, { cache: 'no-store' });
       const data = await res.json();
       if (ignore) return;
@@ -43,10 +58,27 @@ export default function CustomersPage() {
     return () => {
       ignore = true;
     };
-  }, [debouncedQ, page]);
+  }, [debouncedQ, page, status, roleFilter, sourceFilter]);
 
   const staff = useMemo(() => rows.filter((r) => r.role === 'STAFF' || r.role === 'HEAD'), [rows]);
   const customers = useMemo(() => rows.filter((r) => r.role === 'VIEWER'), [rows]);
+
+  function onSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setPage(1);
+    setQ(e.target.value);
+  }
+  function onStatusChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    setPage(1);
+    setStatus(e.target.value as 'active' | 'restricted' | 'anonymized' | 'all');
+  }
+  function onRoleChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    setPage(1);
+    setRoleFilter(e.target.value as '' | 'HEAD' | 'STAFF' | 'VIEWER');
+  }
+  function onSourceChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    setPage(1);
+    setSourceFilter(e.target.value as '' | 'LOCAL' | 'WIX');
+  }
 
   function renderTable(title: string, data: Row[]) {
     return (
@@ -81,7 +113,11 @@ export default function CustomersPage() {
               ) : (
                 data.map((r) => (
                   <tr key={r.id}>
-                    <td>{r.name}</td>
+                    <td>
+                      {r.name}{' '}
+                      {r.restricted && <span className={styles.badgeMuted}>Restricted</span>}
+                      {r.anonymized && <span className={styles.badgeMuted}>Anon</span>}
+                    </td>
                     <td className={styles.hideSm}>
                       <a href={`mailto:${r.email}`} className={styles.link}>
                         {r.email}
@@ -115,14 +151,27 @@ export default function CustomersPage() {
       <h1>Customers</h1>
 
       <div className={styles.toolbar}>
-        <input
-          placeholder="Search name, email, phone…"
-          value={q}
-          onChange={(e) => {
-            setPage(1);
-            setQ(e.target.value);
-          }}
-        />
+        <input placeholder="Search name, email, phone…" value={q} onChange={onSearchChange} />
+
+        <select value={status} onChange={onStatusChange} aria-label="Status">
+          <option value="active">Active</option>
+          <option value="restricted">Restricted</option>
+          <option value="anonymized">Anonymized</option>
+          <option value="all">All</option>
+        </select>
+
+        <select value={roleFilter} onChange={onRoleChange} aria-label="Role">
+          <option value="">Any role</option>
+          <option value="HEAD">HEAD</option>
+          <option value="STAFF">STAFF</option>
+          <option value="VIEWER">VIEWER</option>
+        </select>
+
+        <select value={sourceFilter} onChange={onSourceChange} aria-label="Source">
+          <option value="">Any source</option>
+          <option value="LOCAL">LOCAL</option>
+          <option value="WIX">WIX</option>
+        </select>
       </div>
 
       {renderTable('Staff Users', staff)}

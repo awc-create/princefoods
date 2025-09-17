@@ -123,3 +123,58 @@
   padding: 0.6rem 0.8rem;
   border-bottom: 1px solid #f2f2f2;
 }
+
+.viewLink {
+  color: #0070f3;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.primaryBtn {
+  padding: 0.5rem 0.8rem;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.dangerBtn {
+  color: #b91c1c;
+  border: 1px solid #fee2e2;
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.editGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  input,
+  select,
+  button {
+    padding: 0.6rem 0.8rem;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+  }
+}
+
+.flags {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+.badgeMuted {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  border: 1px solid #e5e7eb;
+  background: #f3f4f6;
+  color: #555;
+}
