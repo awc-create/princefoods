@@ -1,9 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import styles from './Faq.module.scss';
 
-const faqs = [
+interface FAQ {
+  question: string;
+  answer: string;
+}
+
+const DATA: FAQ[] = [
   {
     question: 'WHAT IS YOUR RETURN POLICY?',
     answer:
@@ -17,50 +22,144 @@ const faqs = [
   {
     question: 'HOW MUCH DOES SHIPPING COST?',
     answer:
-      'For orders of £30 or more, delivery is free across the UK. Orders below £30 will have a shipping fee clearly indicated at checkout. We dispatch orders on the next working day, with delivery typically within 2-3 working days. All frozen items are shipped via next-day delivery service, carefully packaged in food-grade rigifoam cartons with ice gel packs to maintain optimum temperature and freshness.\nFor any special delivery requirements or further information, please contact our customer service team directly.'
+      'For orders of £30 or more, delivery is free across the UK. Orders below £30 will have a shipping fee at checkout. We dispatch next working day; delivery typically in 2–3 working days. Frozen items ship next-day in insulated cartons with ice gel packs.'
   },
   {
     question: 'CAN I TRACK MY ORDER?',
     answer:
-      'Yes, once your order ships, we’ll email you a tracking link so you can follow its journey from our warehouse to your door, whether you’re in England, Scotland, Wales or Ireland.'
+      'Yes — we’ll email you a tracking link when your order ships so you can follow it to your door.'
   },
   {
     question: 'WHAT PAYMENT METHODS DO YOU ACCEPT?',
     answer:
-      'We accept all major credit and debit cards (Visa, Mastercard, American Express) processed securely via Stripe—so your card details are never stored on our servers.'
+      'We accept major credit/debit cards (Visa, Mastercard, American Express) via Stripe. Your card details are never stored on our servers.'
   },
   {
     question: 'WHICH AREAS DO YOU DELIVER TO?',
     answer:
-      'We deliver across all of Great Britain (England, Scotland & Wales), Northern Ireland and the Republic of Ireland. Check our Delivery page for region-specific minimum orders and packing fees.'
+      'We deliver across Great Britain, Northern Ireland and the Republic of Ireland. See our Delivery page for region-specific minimums and packing fees.'
   }
 ];
 
-export default function FaqClient() {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
+type OpenKey = null | `${'L' | 'R'}-${number}`;
 
-  const toggle = (index: number) => {
-    setOpenIndex((prev) => (prev === index ? null : index));
-  };
+export default function FaqClient() {
+  // Split into two independent columns so one side expanding
+  // doesn't stretch the other column.
+  const left = useMemo(() => DATA.filter((_, i) => i % 2 === 0), []);
+  const right = useMemo(() => DATA.filter((_, i) => i % 2 === 1), []);
+
+  // NOTE: sections are <section> elements -> HTMLElement, not HTMLDivElement.
+  const refsL = useRef<Array<HTMLElement | null>>([]);
+  const refsR = useRef<Array<HTMLElement | null>>([]);
+
+  const [open, setOpen] = useState<OpenKey>('L-0');
+  const isOpen = (col: 'L' | 'R', i: number) => open === `${col}-${i}`;
+
+  function toggle(col: 'L' | 'R', i: number) {
+    const key: OpenKey = `${col}-${i}`;
+    setOpen((prev) => (prev === key ? null : key));
+
+    // Small screens: bring into view smoothly
+    if (typeof window !== 'undefined' && window.innerWidth < 900) {
+      const el = (col === 'L' ? refsL : refsR).current[i];
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
 
   return (
-    <div className={styles.wrapper}>
-      <h1>FAQS AND THEIR ANSWERS</h1>
-      <p className={styles.sub}>Browse Some of Our Most Asked Questions</p>
-      <div className={styles.accordion}>
-        {faqs.map((item, index) => (
-          <div key={index} className={styles.item}>
-            <button className={styles.question} onClick={() => toggle(index)}>
-              {item.question}
-              <span className={styles.icon}>{openIndex === index ? '−' : '›'}</span>
-            </button>
-            {openIndex === index && (
-              <div className={styles.answer}>
-                <p>{item.answer}</p>
-              </div>
-            )}
-          </div>
-        ))}
+    <div className={styles.shell}>
+      <header className={styles.head}>
+        <h1 className={styles.title}>FAQs and their answers</h1>
+        <p className={styles.sub}>Browse some of our most asked questions</p>
+      </header>
+
+      <div className={styles.cols}>
+        {/* Left column */}
+        <div className={styles.col} role="list">
+          {left.map((f, i) => {
+            const expanded = isOpen('L', i);
+            const id = `faq-L-${i}`;
+            return (
+              <section
+                key={id}
+                // ✅ Ref callback returns void + correct element type
+                ref={(el) => {
+                  refsL.current[i] = el;
+                }}
+                className={`${styles.item} ${expanded ? styles.expanded : ''}`}
+                role="listitem"
+              >
+                <h2 className={styles.h2}>
+                  <button
+                    id={id}
+                    className={styles.trigger}
+                    aria-expanded={expanded}
+                    aria-controls={`${id}-panel`}
+                    onClick={() => toggle('L', i)}
+                  >
+                    <span className={styles.q}>{f.question}</span>
+                    <span className={styles.chev} aria-hidden />
+                  </button>
+                </h2>
+                <div
+                  id={`${id}-panel`}
+                  className={styles.panel}
+                  role="region"
+                  aria-labelledby={id}
+                  hidden={!expanded}
+                >
+                  <div className={styles.panelInner}>
+                    <p className={styles.answer}>{f.answer}</p>
+                  </div>
+                </div>
+              </section>
+            );
+          })}
+        </div>
+
+        {/* Right column */}
+        <div className={styles.col} role="list">
+          {right.map((f, i) => {
+            const expanded = isOpen('R', i);
+            const id = `faq-R-${i}`;
+            return (
+              <section
+                key={id}
+                // ✅ Ref callback returns void + correct element type
+                ref={(el) => {
+                  refsR.current[i] = el;
+                }}
+                className={`${styles.item} ${expanded ? styles.expanded : ''}`}
+                role="listitem"
+              >
+                <h2 className={styles.h2}>
+                  <button
+                    id={id}
+                    className={styles.trigger}
+                    aria-expanded={expanded}
+                    aria-controls={`${id}-panel`}
+                    onClick={() => toggle('R', i)}
+                  >
+                    <span className={styles.q}>{f.question}</span>
+                    <span className={styles.chev} aria-hidden />
+                  </button>
+                </h2>
+                <div
+                  id={`${id}-panel`}
+                  className={styles.panel}
+                  role="region"
+                  aria-labelledby={id}
+                  hidden={!expanded}
+                >
+                  <div className={styles.panelInner}>
+                    <p className={styles.answer}>{f.answer}</p>
+                  </div>
+                </div>
+              </section>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

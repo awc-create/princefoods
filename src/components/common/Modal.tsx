@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 interface ModalProps {
@@ -11,7 +11,16 @@ interface ModalProps {
   closeTo?: string;
 }
 
-export default function Modal({ title, children, closeTo }: ModalProps) {
+/** Public export wrapped in Suspense so useSearchParams is safe everywhere. */
+export default function Modal(props: ModalProps) {
+  return (
+    <Suspense fallback={null}>
+      <ModalInner {...props} />
+    </Suspense>
+  );
+}
+
+function ModalInner({ title, children, closeTo }: ModalProps) {
   const router = useRouter();
   const sp = useSearchParams();
   const [mounted, setMounted] = useState(false);

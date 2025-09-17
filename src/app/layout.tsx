@@ -3,6 +3,7 @@ import { absUrl } from '@/lib/abs-url';
 import { urlFrom } from '@/lib/url';
 import '@/styles/Global.scss';
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import ClientShell from './ClientShell';
 import ModalLayer from './ModalLayer';
 import Providers from './providers';
@@ -28,8 +29,15 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <Providers>
-          <ClientShell modal={modal}>{children}</ClientShell>
-          <ModalLayer />
+          {/* Guard everything that might use useSearchParams (Navbar, etc.) */}
+          <Suspense fallback={<div style={{ height: 64 }} />}>
+            <ClientShell modal={modal}>{children}</ClientShell>
+          </Suspense>
+
+          {/* Guard ModalLayer too if it reads ?from or other params */}
+          <Suspense fallback={null}>
+            <ModalLayer />
+          </Suspense>
         </Providers>
       </body>
     </html>
