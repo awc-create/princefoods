@@ -1,4 +1,3 @@
-// src/app/@modal/(.)signup/page.tsx
 // Server Component (no "use client")
 
 import SignupForm from '@/components/auth/SignupForm';
@@ -21,10 +20,13 @@ export default async function SignupModalPage({
   const closeTo = safePublicCallbackUrl(sp.callbackUrl ?? null);
 
   return (
-    <Modal title="Create account" closeTo={closeTo}>
-      <Suspense fallback={null}>
-        <SignupForm />
-      </Suspense>
-    </Modal>
+    // ✅ Wrap Modal because it uses useSearchParams internally
+    <Suspense fallback={null}>
+      <Modal title="Create account" closeTo={closeTo}>
+        <Suspense fallback={null}>
+          <SignupForm />
+        </Suspense>
+      </Modal>
+    </Suspense>
   );
 }
