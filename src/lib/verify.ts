@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { urlFrom } from '@/lib/url';
 import crypto from 'crypto';
 
 const TOKEN_BYTES = 24;
@@ -32,7 +33,7 @@ export function buildNextAuthMagicLink(
   token: string,
   callbackUrl?: string
 ) {
-  const base = new URL('/api/auth/callback/email', hostOrigin);
+  const base = urlFrom('/api/auth/callback/email', hostOrigin);
   base.searchParams.set('token', token); // IMPORTANT: token WITHOUT any prefix
   base.searchParams.set('email', email);
   base.searchParams.set('callbackUrl', callbackUrl ?? hostOrigin);

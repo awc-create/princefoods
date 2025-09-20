@@ -22,13 +22,17 @@ export async function POST(req: Request) {
       where: { email },
       select: { id: true, name: true, emailVerified: true }
     });
-    if (!user) return NextResponse.json({ ok: false, error: 'User not found' }, { status: 404 });
-    if (user.emailVerified) return NextResponse.json({ ok: true, alreadyVerified: true });
+
+    if (!user) {
+      return NextResponse.json({ ok: false, error: 'User not found' }, { status: 404 });
+    }
+    if (user.emailVerified) {
+      return NextResponse.json({ ok: true, alreadyVerified: true });
+    }
 
     const issued = await issueEmailVerification(email, resend ? 'resend' : 'initial');
 
-    // If resend was requested but no prior verification exists, or we are in cooldown,
-    // return ok:true (no-op) to avoid email enumeration leaks.
+    // If resend requested but no prior verification/cooldown, return ok:true to avoid enumeration.
     if (!issued.ok) {
       const payload = issued.reason === 'cooldown' ? { ok: true, throttled: true } : { ok: true }; // noop
       return NextResponse.json(payload);
@@ -37,9 +41,12 @@ export async function POST(req: Request) {
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com';
 
+    // Use the legacy token for YOUR /verify page flow
+    const token = issued.tokenRawLegacy;
+
     const verifyUrl = `${siteUrl}/verify?email=${encodeURIComponent(email)}&token=${encodeURIComponent(
-      issued.tokenRaw
-    )}&next=${encodeURIComponent(next || '/')}`;
+      token
+    )}&next=${encodeURIComponent(next ?? '/')}`;
 
     const categories = await getFeaturedCategories(6).catch(() => []);
 
