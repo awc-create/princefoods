@@ -1,4 +1,3 @@
-// src/app/api/signup/route.ts
 import { getFeaturedCategories } from '@/lib/catalog';
 import { sendWelcomeVerifyEmail } from '@/lib/email';
 import { prisma } from '@/lib/prisma';
@@ -8,17 +7,61 @@ import type { CountryCode } from 'libphonenumber-js';
 import { parsePhoneNumber } from 'libphonenumber-js';
 import { NextResponse } from 'next/server';
 
+type IssuedOk =
+  | {
+      ok: true;
+      code: string;
+      expiresAt: Date;
+      expiresInMinutes: number;
+      tokenRawNextAuth?: string;
+      tokenRawLegacy?: string;
+      // legacy runtime probe for tokenRaw supported below
+    }
+  | { ok: false; reason: 'noop' | 'cooldown' };
+
+function resolveSiteUrl(): string {
+  return process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com';
+}
+
+function resolveOriginForNextAuth(): string {
+  // Prefer admin for backoffice sign-in flows if set, otherwise public
+  return (
+    process.env.NEXTAUTH_URL_PUBLIC ??
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    process.env.SITE_URL ??
+    process.env.NEXTAUTH_URL_ADMIN ??
+    process.env.NEXT_PUBLIC_ADMIN_URL ??
+    resolveSiteUrl()
+  );
+}
+
+function buildNextAuthMagicLink(params: {
+  origin: string;
+  email: string;
+  next?: string;
+  tokenNextAuth: string;
+}) {
+  const e = encodeURIComponent(params.email);
+  const t = encodeURIComponent(params.tokenNextAuth);
+  const cb = encodeURIComponent(new URL(params.next ?? '/', params.origin).toString());
+  return `${params.origin}/api/auth/callback/email?email=${e}&token=${t}&callbackUrl=${cb}`;
+}
+
+function buildLegacyVerifyUrl(params: {
+  siteUrl: string;
+  email: string;
+  tokenLegacy: string;
+  next?: string;
+}) {
+  const e = encodeURIComponent(params.email);
+  const t = encodeURIComponent(params.tokenLegacy);
+  const n = encodeURIComponent(params.next ?? '/');
+  return `${params.siteUrl}/verify?email=${e}&token=${t}&next=${n}`;
+}
+
 export async function POST(req: Request) {
   try {
-    const {
-      firstName,
-      lastName,
-      email,
-      password,
-      phone,
-      country = 'GB',
-      next = '/'
-    } = (await req.json()) as {
+    const body = (await req.json()) as {
       firstName?: string;
       lastName?: string;
       email: string;
@@ -28,7 +71,13 @@ export async function POST(req: Request) {
       next?: string;
     };
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const { firstName, lastName, email, password, phone, country = 'GB', next = '/' } = body;
+
+    const emailNorm = String(email ?? '')
+      .trim()
+      .toLowerCase();
+
+    const existing = await prisma.user.findUnique({ where: { email: emailNorm } });
     if (existing) {
       return NextResponse.json({ ok: false, error: 'Email already exists' }, { status: 400 });
     }
@@ -36,8 +85,8 @@ export async function POST(req: Request) {
     let phoneE164: string | undefined;
     if (phone) {
       try {
-        const cc = /^[A-Za-z]{2}$/.test(String(country))
-          ? (country.toUpperCase() as CountryCode)
+        const cc = /^[A-Za-z]{2}$/.test(String(country ?? ''))
+          ? (String(country).toUpperCase() as CountryCode)
           : undefined;
         const p = cc ? parsePhoneNumber(phone, cc) : parsePhoneNumber(phone);
         if (p?.isValid()) phoneE164 = p.number;
@@ -47,18 +96,18 @@ export async function POST(req: Request) {
     }
 
     const hash = await bcrypt.hash(password, 12);
-    const name = [firstName, lastName].filter(Boolean).join(' ').trim() || email;
+    const name = [firstName, lastName].filter(Boolean).join(' ').trim() || emailNorm;
 
     await prisma.user.create({
       data: {
-        email,
+        email: emailNorm,
         password: hash,
         firstName,
         lastName,
         name,
         phoneRaw: phone ?? null,
         phoneE164: phoneE164 ?? null,
-        phoneCountry: (country || 'GB').toUpperCase(),
+        phoneCountry: String(country ?? 'GB').toUpperCase(),
         source: 'LOCAL',
         role: 'VIEWER'
       }
@@ -67,19 +116,44 @@ export async function POST(req: Request) {
     // Fire-and-forget: issue verification + send email
     (async () => {
       try {
-        const issued = await issueEmailVerification(email);
-        if (!issued.ok) return; // throttled/cooldown
+        const issued = (await issueEmailVerification(emailNorm, 'initial')) as IssuedOk;
+        if (!issued.ok) return;
 
-        const siteUrl =
-          process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com';
-        const verifyUrl = `${siteUrl}/verify?email=${encodeURIComponent(email)}&token=${encodeURIComponent(
-          issued.tokenRaw
-        )}&next=${encodeURIComponent(next || '/')}`;
+        const origin = resolveOriginForNextAuth();
+        const siteUrl = resolveSiteUrl();
+
+        // Prefer direct NextAuth one-click login link
+        const tokenNextAuth = issued.tokenRawNextAuth;
+
+        // Legacy fallbacks
+        let tokenLegacy = issued.tokenRawLegacy;
+        if (!tokenLegacy) {
+          const maybeLegacy = (issued as unknown as { tokenRaw?: unknown }).tokenRaw;
+          if (typeof maybeLegacy === 'string') tokenLegacy = maybeLegacy;
+        }
+
+        const verifyUrl = tokenNextAuth
+          ? buildNextAuthMagicLink({
+              origin,
+              email: emailNorm,
+              next,
+              tokenNextAuth
+            })
+          : tokenLegacy
+            ? buildLegacyVerifyUrl({
+                siteUrl,
+                email: emailNorm,
+                tokenLegacy,
+                next
+              })
+            : null;
+
+        if (!verifyUrl) return;
 
         const categories = await getFeaturedCategories(6).catch(() => []);
 
         await sendWelcomeVerifyEmail({
-          to: email,
+          to: emailNorm,
           name,
           code: issued.code,
           verifyUrl,
@@ -88,7 +162,7 @@ export async function POST(req: Request) {
         });
 
         await prisma.user.update({
-          where: { email },
+          where: { email: emailNorm },
           data: { welcomeStatus: 'SENT', welcomedAt: new Date() }
         });
       } catch (err) {
