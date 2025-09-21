@@ -1,58 +1,122 @@
-// src/components/ecommerce/login/AccountMenu.tsx
 'use client';
 
-import { signOut, useSession } from 'next-auth/react';
+import { signOut } from 'next-auth/react';
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styles from './AccountMenu.module.scss';
 
-export default function AccountMenu() {
-  const { data, status } = useSession();
+interface MenuItem {
+  href: string;
+  label: string;
+}
 
-  // Compute avatar initial regardless; if no user, fall back to '?'
-  const initial = useMemo(() => {
-    const s = (data?.user?.name ?? data?.user?.email ?? '?').trim();
-    return s.slice(0, 1).toUpperCase();
-  }, [data?.user?.name, data?.user?.email]);
+const items: MenuItem[] = [
+  { href: '/account?tab=overview', label: 'Overview' },
+  { href: '/account?tab=orders', label: 'Orders' },
+  { href: '/account?tab=addresses', label: 'Addresses' },
+  { href: '/account?tab=wallet', label: 'Wallet' },
+  { href: '/account?tab=security', label: 'Security' }
+];
 
-  const isAuthed = status === 'authenticated' && !!data?.user;
+export default function AccountMenu({
+  name,
+  email
+}: {
+  name?: string | null;
+  email?: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<number | null>(null);
+
+  // Close when clicking outside
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!rootRef.current) return;
+      if (!rootRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  // ESC to close
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    if (open) window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  // Hover helpers with a tiny delay so you can move the cursor
+  const scheduleClose = () => {
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => setOpen(false), 120);
+  };
+  const cancelClose = () => {
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    closeTimer.current = null;
+  };
+
+  const initial = (name ?? email ?? 'A').slice(0, 1).toUpperCase();
 
   return (
-    <div className={styles.wrap} aria-haspopup="true" aria-expanded={isAuthed ? true : false}>
-      {isAuthed ? (
-        <>
-          <button className={styles.avatarBtn} aria-label="Account">
-            <span className={styles.avatar}>{initial}</span>
-            <span className={styles.label}>Account</span>
-          </button>
+    <div
+      ref={rootRef}
+      className={`${styles.container} ${open ? styles.open : ''}`}
+      onMouseEnter={() => {
+        cancelClose();
+        setOpen(true);
+      }}
+      onMouseLeave={scheduleClose}
+      onFocus={() => setOpen(true)}
+      onBlur={(e) => {
+        // Close only if focus moved fully outside
+        if (!rootRef.current?.contains(e.relatedTarget as Node)) setOpen(false);
+      }}
+    >
+      {/* Trigger */}
+      <button
+        className={styles.trigger}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((s) => !s)}
+      >
+        <span className={styles.avatar} aria-hidden>
+          {initial}
+        </span>
+        <span className={styles.label}>Account</span>
+      </button>
 
-          <div className={styles.menu} role="menu">
-            <Link role="menuitem" href="/account?tab=overview" className={styles.item}>
-              Overview
-            </Link>
-            <Link role="menuitem" href="/account?tab=orders" className={styles.item}>
-              Orders
-            </Link>
-            <Link role="menuitem" href="/account?tab=addresses" className={styles.item}>
-              Addresses
-            </Link>
-            <Link role="menuitem" href="/account?tab=wallet" className={styles.item}>
-              Wallet
-            </Link>
-            <Link role="menuitem" href="/account?tab=security" className={styles.item}>
-              Security
-            </Link>
-            <div className={styles.sep} />
+      {/* Menu */}
+      <div role="menu" className={styles.menu}>
+        <ul className={styles.list}>
+          {items.map((it) => (
+            <li key={it.href} role="none">
+              <Link
+                role="menuitem"
+                href={it.href}
+                className={styles.item}
+                onClick={() => setOpen(false)}
+              >
+                {it.label}
+              </Link>
+            </li>
+          ))}
+
+          <li className={styles.sep} role="separator" />
+
+          <li role="none">
             <button
-              role="menuitem"
-              className={`${styles.item} ${styles.danger}`}
+              className={`${styles.item} ${styles.signOut}`}
               onClick={() => signOut({ callbackUrl: '/' })}
+              role="menuitem"
             >
               Sign out
             </button>
-          </div>
-        </>
-      ) : null}
+          </li>
+        </ul>
+      </div>
     </div>
   );
 }

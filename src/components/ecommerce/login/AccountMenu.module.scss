@@ -1,75 +1,111 @@
-/* src/components/ecommerce/login/AccountMenu.module.scss */
-.wrap {
+.container {
   position: relative;
   display: inline-block;
 }
 
-.avatarBtn {
+.trigger {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  border: 0;
+  gap: 8px;
+  padding: 6px 8px;
   background: transparent;
+  border: 0;
   cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  color: #9b2226; /* same tint as your cart icon */
-  &:hover .label {
-    text-decoration: underline;
-  }
+  color: #8b0000; /* match your red */
+  font: inherit;
 }
 
 .avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  display: grid;
+  width: 32px;
+  height: 32px;
+  border: 2px solid #c0392b; /* red ring */
+  border-radius: 9999px;
+  display: inline-grid;
   place-items: center;
-  font-weight: 600;
-  border: 1px solid currentColor;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .label {
-  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .menu {
   position: absolute;
-  top: calc(100% + 8px);
   right: 0;
-  min-width: 200px;
+  top: calc(100% + 8px); /* visually attached; no gap */
+  min-width: 240px;
   background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-  padding: 6px;
-  display: none;
-  z-index: 50;
+  border-radius: 12px;
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.14),
+    0 2px 10px rgba(0, 0, 0, 0.08);
+  border: 1px solid #eee;
+  padding: 8px;
+  z-index: 1000;
+
+  /* Hidden by default; enabled on hover/focus or when .open set */
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+
+  /* Hover bridge to remove the tiny gap between trigger & menu */
+  &::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: 0;
+    right: 0;
+    height: 8px;
+  }
 }
-.wrap:hover .menu,
-.wrap:focus-within .menu {
-  display: block;
+
+/* show rules */
+.open .menu,
+.container:hover .menu,
+.container:focus-within .menu {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
 }
 
 .item {
   display: block;
+  width: 100%;
+  text-align: left;
   padding: 10px 12px;
-  border-radius: 8px;
-  color: #333;
+  border-radius: 10px;
+  color: #222;
   text-decoration: none;
-  &:hover {
-    background: #faf7f7;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+
+  &:hover,
+  &:focus {
+    outline: none;
+    background: #faf6f6;
   }
 }
 
 .sep {
   height: 1px;
-  margin: 6px 4px;
-  background: rgba(0, 0, 0, 0.06);
+  background: #eee;
+  margin: 8px 6px;
 }
 
-.danger {
-  color: #8b0000;
-  &:hover {
-    background: #fff5f5;
-  }
+.signOut {
+  color: #b30000;
+  font-weight: 600;
 }
