@@ -26,7 +26,9 @@ export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   session: { strategy: 'jwt' },
 
-  // Ensure cookie sticks on admin host (Traefik forwards Host/Proto)
+  // v4 cookie name + optional cross-subdomain domain via AUTH_COOKIE_DOMAIN
+  // e.g. AUTH_COOKIE_DOMAIN=.prince-v.com  (for SSO across apex/admin)
+  // or   AUTH_COOKIE_DOMAIN=admin.prince-v.com (admin-only)
   cookies: {
     sessionToken: {
       name: '__Secure-next-auth.session-token',
@@ -35,7 +37,7 @@ export const authOptions: NextAuthOptions = {
         secure: true,
         sameSite: 'lax',
         path: '/',
-        domain: 'admin.prince-v.com'
+        ...(process.env.AUTH_COOKIE_DOMAIN ? { domain: process.env.AUTH_COOKIE_DOMAIN } : {})
       }
     }
   },
@@ -63,18 +65,11 @@ export const authOptions: NextAuthOptions = {
         const ok = await bcrypt.compare(password, user.password);
         if (!ok) return null;
 
-        // BLOCK credentials login if there is any unexpired verification token for this email
-        // (User hasn’t verified yet via link or code.)
+        // Block credentials login if a valid verification token exists
         const pending = await prisma.verificationToken.findFirst({
-          where: {
-            identifier: email,
-            expires: { gt: new Date() }
-          }
+          where: { identifier: email, expires: { gt: new Date() } }
         });
-        if (pending) {
-          // Returning null = "CredentialsSignin" error; UI should prompt to verify.
-          return null;
-        }
+        if (pending) return null;
 
         return { id: user.id, name: user.name, email: user.email, role: user.role as Role };
       }
@@ -114,7 +109,7 @@ export const authOptions: NextAuthOptions = {
 
     async signIn({ user, account }) {
       if (account?.provider === 'google' && isAdapterUser(user)) {
-        // Optional: treat Google as already-verified, but still keep profile fresh
+        // Optional: keep profile fresh on Google sign-in
         const u = await prisma.user.findUnique({ where: { id: user.id } });
         if (u) {
           const parts = (user.name ?? '').trim().split(/\s+/);
@@ -136,7 +131,7 @@ export const authOptions: NextAuthOptions = {
     }
   },
 
-  // Trigger verification email on first user creation (works for OAuth-created users too)
+  // When a user is first created, trigger your verify email
   events: {
     async createUser({ user }) {
       if (isAdapterUser(user)) {
@@ -144,13 +139,9 @@ export const authOptions: NextAuthOptions = {
           .update({ where: { id: user.id }, data: { role: 'VIEWER' } })
           .catch(() => {});
       }
-
-      // Fire-and-forget: call our API to generate token+code and send the email
       const base =
         process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com';
       const url = `${base}/api/auth/send-verify`;
-
-      // no await on purpose
       fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
