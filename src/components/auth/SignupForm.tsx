@@ -4,7 +4,7 @@ import styles from '@/app/signup/SignupPage.module.scss';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { FormEvent, useState, useTransition } from 'react';
+import { FormEvent, useMemo, useState, useTransition } from 'react';
 
 export default function SignupForm() {
   const [firstName, setFirstName] = useState('');
@@ -22,11 +22,28 @@ export default function SignupForm() {
   const pathname = usePathname() ?? '/';
 
   // Current full URL (path + query) for callback defaults
-  const currentFull = (() => {
+  const currentFull = useMemo(() => {
     const qs = sp?.toString();
     return qs ? `${pathname}?${qs}` : pathname;
-  })();
+  }, [sp, pathname]);
+
   const callbackUrl = sp?.get('callbackUrl') ?? currentFull;
+
+  // --- Close modal helper (same behaviour as Login) ---
+  function closeModal() {
+    const params = new URLSearchParams(window.location.search);
+    params.delete('modal');
+
+    const cb = params.get('callbackUrl');
+    if (!cb || cb === '/' || cb === decodeURIComponent('%2F')) {
+      params.delete('callbackUrl');
+    }
+
+    const query = params.toString();
+    const url = query ? `${pathname}?${query}` : pathname;
+    router.replace(url);
+    router.refresh();
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -74,12 +91,23 @@ export default function SignupForm() {
     query: {
       ...qsObj,
       modal: 'login',
-      callbackUrl
+      ...(callbackUrl && callbackUrl !== '/' ? { callbackUrl } : {})
     }
   } as const;
 
   return (
     <div className={styles.container}>
+      {/* Close button */}
+      <button
+        type="button"
+        onClick={closeModal}
+        className={styles.closeBtn ?? 'closeBtn'}
+        aria-label="Close modal"
+        title="Close"
+      >
+        ✕
+      </button>
+
       <div className={styles.brand}>
         <Image
           src="/assets/prince-foods-logo.png"

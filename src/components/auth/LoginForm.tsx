@@ -1,4 +1,3 @@
-// src/components/auth/LoginForm.tsx
 'use client';
 
 import styles from '@/app/login/LoginPage.module.scss';
@@ -7,7 +6,7 @@ import { signIn } from 'next-auth/react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 interface LoginFormProps {
   /** Pass a pre-normalised callbackUrl from page/client. */
@@ -36,11 +35,28 @@ export default function LoginForm({
   const [pending, setPending] = useState(false);
 
   // Build current full URL (path + query) for callbackUrl default
-  const currentFull = (() => {
+  const currentFull = useMemo(() => {
     const qs = sp?.toString();
     return qs ? `${pathname}?${qs}` : pathname;
-  })();
+  }, [sp, pathname]);
+
   const callbackUrl = propCallback ?? safePublicCallbackUrl(sp?.get('callbackUrl') ?? currentFull);
+
+  // --- Close modal helper: drop ?modal and drop callbackUrl if it's just "/" ---
+  function closeModal() {
+    const params = new URLSearchParams(window.location.search);
+    params.delete('modal');
+
+    const cb = params.get('callbackUrl');
+    if (!cb || cb === '/' || cb === decodeURIComponent('%2F')) {
+      params.delete('callbackUrl');
+    }
+
+    const query = params.toString();
+    const url = query ? `${pathname}?${query}` : pathname;
+    router.replace(url);
+    router.refresh();
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -89,12 +105,23 @@ export default function LoginForm({
     query: {
       ...qsObj,
       modal: 'signup',
-      callbackUrl: callbackUrl
+      ...(callbackUrl && callbackUrl !== '/' ? { callbackUrl } : {})
     }
   } as const;
 
   return (
     <div className={styles.container}>
+      {/* Close button */}
+      <button
+        type="button"
+        onClick={closeModal}
+        className={styles.closeBtn ?? 'closeBtn'}
+        aria-label="Close modal"
+        title="Close"
+      >
+        ✕
+      </button>
+
       <div className={styles.brand}>
         <Image
           src="/assets/prince-foods-logo.png"

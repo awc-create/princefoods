@@ -1,14 +1,27 @@
 .loginButton {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 1.1rem;
-  color: #b01616;
-  cursor: pointer;
-  padding: 0.5rem;
-  text-decoration: none;
-
-  &:hover {
-    color: #991b1b;
+  gap: 0.5rem;
+}
+.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.account .avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+.label {
+  display: none;
+} /* show on larger screens if desired */
+@media (min-width: 1024px) {
+  .label {
+    display: inline;
   }
 }
