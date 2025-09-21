@@ -11,11 +11,10 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import styles from './Navbar.module.scss';
 
 const CartIcon = dynamic(() => import('@/components/ecommerce/basket/CartIcon'), { ssr: false });
-const LoginButton = dynamic(() => import('@/components/ecommerce/login/LoginButton'), {
+const LoginOrAccount = dynamic(() => import('@/components/ecommerce/login/LoginOrAccount'), {
   ssr: false
 });
 
-/** Export a Suspense-wrapped Navbar to satisfy Next 15 CSR bailout. */
 export default function Navbar() {
   return (
     <Suspense fallback={<div className={styles.navSkeleton} />}>
@@ -24,12 +23,10 @@ export default function Navbar() {
   );
 }
 
-/** Your original component moved here; safe to use useSearchParams inside. */
 function NavbarInner() {
   const pathname = usePathname() ?? '/';
   const sp = useSearchParams();
 
-  // Build current path+query (use later if LoginButton adds support)
   const _current = useMemo(() => {
     const qs = sp?.toString();
     return qs ? `${pathname}?${qs}` : pathname;
@@ -102,8 +99,8 @@ function NavbarInner() {
 
         <div className={styles.actions}>
           <CartIcon />
-          {/* When LoginButton supports it, pass: fromHref={_current} */}
-          <LoginButton />
+          {/* If you later want to pass the current URL to the login modal, thread `_current` down */}
+          <LoginOrAccount />
         </div>
       </nav>
 
