@@ -1,3 +1,4 @@
+// src/emails/WelcomeEmail.tsx
 import {
   Body,
   Button,

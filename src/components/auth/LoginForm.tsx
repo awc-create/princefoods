@@ -1,3 +1,4 @@
+// src/components/auth/LoginForm.tsx
 'use client';
 
 import styles from '@/app/login/LoginPage.module.scss';

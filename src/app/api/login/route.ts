@@ -1,3 +1,4 @@
+// src/app/api/login/route.ts
 import { getFeaturedCategories } from '@/lib/catalog';
 import { sendWelcomeVerifyEmail } from '@/lib/email';
 import { prisma } from '@/lib/prisma';

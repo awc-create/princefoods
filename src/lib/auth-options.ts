@@ -6,6 +6,7 @@ import type { DefaultSession, NextAuthOptions, User as NextAuthUser } from 'next
 import type { AdapterUser } from 'next-auth/adapters';
 import type { JWT } from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
+import EmailProvider from 'next-auth/providers/email';
 import Google from 'next-auth/providers/google';
 import { z } from 'zod';
 
@@ -22,13 +23,18 @@ function isAdapterUser(u: NextAuthUser | AdapterUser): u is AdapterUser {
   return 'id' in u && typeof (u as AdapterUser).id === 'string';
 }
 
+async function checkPassword(email: string, password: string) {
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user || !user.password) return null;
+  const ok = await bcrypt.compare(password, user.password);
+  return ok ? user : null;
+}
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   session: { strategy: 'jwt' },
 
-  // v4 cookie name + optional cross-subdomain domain via AUTH_COOKIE_DOMAIN
-  // e.g. AUTH_COOKIE_DOMAIN=.prince-v.com  (for SSO across apex/admin)
-  // or   AUTH_COOKIE_DOMAIN=admin.prince-v.com (admin-only)
+  // Keep prod-strong cookie. In dev, don't set AUTH_COOKIE_DOMAIN and use HTTPS via ngrok/cloudflared.
   cookies: {
     sessionToken: {
       name: '__Secure-next-auth.session-token',
@@ -43,6 +49,19 @@ export const authOptions: NextAuthOptions = {
   },
 
   providers: [
+    // Enable email callbacks for magic links you already send.
+    EmailProvider({
+      // Satisfy types; we don't actually send from here.
+      server: process.env.EMAIL_SERVER ?? 'smtp://localhost:1025',
+      from: process.env.EMAIL_FROM ?? 'no-reply@localhost',
+      maxAge: 60 * 30,
+      async sendVerificationRequest() {
+        // no-op (you already send with Resend)
+        return;
+      }
+    }),
+
+    // Google OAuth (optional)
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
       ? [
           Google({
@@ -51,7 +70,10 @@ export const authOptions: NextAuthOptions = {
           })
         ]
       : []),
+
+    // PUBLIC: customers — block if a live verification token exists
     Credentials({
+      id: 'credentials',
       name: 'Email & Password',
       credentials: { email: {}, password: {} },
       authorize: async (raw) => {
@@ -59,19 +81,36 @@ export const authOptions: NextAuthOptions = {
         if (!parsed.success) return null;
 
         const { email, password } = parsed.data;
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user || !user.password) return null;
 
-        const ok = await bcrypt.compare(password, user.password);
-        if (!ok) return null;
-
-        // Block credentials login if a valid verification token exists
         const pending = await prisma.verificationToken.findFirst({
           where: { identifier: email, expires: { gt: new Date() } }
         });
         if (pending) return null;
 
+        const user = await checkPassword(email, password);
+        if (!user) return null;
+
         return { id: user.id, name: user.name, email: user.email, role: user.role as Role };
+      }
+    }),
+
+    // ADMIN: HEAD/STAFF only — no email verification required
+    Credentials({
+      id: 'admin-credentials',
+      name: 'Admin Email & Password',
+      credentials: { email: {}, password: {} },
+      authorize: async (raw) => {
+        const parsed = CredentialsSchema.safeParse(raw);
+        if (!parsed.success) return null;
+
+        const { email, password } = parsed.data;
+        const user = await checkPassword(email, password);
+        if (!user) return null;
+
+        const role = (user.role as Role) ?? 'VIEWER';
+        if (role !== 'HEAD' && role !== 'STAFF') return null;
+
+        return { id: user.id, name: user.name, email: user.email, role };
       }
     })
   ],
@@ -109,7 +148,7 @@ export const authOptions: NextAuthOptions = {
 
     async signIn({ user, account }) {
       if (account?.provider === 'google' && isAdapterUser(user)) {
-        // Optional: keep profile fresh on Google sign-in
+        // Optional: light profile refresh
         const u = await prisma.user.findUnique({ where: { id: user.id } });
         if (u) {
           const parts = (user.name ?? '').trim().split(/\s+/);
@@ -131,7 +170,6 @@ export const authOptions: NextAuthOptions = {
     }
   },
 
-  // When a user is first created, trigger your verify email
   events: {
     async createUser({ user }) {
       if (isAdapterUser(user)) {

@@ -1,3 +1,4 @@
+// src/app/api/customers/[id]/orders/route.ts
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';

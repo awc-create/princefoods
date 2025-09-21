@@ -27,7 +27,7 @@ export default function AdminLoginClient() {
   const rawCb = sp?.get('callbackUrl') ?? null;
   const callbackUrl = safeAdminCallbackUrl(rawCb);
 
-  // If someone landed with a bad callback, clean the URL in the browser
+  // Clean bad callback in address bar
   useEffect(() => {
     if (!rawCb) return;
     try {
@@ -41,7 +41,7 @@ export default function AdminLoginClient() {
     }
   }, [rawCb]);
 
-  // Already authenticated → kick them to dashboard
+  // Already authenticated → dashboard
   useEffect(() => {
     if (status === 'authenticated') {
       router.replace(callbackUrl);
@@ -54,7 +54,8 @@ export default function AdminLoginClient() {
     setErr(null);
     setPending(true);
     try {
-      const res = await signIn('credentials', {
+      // ✅ Use the ADMIN provider
+      const res = await signIn('admin-credentials', {
         email,
         password,
         redirect: false,
@@ -68,13 +69,11 @@ export default function AdminLoginClient() {
       }
 
       if (res.error) {
-        // if you want, handle a special "EmailNotVerified" error here
-        setErr('Invalid email or password.');
+        setErr('Invalid admin credentials or insufficient role.');
         setPending(false);
         return;
       }
 
-      // ✅ Success — replace so the login modal/page closes properly
       router.replace(res.url ?? callbackUrl);
       router.refresh();
     } catch {
