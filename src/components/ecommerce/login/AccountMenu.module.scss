@@ -1,0 +1,75 @@
+/* src/components/ecommerce/login/AccountMenu.module.scss */
+.wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.avatarBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  color: #9b2226; /* same tint as your cart icon */
+  &:hover .label {
+    text-decoration: underline;
+  }
+}
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  border: 1px solid currentColor;
+}
+
+.label {
+  font-size: 0.95rem;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  padding: 6px;
+  display: none;
+  z-index: 50;
+}
+.wrap:hover .menu,
+.wrap:focus-within .menu {
+  display: block;
+}
+
+.item {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #333;
+  text-decoration: none;
+  &:hover {
+    background: #faf7f7;
+  }
+}
+
+.sep {
+  height: 1px;
+  margin: 6px 4px;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.danger {
+  color: #8b0000;
+  &:hover {
+    background: #fff5f5;
+  }
+}

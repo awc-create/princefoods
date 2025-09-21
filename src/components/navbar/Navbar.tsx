@@ -1,3 +1,4 @@
+// src/components/navbar/Navbar.tsx
 'use client';
 
 import { NAV_LINKS } from '@/config/menu.config';
