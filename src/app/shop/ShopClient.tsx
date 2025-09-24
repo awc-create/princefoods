@@ -13,19 +13,53 @@ interface ApiResponse {
   pageCount?: number;
 }
 
+interface Bounds {
+  min: number;
+  max: number;
+}
+
 export default function ShopClient() {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+
   const [products, setProducts] = useState<Product[]>([]);
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState(1);
-  const [minPrice, setMinPrice] = useState<number | null>(null);
-  const [maxPrice, setMaxPrice] = useState<number | null>(null);
 
+  // price slider state
+  const [priceBounds, setPriceBounds] = useState<Bounds | null>(null);
+  const [currentPrice, setCurrentPrice] = useState<{ min: number | null; max: number | null }>({
+    min: null,
+    max: null
+  });
+
+  // fetch min/max once
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await fetch('/api/shop/price-range', { cache: 'no-store' });
+      const data = (await res.json().catch(() => ({}))) as
+        | { ok: true; min: number; max: number }
+        | { ok: false };
+      if (cancelled) return;
+      if (data && 'ok' in data && data.ok) {
+        setPriceBounds({ min: data.min, max: data.max });
+        // initialize current range to full bounds
+        setCurrentPrice({ min: data.min, max: data.max });
+      } else {
+        setPriceBounds(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // fetch products when filters change
   useEffect(() => {
     const params = new URLSearchParams();
     if (selectedSlug) params.set('collection', selectedSlug);
-    if (minPrice != null) params.set('min', String(minPrice));
-    if (maxPrice != null) params.set('max', String(maxPrice));
+    if (currentPrice.min != null) params.set('min', String(currentPrice.min));
+    if (currentPrice.max != null) params.set('max', String(currentPrice.max));
     params.set('page', String(page));
 
     let cancelled = false;
@@ -33,15 +67,14 @@ export default function ShopClient() {
       const res = await fetch(`/api/products?${params.toString()}`, { cache: 'no-store' });
       const data = (await res.json().catch(() => ({}))) as ApiResponse;
       if (cancelled) return;
-
-      setProducts(Array.isArray(data.products) ? data.products : []);
+      setProducts(data.products ?? []);
       setPageCount(Number(data.pageCount ?? 1));
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [selectedSlug, page, minPrice, maxPrice]);
+  }, [selectedSlug, page, currentPrice.min, currentPrice.max]);
 
   return (
     <div className={styles.wrapper}>
@@ -52,9 +85,10 @@ export default function ShopClient() {
             setSelectedSlug(slug);
             setPage(1);
           }}
-          onPriceFilterChange={(min, max) => {
-            setMinPrice(min);
-            setMaxPrice(max);
+          priceBounds={priceBounds}
+          currentPrice={currentPrice}
+          onPriceChange={(min, max) => {
+            setCurrentPrice({ min, max });
             setPage(1);
           }}
         />

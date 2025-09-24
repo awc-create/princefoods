@@ -6,7 +6,7 @@
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   padding: 6px;
-  box-shadow: 0 2px 6px rgba(0,0,0,.06);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
 .nav {
@@ -17,10 +17,14 @@
   font-weight: 700;
   color: #374151;
   cursor: pointer;
-  transition: background .15s ease;
-
-  &:disabled { opacity: .45; cursor: default; }
-  &:not(:disabled):hover { background: #f3f4f6; }
+  transition: background 0.15s ease;
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  &:not(:disabled):hover {
+    background: #f3f4f6;
+  }
 }
 
 .pageBtn {
@@ -32,16 +36,18 @@
   border-radius: 10px;
   font-weight: 700;
   cursor: pointer;
-  transition: background .15s ease, border-color .15s ease;
-
-  &:hover { background: #f3f4f6; }
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+  &:hover {
+    background: #f3f4f6;
+  }
 }
 
 .active {
   background: #fff;
-  border-color: #111827; /* darker like your screenshot */
+  border-color: #111827;
 }
-
 .ellipsis {
   padding: 0 8px;
   color: #6b7280;

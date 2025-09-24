@@ -1,10 +1,9 @@
-/* src/styles/Global.scss — GLOBAL (not a module) */
-
+/* GLOBAL (not a module) */
 :root {
-  /* Your site tokens */
+  /* Site tokens */
   --color-bg: #ffffff;
   --color-text: #333333;
-  --color-primary: #2c3e50; /* fixed typo: use --color-primary */
+  --color-primary: #2c3e50;
   --color-accent: #007bff;
   --color-bg-light: #fafafa;
   --color-overlay: rgba(0, 0, 0, 0.35);
@@ -13,16 +12,34 @@
   --max-content-width: 1200px;
   --gutter: 5%;
 
-  /* Admin palette (also global so Admin.module.scss can use them) */
+  /* Admin palette */
   --primary: #ef4444; /* red */
   --primary-strong: #dc2626; /* darker red */
-  --accent: #84cc16; /* leafy green */
+
+  /* Shop palette (shared) */
+  --accent: #6ca51c; /* leafy green for CTAs/slider */
+  --accent-d: #5a8d17;
+
   --text-dark: #111827; /* gray-900 */
   --text-muted: #4b5563; /* gray-600 */
   --border: #e5e7eb; /* gray-200 */
   --input-bg: #f9fafb; /* gray-50 */
 
-  /* Helpful aliases so both naming schemes work */
+  /* Chips / surfaces */
+  --chip: #f8fafc;
+  --chip-hover: #f3f4f6;
+  --chip-active: #eef2ff;
+  --chip-active-border: #dbeafe;
+
+  /* Product card tokens */
+  --pf-card: #fff;
+  --pf-border: var(--border);
+  --pf-text: var(--text-dark);
+  --pf-price: var(--text-dark);
+  --pf-red: #b21e2b;
+  --pf-red-d: #9a1a26;
+
+  /* Helpful aliases */
   --brand-primary: var(--color-primary);
   --brand-accent: var(--color-accent);
 }
@@ -37,7 +54,7 @@
 }
 */
 
-/* Global base + helpers */
+/* Base + helpers */
 *,
 *::before,
 *::after {
@@ -68,7 +85,6 @@ body > .page-wrapper {
   display: flex;
   flex-direction: column;
 }
-
 main {
   flex: 1;
 }

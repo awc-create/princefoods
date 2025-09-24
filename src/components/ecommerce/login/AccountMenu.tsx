@@ -5,18 +5,13 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import styles from './AccountMenu.module.scss';
 
-interface MenuItem {
-  href: string;
-  label: string;
-}
-
-const items: MenuItem[] = [
+const items = [
   { href: '/account?tab=overview', label: 'Overview' },
   { href: '/account?tab=orders', label: 'Orders' },
   { href: '/account?tab=addresses', label: 'Addresses' },
   { href: '/account?tab=wallet', label: 'Wallet' },
   { href: '/account?tab=security', label: 'Security' }
-];
+] as const;
 
 export default function AccountMenu({
   name,
@@ -29,26 +24,24 @@ export default function AccountMenu({
   const rootRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number | null>(null);
 
-  // Close when clicking outside
+  // Close on outside click
   useEffect(() => {
-    function onDocClick(e: MouseEvent) {
+    const onDocClick = (e: MouseEvent) => {
       if (!rootRef.current) return;
       if (!rootRef.current.contains(e.target as Node)) setOpen(false);
-    }
+    };
     if (open) document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
-  // ESC to close
+  // Close on ESC
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
-    }
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     if (open) window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
-  // Hover helpers with a tiny delay so you can move the cursor
+  // Small delay so you can move into the panel
   const scheduleClose = () => {
     if (closeTimer.current) window.clearTimeout(closeTimer.current);
     closeTimer.current = window.setTimeout(() => setOpen(false), 120);
@@ -71,22 +64,33 @@ export default function AccountMenu({
       onMouseLeave={scheduleClose}
       onFocus={() => setOpen(true)}
       onBlur={(e) => {
-        // Close only if focus moved fully outside
         if (!rootRef.current?.contains(e.relatedTarget as Node)) setOpen(false);
       }}
     >
-      {/* Trigger */}
-      <button
-        className={styles.trigger}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((s) => !s)}
-      >
-        <span className={styles.avatar} aria-hidden>
-          {initial}
-        </span>
-        <span className={styles.label}>Account</span>
-      </button>
+      {/* Trigger: link + caret button */}
+      <div className={styles.triggerWrap}>
+        <Link
+          href="/account"
+          className={styles.triggerLink}
+          aria-haspopup="menu"
+          aria-expanded={open}
+        >
+          <span className={styles.avatar} aria-hidden>
+            {initial}
+          </span>
+          <span className={styles.label}>Account</span>
+        </Link>
+        <button
+          type="button"
+          className={styles.caretBtn}
+          aria-label="Open account menu"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => setOpen((s) => !s)}
+        >
+          ▾
+        </button>
+      </div>
 
       {/* Menu */}
       <div role="menu" className={styles.menu}>
@@ -103,14 +107,12 @@ export default function AccountMenu({
               </Link>
             </li>
           ))}
-
           <li className={styles.sep} role="separator" />
-
           <li role="none">
             <button
               className={`${styles.item} ${styles.signOut}`}
-              onClick={() => signOut({ callbackUrl: '/' })}
               role="menuitem"
+              onClick={() => signOut({ callbackUrl: '/' })}
             >
               Sign out
             </button>

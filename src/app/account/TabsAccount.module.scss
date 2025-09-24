@@ -240,3 +240,77 @@
   border: 1px dashed #cbd5e1;
   color: #374151;
 }
+
+.orderUl {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.orderCard {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  text-decoration: none;
+  color: inherit;
+}
+.orderCard:hover {
+  background: #f9fafb;
+}
+
+.orderTop {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+}
+.orderId {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #374151;
+}
+.orderDate {
+  color: #6b7280;
+}
+
+.orderMid {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fee2e2; /* light red */
+  color: #991b1b; /* dark red */
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+.badgeMuted {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #374151;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+.total {
+  margin-left: auto;
+  font-weight: 900;
+}
+
+.orderItems {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #6b7280;
+}
+.itemDot::before {
+  content: '• ';
+  color: #d1d5db;
+}

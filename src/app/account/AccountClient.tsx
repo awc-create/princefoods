@@ -1,5 +1,6 @@
 'use client';
 
+import { penceToGBP } from '@/lib/money';
 import { signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { useEffect, useState, useTransition } from 'react';
@@ -18,6 +19,15 @@ interface UserDTO {
   createdAt: string | Date;
 }
 
+interface OrderBrief {
+  id: string;
+  status: string;
+  paymentStatus: string;
+  grandTotal: number;
+  createdAt: string;
+  items: { id: string; name: string; quantity: number; imageUrl?: string | null }[];
+}
+
 export default function AccountClient({ user }: { user: UserDTO }) {
   const [tab, setTab] = useState<Tab>('overview');
   const [saving, startSaving] = useTransition();
@@ -32,6 +42,9 @@ export default function AccountClient({ user }: { user: UserDTO }) {
     phoneE164: user.phoneE164 ?? ''
   });
 
+  // Orders
+  const [orders, setOrders] = useState<OrderBrief[] | null>(null);
+
   // URL sync — guard-safe (no new URL)
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
@@ -45,6 +58,20 @@ export default function AccountClient({ user }: { user: UserDTO }) {
     const path = `${window.location.pathname}${qs ? `?${qs}` : ''}`;
     window.history.replaceState({}, '', path);
   }, [tab]);
+
+  // Fetch orders when entering the tab (once)
+  useEffect(() => {
+    if (tab !== 'orders' || orders !== null) return;
+    (async () => {
+      try {
+        const res = await fetch('/api/account/orders', { cache: 'no-store' });
+        const json = await res.json();
+        setOrders(json.orders ?? []);
+      } catch {
+        setOrders([]);
+      }
+    })();
+  }, [tab, orders]);
 
   const verified = !!user.emailVerified;
 
@@ -230,7 +257,44 @@ export default function AccountClient({ user }: { user: UserDTO }) {
           </>
         )}
 
-        {tab === 'orders' && <p className={styles.muted}>No orders yet.</p>}
+        {tab === 'orders' && (
+          <div className={styles.ordersList}>
+            {orders === null && <p className={styles.muted}>Loading your orders…</p>}
+            {orders?.length === 0 && <p className={styles.muted}>No orders yet.</p>}
+            {orders?.length ? (
+              <ul className={styles.orderUl}>
+                {orders.map((o) => (
+                  <li key={o.id} className={styles.orderLi}>
+                    <Link href={`/account/orders/${o.id}`} className={styles.orderCard}>
+                      <div className={styles.orderTop}>
+                        <span className={styles.orderId}>#{o.id.slice(0, 8)}</span>
+                        <span className={styles.orderDate}>
+                          {new Date(o.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className={styles.orderMid}>
+                        <span className={styles.badge}>{o.status}</span>
+                        <span className={styles.badgeMuted}>{o.paymentStatus}</span>
+                        <span className={styles.total}>{penceToGBP(o.grandTotal)}</span>
+                      </div>
+                      <div className={styles.orderItems}>
+                        {o.items.slice(0, 3).map((it) => (
+                          <span key={it.id} className={styles.itemDot}>
+                            {it.quantity}× {it.name}
+                          </span>
+                        ))}
+                        {o.items.length > 3 && (
+                          <span className={styles.itemDot}>+{o.items.length - 3} more</span>
+                        )}
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        )}
+
         {tab === 'addresses' && <p className={styles.muted}>Addresses form here…</p>}
         {tab === 'wallet' && <p className={styles.muted}>Wallet settings here…</p>}
         {tab === 'security' && (

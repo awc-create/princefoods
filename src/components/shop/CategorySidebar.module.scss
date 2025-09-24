@@ -1,3 +1,4 @@
+// src/components/shop/CategorySidebar.module.scss
 .sidebar {
   position: sticky;
   top: 84px;
@@ -7,7 +8,7 @@
   border-radius: 16px;
   padding: 16px 14px;
   min-width: 260px;
-  box-shadow: 0 3px 14px rgba(0,0,0,.04);
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.04);
 }
 
 /* Header */
@@ -25,7 +26,7 @@
     font-size: 18px;
     font-weight: 800;
     color: var(--ink);
-    letter-spacing: .2px;
+    letter-spacing: 0.2px;
   }
 }
 
@@ -38,11 +39,14 @@
   font-weight: 700;
   font-size: 12px;
   color: var(--ink);
-  transition: background .15s ease, border-color .15s ease, color .15s ease;
-
-  &:hover { background: var(--chip); }
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+  &:hover {
+    background: var(--chip);
+  }
 }
-
 .active {
   background: var(--chip-active) !important;
   border-color: var(--chip-active-border) !important;
@@ -50,8 +54,15 @@
 }
 
 /* List */
-.nav { display: grid; gap: 8px; margin: 10px 0 14px; }
-.group { display: grid; gap: 6px; }
+.nav {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 14px;
+}
+.group {
+  display: grid;
+  gap: 6px;
+}
 
 .parent {
   width: 100%;
@@ -68,13 +79,19 @@
   font-size: 14px;
   text-align: left;
   cursor: pointer;
-  transition: background .12s ease, transform .06s ease, border-color .12s ease;
-
-  &:hover { background: var(--chip-hover); border-color: #dbeafe; }
-  &:active { transform: translateY(1px); }
+  transition:
+    background 0.12s ease,
+    transform 0.06s ease,
+    border-color 0.12s ease;
+  &:hover {
+    background: var(--chip-hover);
+    border-color: #dbeafe;
+  }
+  &:active {
+    transform: translateY(1px);
+  }
 }
-
-.open { /* parent expanded state */
+.open {
   background: #fff;
   border-color: var(--border);
 }
@@ -85,13 +102,18 @@
   border-right: 2px solid #9ca3af;
   border-bottom: 2px solid #9ca3af;
   transform: rotate(-45deg);
-  transition: transform .15s ease;
+  transition: transform 0.15s ease;
   justify-self: center;
 }
-.open .caret { transform: rotate(45deg); } /* rotated chevron when open */
+.open .caret {
+  transform: rotate(45deg);
+}
 
-.label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-
+.label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .count {
   display: inline-grid;
   place-items: center;
@@ -106,7 +128,6 @@
   border: 1px solid var(--border);
 }
 
-/* children list only shows for the open parent */
 .children {
   list-style: none;
   margin: 0 0 2px 0;
@@ -114,7 +135,6 @@
   display: grid;
   gap: 6px;
 }
-
 .child {
   width: 100%;
   display: grid;
@@ -130,17 +150,20 @@
   font-size: 13px;
   text-align: left;
   cursor: pointer;
-  transition: background .12s ease, border-color .12s ease, color .12s ease;
-
-  &:hover { background: #fafafa; border-color: #e6e6e6; }
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+  &:hover {
+    background: #fafafa;
+    border-color: #e6e6e6;
+  }
 }
-
 .child.active {
   background: var(--chip-active);
   border-color: var(--chip-active-border);
   color: var(--accent);
 }
-
 .dot {
   width: 6px;
   height: 6px;
@@ -149,42 +172,107 @@
   justify-self: center;
 }
 
-.empty { color: var(--muted); font-size: 13px; padding: 6px 2px; }
+.empty {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 6px 2px;
+}
 
 /* Price filter */
 .priceBox {
   margin-top: 8px;
   padding-top: 12px;
   border-top: 1px dashed var(--border);
-
   h4 {
-    margin: 0 0 8px 2px;
+    margin: 0 0 10px 2px;
     font-size: 13px;
-    letter-spacing: .3px;
+    letter-spacing: 0.3px;
     color: var(--muted);
     text-transform: uppercase;
   }
+}
+
+/* dual-slider */
+.sliderWrap {
+  position: relative;
+  height: 38px;
+  margin: 4px 2px 10px;
+}
+.track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 16px;
+  height: 6px;
+  background: #edf2f7;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--accent);
+  opacity: 0.25;
+  border-radius: 999px;
+}
+
+/* overlapping range inputs */
+.thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 0;
+  outline: none;
+  pointer-events: none;
+}
+.thumb::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.thumb::-moz-range-thumb {
+  pointer-events: auto;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 .row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-  margin-bottom: 8px;
-
+  margin: 6px 0 8px;
+}
+.priceField {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 8px;
+  background: #fff;
+  span {
+    color: var(--muted);
+  }
   input {
-    height: 36px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 6px 10px;
-    font-size: 13px;
+    border: 0;
     outline: none;
-    transition: border-color .15s ease, box-shadow .15s ease;
-
-    &:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(214, 40, 40, .15);
-    }
+    width: 100%;
+    height: 24px;
+    font-size: 13px;
+    padding: 0 4px 0 6px;
   }
 }
 
@@ -193,31 +281,43 @@
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
-
-.primary, .ghost {
+.primary,
+.ghost {
   height: 36px;
   border-radius: 10px;
   font-weight: 700;
   cursor: pointer;
-  transition: background .15s ease, color .15s ease, border-color .15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
-
 .primary {
   border: 1px solid var(--accent);
   background: var(--accent);
   color: #fff;
-
-  &:hover { background: var(--accent-d); border-color: var(--accent-d); }
+  &:hover {
+    background: var(--accent-d);
+    border-color: var(--accent-d);
+  }
 }
-
 .ghost {
   border: 1px solid var(--border);
   background: #fff;
   color: var(--ink);
+  &:hover {
+    background: var(--chip);
+  }
+}
 
-  &:hover { background: var(--chip); }
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 6px;
 }
 
 @media (max-width: 960px) {
-  .sidebar { position: static; }
+  .sidebar {
+    position: static;
+  }
 }

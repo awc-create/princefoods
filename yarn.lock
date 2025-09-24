@@ -944,14 +944,9 @@
   resolved "https://registry.npmjs.org/@react-email/section/-/section-0.0.16.tgz"
   integrity sha512-FjqF9xQ8FoeUZYKSdt8sMIKvoT9XF8BrzhT3xiFKdEMwYNbsDflcjfErJe3jb7Wj/es/lKTbV5QR1dnLzGpL3w==
 
-"@react-email/tailwind@1.2.2":
+"@react-email/tailwind@1.2.2", "@react-email/tailwind@^1.2.2":
   version "1.2.2"
   resolved "https://registry.npmjs.org/@react-email/tailwind/-/tailwind-1.2.2.tgz"
-  integrity sha512-heO9Khaqxm6Ulm6p7HQ9h01oiiLRrZuuEQuYds/O7Iyp3c58sMVHZGIxiRXO/kSs857NZQycpjewEVKF3jhNTw==
-
-"@react-email/tailwind@^1.2.2":
-  version "1.2.2"
-  resolved "https://registry.yarnpkg.com/@react-email/tailwind/-/tailwind-1.2.2.tgz#be745ebbf1fd07b9e111b6aebec33c4a460ecdea"
   integrity sha512-heO9Khaqxm6Ulm6p7HQ9h01oiiLRrZuuEQuYds/O7Iyp3c58sMVHZGIxiRXO/kSs857NZQycpjewEVKF3jhNTw==
 
 "@react-email/text@0.1.5":
@@ -5940,6 +5935,11 @@ uri-js@^4.2.2:
   dependencies:
     punycode "^2.1.0"
 
+use-sync-external-store@1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/use-sync-external-store/-/use-sync-external-store-1.2.0.tgz#7dbefd6ef3fe4e767a0cf5d7287aacfb5846928a"
+  integrity sha512-eEgnFxGQ1Ife9bzYs6VLi8/4X6CObHMw9Qr9tPY43iKwsPw8xE8+EFsf/2cFZ5S3esXgpWgtSCtLNS41F+sKPA==
+
 uuid@^8.3.2:
   version "8.3.2"
   resolved "https://registry.npmjs.org/uuid/-/uuid-8.3.2.tgz"
@@ -6180,3 +6180,10 @@ zod@^4.1.1:
   version "4.1.5"
   resolved "https://registry.npmjs.org/zod/-/zod-4.1.5.tgz"
   integrity sha512-rcUUZqlLJgBC33IT3PNMgsCq6TzLQEG/Ei/KTCU0PedSWRMAXoOUN+4t/0H+Q8bdnLPdqUYnvboJT0bn/229qg==
+
+zustand@4.5.2:
+  version "4.5.2"
+  resolved "https://registry.yarnpkg.com/zustand/-/zustand-4.5.2.tgz#fddbe7cac1e71d45413b3682cdb47b48034c3848"
+  integrity sha512-2cN1tPkDVkwCy5ickKrI7vijSjPksFRfqS6237NzT0vqSsztTNnQdHw9mmN7uBdk3gceVXU0a+21jFzFzAc9+g==
+  dependencies:
+    use-sync-external-store "1.2.0"

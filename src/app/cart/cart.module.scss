@@ -1,0 +1,145 @@
+/* src/app/cart/cart.module.scss */
+.shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* 👇 scoped instead of global h1 */
+.shell h1 {
+  margin: 0 0 12px;
+}
+
+.btn {
+  height: 44px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 0 16px;
+  font-weight: 800;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 16px;
+}
+@media (max-width: 940px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lines {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 86px 1fr auto auto auto;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  align-items: center;
+}
+
+/* ok because it's scoped by local classes */
+.thumb img,
+.ph {
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+  background: #f3f4f6;
+}
+
+.meta {
+  display: grid;
+  gap: 4px;
+}
+.name {
+  font-weight: 800;
+}
+.sku {
+  font-size: 12px;
+  color: #6b7280;
+}
+.price {
+  font-weight: 600;
+}
+
+.qtyRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.qtyRow button {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+}
+.qty {
+  min-width: 18px;
+  text-align: center;
+}
+.lineTotal {
+  font-weight: 800;
+}
+.remove {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+.clear {
+  margin: 10px;
+  background: rgba(0, 0, 0, 0);
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  height: 42px;
+  font-weight: 700;
+}
+
+.summary {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  height: fit-content;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.muted {
+  color: #6b7280;
+  font-size: 12px;
+  margin: 0;
+}
+
+.checkout {
+  display: grid;
+  place-items: center;
+  height: 44px;
+  border-radius: 12px;
+  background: #b21e2b;
+  color: #fff;
+  font-weight: 800;
+  border: 1px solid #b21e2b;
+}
+.checkout:hover {
+  filter: brightness(0.96);
+}

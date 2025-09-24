@@ -16,21 +16,18 @@ export default function Pagination({ page, pageCount, onChange }: Props) {
     onChange(p);
   };
 
-  // Build compact list: 1 … (page-1, page, page+1) … last
   const list: Array<number | '…'> = [];
   const first = 1;
   const last = pageCount;
-  const win = 1; // neighbors around current
+  const win = 1;
 
   list.push(first);
-
   const start = Math.max(first + 1, page - win);
   const end = Math.min(last - 1, page + win);
 
   if (start > first + 1) list.push('…');
   for (let i = start; i <= end; i++) list.push(i);
   if (end < last - 1) list.push('…');
-
   if (last > first) list.push(last);
 
   return (

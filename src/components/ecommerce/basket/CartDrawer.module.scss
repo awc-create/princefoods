@@ -1,0 +1,159 @@
+/* src/components/ecommerce/basket/CartDrawer.module.scss */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 49;
+}
+.drawer {
+  position: fixed;
+  top: 0;
+  right: -420px;
+  width: 380px;
+  max-width: 92vw;
+  height: 100%;
+  background: #fff;
+  box-shadow: -8px 0 30px rgba(0, 0, 0, 0.18);
+  z-index: 50;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  transition: right 0.18s ease;
+}
+.open {
+  right: 0;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+.icon:hover {
+  background: #f9fafb;
+}
+
+.empty {
+  padding: 24px;
+  display: grid;
+  gap: 12px;
+}
+.btn {
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  font-weight: 700;
+}
+
+.list {
+  margin: 0;
+  padding: 8px 8px 0;
+  list-style: none;
+  overflow: auto;
+}
+.line {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 10px;
+  padding: 10px 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.thumb img,
+.ph {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  background: #f3f4f6;
+}
+.meta {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+.name {
+  font-weight: 700;
+}
+.sku {
+  font-size: 12px;
+  color: #6b7280;
+}
+.price {
+  font-weight: 600;
+}
+.qtyRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.qtyRow button {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+}
+.qty {
+  min-width: 18px;
+  text-align: center;
+}
+
+.remove {
+  align-self: start;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.footer {
+  padding: 12px 16px 16px;
+  border-top: 1px solid #e5e7eb;
+  display: grid;
+  gap: 10px;
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+}
+.muted {
+  color: #6b7280;
+  font-size: 12px;
+  margin: 0;
+}
+.cta,
+.ctaPrimary {
+  display: grid;
+  place-items: center;
+  height: 44px;
+  border-radius: 12px;
+  font-weight: 800;
+  border: 1px solid;
+}
+.cta {
+  background: #fff;
+  border-color: #e5e7eb;
+  color: #111827;
+}
+.cta:hover {
+  background: #f9fafb;
+}
+.ctaPrimary {
+  background: #b21e2b;
+  border-color: #b21e2b;
+  color: #fff;
+}
+.ctaPrimary:hover {
+  filter: brightness(0.96);
+}

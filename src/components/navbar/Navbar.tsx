@@ -11,6 +11,9 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import styles from './Navbar.module.scss';
 
 const CartIcon = dynamic(() => import('@/components/ecommerce/basket/CartIcon'), { ssr: false });
+const CartDrawer = dynamic(() => import('@/components/ecommerce/basket/CartDrawer'), {
+  ssr: false
+});
 const LoginOrAccount = dynamic(() => import('@/components/ecommerce/login/LoginOrAccount'), {
   ssr: false
 });
@@ -122,6 +125,9 @@ function NavbarInner() {
           })}
         </nav>
       )}
+
+      {/* Mount the cart drawer once so it works site-wide */}
+      <CartDrawer />
     </header>
   );
 }

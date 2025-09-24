@@ -1,17 +1,18 @@
-"use client";
-import React from 'react';
+// src/components/ecommerce/basket/CartIcon.tsx
+'use client';
 
-import Link from "next/link";
-import { FaShoppingCart } from "react-icons/fa";
-import styles from "./CartIcon.module.scss";
+import { useCart } from '@/lib/cart-store';
+import { ShoppingCart } from 'lucide-react';
+import styles from './CartIcon.module.scss';
 
 export default function CartIcon() {
+  const open = useCart((s) => s.open);
+  const count = useCart((s) => s.count());
+
   return (
-    <Link href="/cart" className={styles.cartIcon} aria-label="Cart">
-      <FaShoppingCart />
-      {/* If you want a badge later:
-      <span className={styles.badge}>3</span>
-      */}
-    </Link>
+    <button className={styles.icon} aria-label="Open cart" onClick={open}>
+      <ShoppingCart />
+      {count > 0 && <span className={styles.badge}>{count}</span>}
+    </button>
   );
 }

@@ -149,6 +149,10 @@ model User {
   // Audit
   audits         UserAudit[]
 
+  // NEW — Orders & Addresses
+  orders         Order[]
+  addresses      Address[]
+
   @@index([email])
   @@index([deletedAt])
   @@index([isAnonymized])
@@ -309,4 +313,115 @@ model PushSubscription {
   adminEmail   String?
   endpointJson String
   createdAt    DateTime @default(now())
+}
+
+/* =========================================================
+   NEW — Orders, OrderItems, Address, and enums
+========================================================= */
+
+enum OrderStatus {
+  DRAFT
+  PLACED
+  PAID
+  FULFILLED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  PARTIAL_REFUND
+  REFUNDED
+  FAILED
+}
+
+model Address {
+  id         String   @id @default(cuid())
+
+  // optional owner (for saved addresses)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // matches your TS/checkout form
+  firstName  String?
+  lastName   String?
+  line1      String
+  line2      String?
+  city       String
+  postcode   String
+  country    String    // ISO 3166-1 alpha-2 (e.g., "GB")
+  phoneE164  String?
+
+  // used by your route code (optional)
+  kind       String?   // "SHIPPING" | "BILLING"
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // back-relations to orders
+  shippingFor Order[]  @relation("ShippingAddress")
+  billingFor  Order[]  @relation("BillingAddress")
+}
+
+model Order {
+  id                String        @id @default(cuid())
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  // nullable for guest checkout
+  userId            String?
+  user              User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // required so guests have a receipt target
+  contactEmail      String
+
+  status            OrderStatus   @default(DRAFT)
+  paymentStatus     PaymentStatus @default(PENDING)
+
+  currency          String        @default("GBP")
+  subtotal          Int           @default(0) // pence
+  shippingTotal     Int           @default(0)
+  discountTotal     Int           @default(0)
+  taxTotal          Int           @default(0)
+  grandTotal        Int           @default(0)
+
+  shippingAddressId String?
+  shippingAddress   Address?      @relation("ShippingAddress", fields: [shippingAddressId], references: [id], onDelete: SetNull)
+
+  billingAddressId  String?
+  billingAddress    Address?      @relation("BillingAddress", fields: [billingAddressId], references: [id], onDelete: SetNull)
+
+  paymentProvider   String?
+  paymentIntentId   String?
+  paymentRef        String?
+
+  notes             String?
+
+  items             OrderItem[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId   String?
+  sku         String?
+  name        String
+  imageUrl    String?
+
+  unitPrice   Int
+  quantity    Int      @default(1)
+  lineTotal   Int      @default(0)
+
+  options     Json?
+
+  createdAt   DateTime @default(now())
+
+  @@index([orderId])
 }
