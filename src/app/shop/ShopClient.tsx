@@ -1,3 +1,4 @@
+// src/app/shop/ShopClient.tsx
 'use client';
 
 import CategorySidebar from '@/components/shop/CategorySidebar';
@@ -13,68 +14,56 @@ interface ApiResponse {
   pageCount?: number;
 }
 
-interface Bounds {
-  min: number;
-  max: number;
-}
+const DEMO_PRODUCTS: Product[] = [
+  {
+    id: 'demo-1',
+    title: 'Prince Foods Peanut Crunch 200g',
+    description: 'Light, crispy, and perfectly roasted peanut crunch — a classic tea-time snack.',
+    imageUrl: '/assets/prince-foods-logo.png',
+    price: 1.99
+  } as Product
+];
 
 export default function ShopClient() {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
-
   const [products, setProducts] = useState<Product[]>([]);
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState(1);
+  const [minPrice, setMinPrice] = useState<number | null>(null);
+  const [maxPrice, setMaxPrice] = useState<number | null>(null);
 
-  // price slider state
-  const [priceBounds, setPriceBounds] = useState<Bounds | null>(null);
-  const [currentPrice, setCurrentPrice] = useState<{ min: number | null; max: number | null }>({
-    min: null,
-    max: null
-  });
-
-  // fetch min/max once
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const res = await fetch('/api/shop/price-range', { cache: 'no-store' });
-      const data = (await res.json().catch(() => ({}))) as
-        | { ok: true; min: number; max: number }
-        | { ok: false };
-      if (cancelled) return;
-      if (data && 'ok' in data && data.ok) {
-        setPriceBounds({ min: data.min, max: data.max });
-        // initialize current range to full bounds
-        setCurrentPrice({ min: data.min, max: data.max });
-      } else {
-        setPriceBounds(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // fetch products when filters change
   useEffect(() => {
     const params = new URLSearchParams();
     if (selectedSlug) params.set('collection', selectedSlug);
-    if (currentPrice.min != null) params.set('min', String(currentPrice.min));
-    if (currentPrice.max != null) params.set('max', String(currentPrice.max));
+    if (minPrice != null) params.set('min', String(minPrice));
+    if (maxPrice != null) params.set('max', String(maxPrice));
     params.set('page', String(page));
 
     let cancelled = false;
     (async () => {
-      const res = await fetch(`/api/products?${params.toString()}`, { cache: 'no-store' });
-      const data = (await res.json().catch(() => ({}))) as ApiResponse;
-      if (cancelled) return;
-      setProducts(data.products ?? []);
-      setPageCount(Number(data.pageCount ?? 1));
+      try {
+        const res = await fetch(`/api/products?${params.toString()}`, { cache: 'no-store' });
+        const data = (await res.json().catch(() => ({}))) as ApiResponse;
+        if (cancelled) return;
+
+        const list = Array.isArray(data.products) ? data.products : [];
+        setProducts(list);
+        setPageCount(Number(data.pageCount ?? 1));
+      } catch {
+        if (!cancelled) {
+          setProducts([]);
+          setPageCount(1);
+        }
+      }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [selectedSlug, page, currentPrice.min, currentPrice.max]);
+  }, [selectedSlug, page, minPrice, maxPrice]);
+
+  const showDemo = products.length === 0;
+  const displayProducts = showDemo ? DEMO_PRODUCTS : products;
 
   return (
     <div className={styles.wrapper}>
@@ -85,10 +74,11 @@ export default function ShopClient() {
             setSelectedSlug(slug);
             setPage(1);
           }}
-          priceBounds={priceBounds}
-          currentPrice={currentPrice}
+          priceBounds={null}
+          currentPrice={{ min: minPrice, max: maxPrice }}
           onPriceChange={(min, max) => {
-            setCurrentPrice({ min, max });
+            setMinPrice(min);
+            setMaxPrice(max);
             setPage(1);
           }}
         />
@@ -97,25 +87,26 @@ export default function ShopClient() {
           <h2>{selectedSlug ? selectedSlug.replace(/-/g, ' ') : 'All Products'}</h2>
 
           <div className={styles.productGrid}>
-            {products.length ? (
-              products.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  onAddToCart={(id, qty) => {
-                    // integrate with your cart/store here
-                    console.log('ADD', id, qty);
-                  }}
-                />
-              ))
-            ) : (
-              <p>No products found.</p>
-            )}
+            {displayProducts.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
           </div>
 
-          <div className={styles.paginationWrap}>
-            <Pagination page={page} pageCount={pageCount} onChange={setPage} />
-          </div>
+          {!showDemo && displayProducts.length === 0 && (
+            <p style={{ color: 'var(--text-muted)' }}>No products found.</p>
+          )}
+
+          {!showDemo && (
+            <div className={styles.paginationWrap}>
+              <Pagination page={page} pageCount={pageCount} onChange={setPage} />
+            </div>
+          )}
+
+          {showDemo && (
+            <p style={{ marginTop: 12, color: 'var(--text-muted)', fontSize: 13 }}>
+              Showing a sample product preview. Add products to the catalog and this will disappear.
+            </p>
+          )}
         </div>
       </div>
     </div>

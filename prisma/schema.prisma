@@ -1,16 +1,18 @@
+// ---------- Prisma Client ----------
 generator client {
   provider = "prisma-client-js"
 }
 
+// ---------- Database ----------
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_DATABASE_URL")
 }
 
-/* -------------------------
-   Products (yours + categoryId added)
--------------------------- */
+/* =========================
+   PRODUCTS + CATEGORIES
+========================= */
 model Product {
   id                          String   @id
   fieldType                   String
@@ -78,9 +80,6 @@ model Product {
   @@index([categoryId])
 }
 
-/* -------------------------
-   Category hierarchy (NEW)
--------------------------- */
 model Category {
   id        String     @id @default(cuid())
   name      String
@@ -97,13 +96,13 @@ model Category {
   products  Product[]
 }
 
-/* -------------------------
-   Users (+ Wix, + OAuth, + Welcome + Email Verify)
--------------------------- */
+/* =========================
+   USERS + AUTH + AUDIT
+========================= */
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
-  password     String?          // optional for Wix imports
+  password     String?
   name         String
   role         Role     @default(VIEWER)
 
@@ -125,13 +124,12 @@ model User {
   welcomeStatus WelcomeStatus @default(PENDING)
   welcomedAt    DateTime?
 
-  // NEW: for verification flow
   emailVerified DateTime?
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  // NEW — Restriction / Erasure
+  // Restriction / Erasure
   deletedAt       DateTime?
   deletionReason  String?
   restrictedAt    DateTime?
@@ -139,17 +137,17 @@ model User {
   anonymizedAt    DateTime?
   isAnonymized    Boolean  @default(false)
 
-  // OAuth relations
+  // OAuth / sessions
   accounts       Account[]
   sessions       Session[]
 
-  // OTP / token relations
+  // OTP / tokens
   passwordTokens PasswordToken[]
 
   // Audit
   audits         UserAudit[]
 
-  // NEW — Orders & Addresses
+  // Orders & Addresses
   orders         Order[]
   addresses      Address[]
 
@@ -175,14 +173,13 @@ enum WelcomeStatus {
   COMPLETED
 }
 
-/* --- NEW: Audit enums & model --- */
 enum UserAuditAction {
   CREATE
   UPDATE
-  RESTRICT          // soft-delete / processing restricted
-  ANONYMIZE         // pseudonymize personal fields
+  RESTRICT
+  ANONYMIZE
   RESTORE
-  HARD_DELETE       // avoid unless absolutely needed
+  HARD_DELETE
 }
 
 model UserAudit {
@@ -201,7 +198,7 @@ model UserAudit {
   @@index([userId, createdAt])
 }
 
-/* --- Auth.js adapter tables for Google OAuth & sessions --- */
+/* ---------- Auth.js adapter ---------- */
 model Account {
   id                 String  @id @default(cuid())
   userId             String
@@ -243,7 +240,7 @@ model PasswordToken {
   id        String   @id @default(cuid())
   userId    String
   token     String   @unique
-  code      String?  // 6-digit code for email verification
+  code      String?
   expiresAt DateTime
   usedAt    DateTime?
 
@@ -252,9 +249,9 @@ model PasswordToken {
   @@index([userId])
 }
 
-/* -------------------------
-   Knowledge base (yours unchanged)
--------------------------- */
+/* =========================
+   CONTENT (FAQ / Policies)
+========================= */
 model Faq {
   id        String   @id @default(cuid())
   question  String   @unique
@@ -272,9 +269,9 @@ model PolicyDoc {
   updatedAt DateTime @updatedAt
 }
 
-/* -------------------------
-   Chat + SLA (yours unchanged)
--------------------------- */
+/* =========================
+   CHAT + SLA + PUSH
+========================= */
 model ChatThread {
   id        String     @id @default(cuid())
   userKey   String
@@ -289,7 +286,7 @@ model ChatThread {
   emailEscalationSentAt    DateTime?
   slaMinutes               Int        @default(10)
 
-  // (Recommended for email bridge)
+  // Email bridge
   customerEmail            String?
 }
 
@@ -305,9 +302,6 @@ model ChatMessage {
   @@index([threadId, createdAt])
 }
 
-/* -------------------------
-   Admin Push (yours unchanged)
--------------------------- */
 model PushSubscription {
   id           String   @id @default(cuid())
   adminEmail   String?
@@ -315,10 +309,9 @@ model PushSubscription {
   createdAt    DateTime @default(now())
 }
 
-/* =========================================================
-   NEW — Orders, OrderItems, Address, and enums
-========================================================= */
-
+/* =========================
+   ORDERS + ADDRESSES
+========================= */
 enum OrderStatus {
   DRAFT
   PLACED
@@ -344,7 +337,6 @@ model Address {
   userId     String?
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  // matches your TS/checkout form
   firstName  String?
   lastName   String?
   line1      String
@@ -353,14 +345,12 @@ model Address {
   postcode   String
   country    String    // ISO 3166-1 alpha-2 (e.g., "GB")
   phoneE164  String?
-
-  // used by your route code (optional)
   kind       String?   // "SHIPPING" | "BILLING"
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  // back-relations to orders
+  // back-relations
   shippingFor Order[]  @relation("ShippingAddress")
   billingFor  Order[]  @relation("BillingAddress")
 }
@@ -370,11 +360,9 @@ model Order {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
-  // nullable for guest checkout
   userId            String?
   user              User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  // required so guests have a receipt target
   contactEmail      String
 
   status            OrderStatus   @default(DRAFT)
@@ -424,4 +412,18 @@ model OrderItem {
   createdAt   DateTime @default(now())
 
   @@index([orderId])
+}
+
+/* =========================
+   HOME SETTINGS (NEW)
+========================= */
+model HomeSettings {
+  id               Int      @id @default(1)
+  hero             Json     @default("{}")
+  delivery         Json     @default("{}")
+  instagram        Json     @default("{}")
+  promotions       Json     @default("[]")
+  productShowcase  Json     @default("{}")
+  reviews          Json     @default("{}")
+  updatedAt        DateTime @updatedAt
 }

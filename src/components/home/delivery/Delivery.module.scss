@@ -1,35 +1,79 @@
 .deliveryWrapper {
-  background: #ccc;
-  padding: 3rem 2rem;
-  text-align: center;
+  background: var(--color-bg-light);
+  /* remove the top seam */
+  border-top: none;
+  border-bottom: 1px solid var(--border);
+  padding: 0 var(--gutter) 2.5rem;
+  margin-top: 0;
 }
 
 .container {
-  display: flex;
-  justify-content: center;
-  gap: 5rem;
-  flex-wrap: wrap;
+  max-width: var(--max-content-width);
+  margin: 0 auto;
 }
 
-.block {
-  max-width: 300px;
-  color: white;
+.headingBlock {
+  text-align: center;
+  padding-top: 0;
+  margin: 0 0 1.25rem;
 
-  svg {
-    margin-bottom: 1rem;
-    color: white;
-  }
-
-  h3 {
-    font-size: 1.1rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    margin-bottom: 1rem;
-    letter-spacing: 1px;
+  h2 {
+    margin: 0; /* kill collapsed margins */
+    font-size: clamp(1.25rem, 1.4rem + 1vw, 1.8rem);
+    font-weight: 800;
+    color: var(--text-dark);
+    letter-spacing: 0.2px;
   }
 
   p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.975rem;
+  }
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 1.25rem;
+
+  @media (max-width: 720px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  background: var(--pf-card);
+  box-shadow: var(--shadow-1);
+  border: 1px solid var(--border);
+
+  svg {
+    color: var(--primary);
+    flex: 0 0 auto;
+    margin-top: 0.25rem;
+  }
+
+  h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-dark);
+    letter-spacing: 0.3px;
+  }
+
+  ul {
+    margin: 0.35rem 0 0;
+    padding-left: 1rem;
+  }
+
+  li {
+    color: var(--color-text);
     font-size: 0.95rem;
-    margin: 0.25rem 0;
+    line-height: 1.45;
   }
 }

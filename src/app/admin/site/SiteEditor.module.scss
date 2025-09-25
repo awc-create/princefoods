@@ -1,0 +1,175 @@
+.wrap {
+  display: grid;
+  gap: 12px;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.header h1 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.saveBtn {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.savedHint {
+  color: #059669;
+  font-weight: 700;
+}
+.errorHint {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tab {
+  border: 1px solid var(--pf-border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-weight: 700;
+}
+.tabActive {
+  background: #fff0f0;
+  border-color: #fecaca;
+  color: var(--pf-red);
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid var(--pf-border);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+.label {
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: #333;
+}
+.help {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.input {
+  border: 1px solid var(--pf-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.95rem;
+  background: #fff;
+}
+
+.grid2 {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.grid3 {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 900px) {
+  .grid3 {
+    grid-template-columns: 1fr;
+  }
+  .grid2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stack {
+  display: grid;
+  gap: 12px;
+}
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.templateBar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.templateBtn {
+  border: 1px dashed var(--pf-border);
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.card {
+  border: 1px solid var(--pf-border);
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.badge {
+  border: 1px solid var(--pf-border);
+  background: #fff;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.badgeActive {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.secondary {
+  border: 1px solid var(--pf-border);
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.danger {
+  border: 1px solid #fecaca;
+  background: #fff5f5;
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.empty {
+  color: #6b7280;
+}

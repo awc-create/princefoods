@@ -29,15 +29,17 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <Providers>
-          {/* Guard everything that might use useSearchParams (Navbar, etc.) */}
-          <Suspense fallback={<div style={{ height: 64 }} />}>
-            <ClientShell modal={modal}>{children}</ClientShell>
-          </Suspense>
+          <div className="page-wrapper">
+            {/* Guard everything that might use useSearchParams (Navbar, etc.) */}
+            <Suspense fallback={<div style={{ height: 64 }} />}>
+              <ClientShell modal={modal}>{children}</ClientShell>
+            </Suspense>
 
-          {/* Guard ModalLayer too if it reads ?from or other params */}
-          <Suspense fallback={null}>
-            <ModalLayer />
-          </Suspense>
+            {/* Guard ModalLayer too if it reads ?from or other params */}
+            <Suspense fallback={null}>
+              <ModalLayer />
+            </Suspense>
+          </div>
         </Providers>
       </body>
     </html>

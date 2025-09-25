@@ -1,4 +1,3 @@
-// src/app/admin/layout.tsx
 'use client';
 
 import '@/styles/Global.scss';
@@ -10,7 +9,7 @@ import styles from './Admin.module.scss';
 import SetupPush from './SetupPush';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
-type GroupKey = 'dashboard' | 'products' | 'operations' | 'admin';
+type GroupKey = 'dashboard' | 'site' | 'products' | 'operations' | 'admin';
 
 interface UserWithRole {
   email?: string | null;
@@ -39,6 +38,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         title: 'Dashboard',
         kind: 'list' as const,
         items: [{ href: '/admin', label: 'Overview' }]
+      },
+      {
+        key: 'site' as const,
+        title: 'Site Editing',
+        kind: 'list' as const,
+        items: [
+          { href: '/admin/site', label: 'Home' },
+          { href: '/admin/site/about', label: 'About' },
+          { href: '/admin/site/faq', label: 'FAQ' },
+          { href: '/admin/site/contact', label: 'Contact' }
+        ]
       },
       {
         key: 'products' as const,
@@ -71,6 +81,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   );
 
   const activeGroup = useMemo<GroupKey>(() => {
+    if (safePath.startsWith('/admin/site')) return 'site';
     if (safePath.startsWith('/admin/products')) return 'products';
     if (
       safePath.startsWith('/admin/chat') ||
@@ -84,6 +95,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const [open, setOpen] = useState<Record<GroupKey, boolean>>({
     dashboard: false,
+    site: true,
     products: false,
     operations: false,
     admin: false
@@ -93,7 +105,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // Auth gate (skip when on login path)
   useEffect(() => {
-    if (onLogin) return; // ← important
+    if (onLogin) return;
     if (status === 'loading') return;
 
     const r: Role | undefined = hasRole(data?.user)
@@ -110,7 +122,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // Restore open-state
   useEffect(() => {
-    if (onLogin) return; // ← skip on login page
+    if (onLogin) return;
     try {
       const raw = localStorage.getItem('pf:admin:navOpen');
       if (raw) setOpen((prev) => ({ ...prev, ...JSON.parse(raw) }));
@@ -123,7 +135,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // Persist changes
   useEffect(() => {
-    if (onLogin) return; // ← skip on login page
+    if (onLogin) return;
     try {
       localStorage.setItem('pf:admin:navOpen', JSON.stringify(open));
     } catch {}

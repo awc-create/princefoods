@@ -1,11 +1,12 @@
+// src/app/ClientShell.tsx
 'use client';
 
 import PrinceChat from '@/components/chat/PrinceChat';
+import CartDrawer from '@/components/ecommerce/basket/CartDrawer';
 import Footer from '@/components/footer/Footer';
 import Navbar from '@/components/navbar/Navbar';
 import { usePathname } from 'next/navigation';
 import React from 'react';
-import Providers from './providers';
 
 export default function ClientShell({
   children,
@@ -18,12 +19,14 @@ export default function ClientShell({
   const isAdmin = pathname?.startsWith('/admin') ?? false;
 
   return (
-    <Providers>
+    <>
       <Navbar />
       <main>{children}</main>
       {modal}
       {!isAdmin && <PrinceChat />}
       <Footer />
-    </Providers>
+      {/* Basket drawer lives globally */}
+      <CartDrawer />
+    </>
   );
 }

@@ -1,10 +1,10 @@
 /* ========== Admin Layout (compact, tidy) ========== */
-
+// src/app/admin/Admin.module.scss
 .adminWrapper {
   display: flex;
   min-height: 100vh;
   background: var(--pf-bg);
-  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
 }
 
 /* ---------- Sidebar ---------- */
@@ -22,65 +22,189 @@
   overflow-y: auto;
 }
 
-.logo { font-size: 1.35rem; font-weight: 800; color: var(--pf-red); line-height: 1.1; margin: 2px 6px 2px; }
-
-.loggedIn { font-size: 12px; color: var(--pf-muted); margin: 0 6px 4px; line-height: 1.4;
-  strong { color: #444; font-weight: 700; }
+.logo {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--pf-red);
+  line-height: 1.1;
+  margin: 2px 6px 2px;
 }
 
-.sectionTitle { margin: 10px 6px 6px; font-size: 14px; font-weight: 800; color: #3a3a3a; letter-spacing: .2px; }
+.loggedIn {
+  font-size: 12px;
+  color: var(--pf-muted);
+  margin: 0 6px 4px;
+  line-height: 1.4;
+  strong {
+    color: #444;
+    font-weight: 700;
+  }
+}
 
-.nav { display: flex; flex-direction: column; gap: 6px; padding-left: 6px; }
+.sectionTitle {
+  margin: 10px 6px 6px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #3a3a3a;
+  letter-spacing: 0.2px;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 6px;
+}
 
 .navLink {
-  display: inline-block; text-decoration: none; color: var(--pf-fg); font-weight: 700; font-size: 14px;
-  padding: 6px 8px; border-radius: 6px; transition: background .15s ease, color .15s ease;
-  &:hover { background: #f8fafc; color: var(--pf-red); }
-  &:focus-visible { outline: 2px solid var(--pf-red); outline-offset: 2px; }
+  display: inline-block;
+  text-decoration: none;
+  color: var(--pf-fg);
+  font-weight: 700;
+  font-size: 14px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+  &:hover {
+    background: #f8fafc;
+    color: var(--pf-red);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--pf-red);
+    outline-offset: 2px;
+  }
 }
 
-.active { background: #f8fafc; color: var(--pf-red); }
+.active {
+  background: #f8fafc;
+  color: var(--pf-red);
+}
 
-.group { margin-top: 4px; }
+.group {
+  margin-top: 4px;
+}
 
 .groupHeaderBtn {
-  width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 6px 6px;
-  border: none; background: transparent; cursor: pointer; border-radius: 8px; transition: background .15s ease;
-  &:hover { background: #f8fafc; }
-  &:focus-visible { outline: 2px solid var(--pf-red); outline-offset: 2px; }
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+  &:hover {
+    background: #f8fafc;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--pf-red);
+    outline-offset: 2px;
+  }
 }
 
-.groupTitle { font-size: 14px; font-weight: 800; color: #3a3a3a; }
+.groupTitle {
+  font-size: 14px;
+  font-weight: 800;
+  color: #3a3a3a;
+}
 
 .groupIcon {
-  width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--pf-border); background: #fff;
-  color: #444; display: inline-grid; place-items: center; line-height: 1; font-weight: 800;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--pf-border);
+  background: #fff;
+  color: #444;
+  display: inline-grid;
+  place-items: center;
+  line-height: 1;
+  font-weight: 800;
 }
 
-.pillBar { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 6px 2px; }
+.pillBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 6px 2px;
+}
 
 .pill {
-  text-decoration: none; color: #333; background: var(--pf-chip); border: 1px solid var(--pf-border); border-radius: 999px;
-  padding: 6px 10px; font-size: 13px; font-weight: 700; line-height: 1; transition: background .15s ease, color .15s ease, border-color .15s ease;
-  &:hover { background: #eaecef; color: var(--pf-red); }
-  &:focus-visible { outline: 2px solid var(--pf-red); outline-offset: 2px; }
+  text-decoration: none;
+  color: #333;
+  background: var(--pf-chip);
+  border: 1px solid var(--pf-border);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+  &:hover {
+    background: #eaecef;
+    color: var(--pf-red);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--pf-red);
+    outline-offset: 2px;
+  }
 }
 
-.pillActive { background: var(--pf-chip-active); border-color: #fecaca; color: var(--pf-red); }
+.pillActive {
+  background: var(--pf-chip-active);
+  border-color: #fecaca;
+  color: var(--pf-red);
+}
 
-.adminMain { flex: 1; min-width: 0; padding: 28px; background: var(--pf-bg); }
+.adminMain {
+  flex: 1;
+  min-width: 0;
+  padding: 28px;
+  background: var(--pf-bg);
+}
 
 .dashboardStats {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
 }
 
 .statCard {
-  background: #fff; border: 1px solid var(--pf-border); border-radius: 10px; padding: 14px 16px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,.03);
-  h2 { font-size: .95rem; color: #777; margin: 0 0 6px; }
-  p { font-size: 1.7rem; font-weight: 800; color: var(--pf-red); margin: 0; }
+  background: #fff;
+  border: 1px solid var(--pf-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  h2 {
+    font-size: 0.95rem;
+    color: #777;
+    margin: 0 0 6px;
+  }
+  p {
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: var(--pf-red);
+    margin: 0;
+  }
 }
 
 @media (max-width: 720px) {
-  .adminWrapper { flex-direction: column; }
-  .adminSidebar { position: relative; height: auto; width: 100%; border-right: 0; border-bottom: 1px solid var(--pf-border); }
+  .adminWrapper {
+    flex-direction: column;
+  }
+  .adminSidebar {
+    position: relative;
+    height: auto;
+    width: 100%;
+    border-right: 0;
+    border-bottom: 1px solid var(--pf-border);
+  }
 }

@@ -1,26 +1,26 @@
 .card {
   display: flex;
   flex-direction: column;
-  background: var(--pf-card, #fff);
-  border: 1px solid var(--pf-border, var(--border));
+  background: var(--pf-card);
+  border: 1px solid var(--pf-border);
   border-radius: 16px;
   padding: 14px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.04);
   transition:
     transform 0.18s ease,
     box-shadow 0.18s ease;
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
   }
 }
 
-/* ---- image ---- */
+/* image */
 .imageWrap {
   position: relative;
   width: 100%;
-  height: var(--card-img-h, 190px);
+  height: 180px;
   overflow: hidden;
   border-radius: 12px;
   background: #f7f7f7;
@@ -29,102 +29,72 @@
   object-fit: contain;
 }
 
-.badge {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  background: #f3f4f6;
-  border: 1px solid var(--pf-border, var(--border));
-  border-radius: 999px;
-  padding: 3px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #333;
-}
-
+/* tiny tag (kept, optional) */
 .quick {
   position: absolute;
   top: 8px;
-  right: 8px;
-  background: rgba(0, 0, 0, 0.58);
+  left: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.65);
   color: #fff;
   font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-.imageWrap:hover .quick {
-  opacity: 1;
-}
-
-/* ---- text ---- */
-.title {
-  margin: 10px 4px 0;
   font-weight: 600;
-  font-size: var(--sz-title, 15px);
-  --lh: 1.25;
-  line-height: var(--lh);
-
-  /* reserve N lines so price aligns across cards */
-  min-height: calc(var(--sz-title, 15px) * var(--title-lines, 2) * var(--lh));
-
-  color: var(--pf-text, var(--text-dark));
-  display: -webkit-box;
-  -webkit-line-clamp: var(--title-lines, 2);
-  line-clamp: var(--title-lines, 2); /* standards track (lint hint) */
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  letter-spacing: 0.2px;
+  opacity: 0.9;
 }
 
-.priceRow {
-  margin: 6px 4px 0;
-}
-.price {
-  font-weight: 800;
-  color: var(--pf-price, var(--text-dark));
-  font-size: var(--sz-price, 15px);
-}
-
-/* ---- buy row ---- */
-.buyRow {
+/* ---- text blocks / shared left edge ---- */
+/* Create a consistent inner gutter so the first character
+   of each line starts at the SAME x-position. */
+.content {
+  padding-inline: 4px; /* same for title, price, and actions */
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 10px;
+  grid-auto-rows: min-content;
+  row-gap: 10px; /* 👈 exactly 10px between lines/rows */
+}
+
+/* title */
+.title {
+  margin: 0; /* spacing handled by .content row-gap */
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--pf-text);
+}
+
+/* price */
+.price {
+  display: inline-block;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--pf-price);
+  vertical-align: baseline; /* keeps £ aligned with text baseline */
+  letter-spacing: -0.2px;
+}
+
+/* actions row */
+.actions {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
+  gap: 12px;
 
-  opacity: 0;
-  transform: translateY(4px);
-  max-height: 0;
-  pointer-events: none;
-  overflow: hidden;
-  transition:
-    opacity 0.18s ease,
-    transform 0.18s ease,
-    max-height 0.18s ease;
+  padding-top: 10px;
+  border-top: 1px solid #f0f0f0; /* subtle divider for clarity */
 }
 
-.card:hover .buyRow,
-.card:focus-within .buyRow {
-  opacity: 1;
-  transform: translateY(0);
-  max-height: 80px;
-  pointer-events: auto;
-  margin-top: 8px;
-}
-
-/* qty */
 .qty {
   display: inline-flex;
   align-items: center;
-  border: 1px solid var(--pf-border, var(--border));
+  border: 1px solid var(--pf-border);
   border-radius: 999px;
-  overflow: hidden;
   background: #fff;
+  padding: 0 6px;
 
   button {
-    width: var(--sz-qty, 34px);
-    height: var(--sz-qty, 34px);
+    width: 28px;
+    height: 28px;
     border: 0;
     background: #fff;
     cursor: pointer;
@@ -133,8 +103,8 @@
   }
 
   input {
-    width: var(--sz-qty-input, 44px);
-    height: var(--sz-qty, 34px);
+    width: 34px;
+    height: 28px;
     text-align: center;
     border: 0;
     outline: none;
@@ -142,35 +112,24 @@
   }
 }
 
-/* add button */
 .add {
-  width: 100%;
-  height: 40px;
+  flex: 1;
+  height: 38px;
   border: 0;
-  border-radius: 12px;
-  background: var(--pf-red, #b21e2b);
+  border-radius: 10px;
+  background: var(--pf-red);
   color: #fff;
-  font-weight: 700;
-  font-size: var(--sz-btn, 14px);
+  font-weight: 600;
+  font-size: 13px;
   cursor: pointer;
   transition:
     background 0.15s ease,
     transform 0.05s ease;
 
   &:hover {
-    background: var(--pf-red-d, #9a1a26);
+    background: var(--pf-red-d);
   }
   &:active {
     transform: translateY(1px);
-  }
-}
-
-@media (hover: none) {
-  .buyRow {
-    opacity: 1;
-    transform: none;
-    max-height: 80px;
-    pointer-events: auto;
-    margin-top: 8px;
   }
 }

@@ -1,0 +1,70 @@
+.wrap {
+  position: relative;
+  height: 30px; /* vertical room for thumbs */
+}
+
+/* Track */
+.track {
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  height: 8px;
+  transform: translateY(-50%);
+  background: var(--border, #e5e7eb);
+  border-radius: 999px;
+}
+
+/* Selected range fill */
+.fill {
+  position: absolute;
+  top: 50%;
+  height: 8px;
+  transform: translateY(-50%);
+  background: var(--accent, #6ca51c);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(108, 165, 28, 0.12) inset;
+}
+
+/* Two stacked native ranges -> two thumbs */
+.range {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  background: none;
+  pointer-events: none; /* only thumbs interactive */
+  appearance: none;
+}
+
+.range::-webkit-slider-thumb {
+  pointer-events: auto;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent, #6ca51c);
+  box-shadow: 0 0 0 2px rgba(108, 165, 28, 0.22);
+}
+.range::-moz-range-thumb {
+  pointer-events: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent, #6ca51c);
+  box-shadow: 0 0 0 2px rgba(108, 165, 28, 0.22);
+}
+
+.range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgba(108, 165, 28, 0.28);
+}
+.range:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 4px rgba(108, 165, 28, 0.28);
+}
+
+.left {
+  z-index: 2;
+}
+.right {
+  z-index: 3;
+}
