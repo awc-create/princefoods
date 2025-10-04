@@ -1,3 +1,4 @@
+// src/app/api/admin/site/home/get/route.ts
 import { prisma } from '@/lib/prisma';
 import type { HomeSettingsDTO } from '@/types/homeSettings';
 import { Prisma } from '@prisma/client';
@@ -13,13 +14,18 @@ const DEFAULTS: HomeSettingsDTO = {
     secondaryCtaLabel: 'Browse Collections',
     secondaryCtaHref: '/collections',
     floatingTag: 'New • Onam Favourites',
-    imageUrl: '/assets/slider1.jpg'
+    imageUrl: '/assets/slider1.jpg',
+    // optional windows default to null/undefined
+    overrideStart: null,
+    overrideEnd: null
   },
   delivery: {
     gbFreeThreshold: 30,
     niFreeThreshold: 40,
     frozenFee: 3.99,
-    message: 'No hidden fees. Frozen items are insulated for freshness.'
+    message: 'No hidden fees. Frozen items are insulated for freshness.',
+    overrideStart: null,
+    overrideEnd: null
   },
   instagram: { token: '', usernameUrl: 'https://www.instagram.com/princefoodsuk/', enabled: true },
   promotions: [],
@@ -57,7 +63,8 @@ export async function GET() {
     };
 
     return NextResponse.json({ ok: true, data });
-  } catch {
+  } catch (e) {
+    console.error(e);
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 }

@@ -16,7 +16,11 @@ interface InstagramApiResponse {
   error?: 'missing_token' | 'fetch_failed';
 }
 
-export default function InstagramGrid() {
+export default function InstagramGrid({
+  usernameUrl = 'https://www.instagram.com/princefoodsuk/'
+}: {
+  usernameUrl?: string;
+}) {
   const [data, setData] = useState<InstagramApiResponse>({ items: [] });
   const [loading, setLoading] = useState(true);
 
@@ -43,13 +47,9 @@ export default function InstagramGrid() {
     <section className={styles.wrap} aria-labelledby="ig-heading">
       <div className={styles.header}>
         <h2 id="ig-heading">From Our Instagram</h2>
-        <a
-          className={styles.viewAll}
-          href="https://www.instagram.com/princefoodsuk/"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Follow @princefoodsuk
+        <a className={styles.viewAll} href={usernameUrl} target="_blank" rel="noreferrer">
+          Follow @
+          {usernameUrl.replace(/^https?:\/\/(www\.)?instagram\.com\//, '').replace(/\/$/, '')}
         </a>
       </div>
 
@@ -65,7 +65,7 @@ export default function InstagramGrid() {
         </div>
       ) : (
         <div className={styles.grid} role="list">
-          {items.map((it: InstagramItem) => (
+          {items.map((it) => (
             <a
               key={it.id}
               href={it.url}

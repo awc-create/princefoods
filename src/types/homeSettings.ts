@@ -1,3 +1,18 @@
+// src/types/homeSettings.ts
+
+// ISO string or null for optional time windows
+export type IsoDateString = string | null;
+
+// Small helper for per-field timed override blocks
+export type TimedText =
+  | {
+      text?: string;
+      startAt?: IsoDateString; // local/UTC string; treat consistently in UI
+      endAt?: IsoDateString;
+    }
+  | undefined;
+
+/* ---------- Showcase & Promotions ---------- */
 export type ShowcaseKind =
   | 'best_sellers'
   | 'on_sale'
@@ -19,30 +34,50 @@ export type PromotionTemplateKey =
   | 'summer_bbq'
   | 'back_to_uni';
 
+/* ---------- Hero ---------- */
 export interface HeroSettings {
   title: string;
   subtitle: string;
   primaryCtaLabel: string;
   primaryCtaHref: string;
-  secondaryCtaLabel: string;
-  secondaryCtaHref: string;
-  floatingTag: string;
-  imageUrl: string; // used in the hero card
+  secondaryCtaLabel?: string;
+  secondaryCtaHref?: string;
+  floatingTag?: string;
+  imageUrl: string;
+
+  // Optional global window to treat all hero fields as "seasonal" copy.
+  overrideStart?: IsoDateString;
+  overrideEnd?: IsoDateString;
+
+  // Optional per-field windows (take precedence if defined)
+  titleOverride?: TimedText;
+  subtitleOverride?: TimedText;
+  floatingTagOverride?: TimedText;
 }
 
+/* ---------- Delivery ---------- */
 export interface DeliverySettings {
   gbFreeThreshold: number;
   niFreeThreshold: number;
   frozenFee: number;
-  message: string; // subheading line
+  message?: string;
+
+  // Optional global window
+  overrideStart?: IsoDateString;
+  overrideEnd?: IsoDateString;
+
+  // Optional per-field window
+  messageOverride?: TimedText;
 }
 
+/* ---------- Instagram ---------- */
 export interface InstagramSettings {
   token: string; // long-lived Basic Display token
   usernameUrl: string; // https://instagram.com/...
   enabled: boolean;
 }
 
+/* ---------- Promotions ---------- */
 export interface Promotion {
   key: PromotionTemplateKey | 'custom';
   title: string;
@@ -53,12 +88,14 @@ export interface Promotion {
   active: boolean;
 }
 
+/* ---------- Product Showcase ---------- */
 export interface ProductShowcaseSettings {
   title: string; // heading above the slider
   kinds: ShowcaseKind[]; // selectable filters admin wants available
   selectedKind: ShowcaseKind; // which one to show on the home page
 }
 
+/* ---------- Reviews ---------- */
 export interface ReviewItem {
   id: string;
   name: string;
@@ -71,6 +108,7 @@ export interface ReviewsSettings {
   items: ReviewItem[];
 }
 
+/* ---------- Root DTO ---------- */
 export interface HomeSettingsDTO {
   hero: HeroSettings;
   delivery: DeliverySettings;

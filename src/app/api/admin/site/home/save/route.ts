@@ -1,3 +1,4 @@
+// src/app/api/admin/site/home/save/route.ts
 import { prisma } from '@/lib/prisma';
 import type { HomeSettingsDTO } from '@/types/homeSettings';
 import { Prisma } from '@prisma/client';
@@ -29,7 +30,8 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: false }, { status: 400 });
+  } catch (err) {
+    console.error('HomeSettings save failed:', err);
+    return NextResponse.json({ ok: false, error: 'SAVE_FAILED' }, { status: 400 });
   }
 }
