@@ -38,7 +38,7 @@ export async function GET() {
       return NextResponse.json({ items: [], error: 'disabled' as const }, { status: 200 });
     }
 
-    const token = (ig?.token?.trim() || ENV_TOKEN || '').trim();
+    const token = (ig?.token?.trim() ?? ENV_TOKEN ?? '').trim();
     if (!token) {
       return NextResponse.json({ items: [], error: 'missing_token' as const }, { status: 200 });
     }

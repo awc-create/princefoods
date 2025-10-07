@@ -1,4 +1,3 @@
-// src/app/admin/site/page.tsx
 'use client';
 
 import type {
@@ -128,64 +127,81 @@ export default function SiteHomeEditor() {
 
   return (
     <div className={s.wrap}>
-      <div className={s.header}>
-        <h1>Home Page Editor</h1>
-        <div className={s.actions}>
-          {savedAt && <span className={s.savedHint}>Saved</span>}
-          {error && <span className={s.errorHint}>{error}</span>}
-          <button className={s.saveBtn} onClick={save} disabled={saving}>
-            {saving ? 'Saving…' : 'Save Changes'}
-          </button>
-        </div>
-      </div>
-
-      <div className={s.tabs} role="tablist" aria-label="Home sections">
-        {(['hero', 'delivery', 'instagram', 'promotions', 'showcase', 'reviews'] as Tab[]).map(
-          (t) => (
-            <button
-              key={t}
-              role="tab"
-              aria-selected={tab === t}
-              className={`${s.tab} ${tab === t ? s.tabActive : ''}`}
-              onClick={() => setTab(t)}
-            >
-              {t}
+      <div className={s.container}>
+        <div className={s.header}>
+          <h1>Home Page Editor</h1>
+          <div className={s.actions}>
+            {savedAt && <span className={s.savedHint}>Saved</span>}
+            {error && <span className={s.errorHint}>{error}</span>}
+            <button className={s.saveBtn} onClick={save} disabled={saving}>
+              {saving ? 'Saving…' : 'Save Changes'}
             </button>
-          )
-        )}
-      </div>
+          </div>
+        </div>
 
-      <div className={s.panel}>
-        {tab === 'hero' && <HeroForm value={data.hero} onChange={(v) => setPartial('hero', v)} />}
+        <div className={s.tabs} role="tablist" aria-label="Home sections">
+          {(['hero', 'delivery', 'instagram', 'promotions', 'showcase', 'reviews'] as Tab[]).map(
+            (t) => (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={tab === t}
+                className={`${s.tab} ${tab === t ? s.tabActive : ''}`}
+                onClick={() => setTab(t)}
+              >
+                {t}
+              </button>
+            )
+          )}
+        </div>
 
-        {tab === 'delivery' && (
-          <DeliveryForm value={data.delivery} onChange={(v) => setPartial('delivery', v)} />
-        )}
+        <div className={s.panel}>
+          <section className={s.section}>
+            <div className={s.sectionHeader}>
+              <h2>{tab.toUpperCase()}</h2>
+            </div>
+            <div className={s.sectionBody}>
+              {tab === 'hero' && (
+                <HeroForm value={data.hero} onChange={(v) => setPartial('hero', v)} />
+              )}
 
-        {tab === 'instagram' && (
-          <InstagramForm value={data.instagram} onChange={(v) => setPartial('instagram', v)} />
-        )}
+              {tab === 'delivery' && (
+                <DeliveryForm value={data.delivery} onChange={(v) => setPartial('delivery', v)} />
+              )}
 
-        {tab === 'promotions' && (
-          <PromotionsForm value={data.promotions} onChange={(v) => setPartial('promotions', v)} />
-        )}
+              {tab === 'instagram' && (
+                <InstagramForm
+                  value={data.instagram}
+                  onChange={(v) => setPartial('instagram', v)}
+                />
+              )}
 
-        {tab === 'showcase' && (
-          <ShowcaseForm
-            value={data.productShowcase}
-            onChange={(v) => setPartial('productShowcase', v)}
-          />
-        )}
+              {tab === 'promotions' && (
+                <PromotionsForm
+                  value={data.promotions}
+                  onChange={(v) => setPartial('promotions', v)}
+                />
+              )}
 
-        {tab === 'reviews' && (
-          <ReviewsForm value={data.reviews} onChange={(v) => setPartial('reviews', v)} />
-        )}
+              {tab === 'showcase' && (
+                <ShowcaseForm
+                  value={data.productShowcase}
+                  onChange={(v) => setPartial('productShowcase', v)}
+                />
+              )}
+
+              {tab === 'reviews' && (
+                <ReviewsForm value={data.reviews} onChange={(v) => setPartial('reviews', v)} />
+              )}
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );
 }
 
-/* ----------------- section forms ----------------- */
+/* ----------------- Reusable Field ----------------- */
 function Field({
   label,
   children,
@@ -204,6 +220,7 @@ function Field({
   );
 }
 
+/* ----------------- HERO ----------------- */
 function HeroForm({
   value,
   onChange
@@ -226,91 +243,101 @@ function HeroForm({
   };
 
   return (
-    <div className={s.grid2}>
-      <Field label="Title">
-        <input
-          className={s.input}
-          value={value.title}
-          onChange={(e) => onChange({ ...value, title: e.target.value })}
-        />
-      </Field>
-      <Field label="Subtitle">
-        <input
-          className={s.input}
-          value={value.subtitle}
-          onChange={(e) => onChange({ ...value, subtitle: e.target.value })}
-        />
-      </Field>
-      <Field label="Primary CTA Label">
-        <input
-          className={s.input}
-          value={value.primaryCtaLabel}
-          onChange={(e) => onChange({ ...value, primaryCtaLabel: e.target.value })}
-        />
-      </Field>
-      <Field label="Primary CTA Link">
-        <input
-          className={s.input}
-          value={value.primaryCtaHref}
-          onChange={(e) => onChange({ ...value, primaryCtaHref: e.target.value })}
-        />
-      </Field>
-      <Field label="Secondary CTA Label">
-        <input
-          className={s.input}
-          value={value.secondaryCtaLabel ?? ''}
-          onChange={(e) => onChange({ ...value, secondaryCtaLabel: e.target.value })}
-        />
-      </Field>
-      <Field label="Secondary CTA Link">
-        <input
-          className={s.input}
-          value={value.secondaryCtaHref ?? ''}
-          onChange={(e) => onChange({ ...value, secondaryCtaHref: e.target.value })}
-        />
-      </Field>
-      <Field label="Floating Tag">
-        <input
-          className={s.input}
-          value={value.floatingTag ?? ''}
-          onChange={(e) => onChange({ ...value, floatingTag: e.target.value })}
-        />
-      </Field>
+    <div className={s.stack}>
+      <div className={s.grid2}>
+        <Field label="Title">
+          <input
+            className={s.input}
+            value={value.title}
+            onChange={(e) => onChange({ ...value, title: e.target.value })}
+          />
+        </Field>
+        <Field label="Subtitle">
+          <input
+            className={s.input}
+            value={value.subtitle}
+            onChange={(e) => onChange({ ...value, subtitle: e.target.value })}
+          />
+        </Field>
+        <Field label="Primary CTA Label">
+          <input
+            className={s.input}
+            value={value.primaryCtaLabel}
+            onChange={(e) => onChange({ ...value, primaryCtaLabel: e.target.value })}
+          />
+        </Field>
+        <Field label="Primary CTA Link">
+          <input
+            className={s.input}
+            value={value.primaryCtaHref}
+            onChange={(e) => onChange({ ...value, primaryCtaHref: e.target.value })}
+          />
+        </Field>
+        <Field label="Secondary CTA Label">
+          <input
+            className={s.input}
+            value={value.secondaryCtaLabel ?? ''}
+            onChange={(e) => onChange({ ...value, secondaryCtaLabel: e.target.value })}
+          />
+        </Field>
+        <Field label="Secondary CTA Link">
+          <input
+            className={s.input}
+            value={value.secondaryCtaHref ?? ''}
+            onChange={(e) => onChange({ ...value, secondaryCtaHref: e.target.value })}
+          />
+        </Field>
+        <Field label="Floating Tag">
+          <input
+            className={s.input}
+            value={value.floatingTag ?? ''}
+            onChange={(e) => onChange({ ...value, floatingTag: e.target.value })}
+          />
+        </Field>
+      </div>
 
-      {/* Images repeater */}
-      <div className={s.field} style={{ gridColumn: '1 / -1' }}>
+      {/* Compact images list with thumbnails */}
+      <div className={s.field}>
         <span className={s.label}>Hero Images (slider)</span>
-        <div className={s.stack}>
+        <div className={s.imagesWrap}>
           {images.length === 0 && <span className={s.help}>No images yet. Add one below.</span>}
+
           {images.map((url, i) => (
-            <div key={i} className={s.row}>
+            <div key={i} className={s.imageRow}>
+              <div className={s.thumb}>
+                {url ? <img src={url} alt="" width="84" height="64" /> : <span>84×64</span>}
+              </div>
+
               <input
                 className={s.input}
-                style={{ flex: 1 }}
                 placeholder="/assets/… or https://…"
                 value={url}
                 onChange={(e) => setImage(i, e.target.value)}
               />
-              <button type="button" className={s.secondary} onClick={() => removeImage(i)}>
+
+              <button
+                type="button"
+                className={`${s.secondary} ${s.removeBtn}`}
+                onClick={() => removeImage(i)}
+              >
                 Remove
               </button>
             </div>
           ))}
-          <div>
+
+          <div className={s.row}>
             <button type="button" className={s.secondary} onClick={addImage}>
               + Add Image
             </button>
+            <span className={s.help}>First image appears first. Small files load fastest.</span>
           </div>
-          <span className={s.help}>
-            Tip: Put files in <code>/public/assets</code> and reference as <code>/assets/…</code>.
-            First image shows first. Reorder by editing the rows.
-          </span>
         </div>
       </div>
     </div>
   );
 }
 
+/* ----------------- DELIVERY ----------------- */
 function DeliveryForm({
   value,
   onChange
@@ -318,7 +345,7 @@ function DeliveryForm({
   value: DeliverySettings;
   onChange: (v: DeliverySettings) => void;
 }) {
-  // Ensure GB/NI exist and are first
+  // Ensure GB/NI exist and are first; they are editable but not deletable
   const seedLocked = (cards: DeliveryCard[] | undefined): DeliveryCard[] => {
     const gb = cards?.find((c) => c.id === 'gb') ?? {
       id: 'gb',
@@ -339,7 +366,7 @@ function DeliveryForm({
   };
 
   const cards = seedLocked(value.cards);
-  const locked = cards.slice(0, 2); // gb, ni
+  const locked = cards.slice(0, 2);
   const custom = cards.slice(2);
 
   const setCards = (next: DeliveryCard[]) => onChange({ ...value, cards: seedLocked(next) });
@@ -365,9 +392,8 @@ function DeliveryForm({
     setCards([...locked, ...nextCustom]);
   };
 
-  // --- Drag & drop for custom cards only ---
+  // Drag & drop for custom cards
   const [dragIndex, setDragIndex] = useState<number | null>(null);
-
   const onDragStart = (idx: number) => setDragIndex(idx);
   const onDragOver = (e: React.DragEvent) => e.preventDefault();
   const onDrop = (idx: number) => {
@@ -381,7 +407,6 @@ function DeliveryForm({
 
   return (
     <div className={s.stack}>
-      {/* Global/fallback fields */}
       <div className={s.grid3}>
         <Field label="GB Free Threshold (£)">
           <input
@@ -417,7 +442,7 @@ function DeliveryForm({
         </Field>
       </div>
 
-      {/* Locked cards (GB/NI): editable, not deletable, not draggable */}
+      {/* Locked (GB/NI) */}
       {locked.map((c, idx) => (
         <div key={c.id} className={s.card}>
           <div className={s.grid3}>
@@ -478,7 +503,7 @@ function DeliveryForm({
         </button>
       </div>
 
-      {/* Custom cards — draggable and deletable */}
+      {/* Custom cards */}
       {custom.length === 0 && <div className={s.empty}>No custom delivery cards yet.</div>}
 
       {custom.map((c, idx) => (
@@ -547,6 +572,7 @@ function DeliveryForm({
   );
 }
 
+/* ----------------- INSTAGRAM ----------------- */
 function InstagramForm({
   value,
   onChange
@@ -585,6 +611,7 @@ function InstagramForm({
   );
 }
 
+/* ----------------- PROMOTIONS ----------------- */
 const TEMPLATE_TEXT: Record<PromotionTemplateKey, string> = {
   onam: 'Celebrate Onam with traditional flavours.',
   vishu: 'Vishu specials—fresh starts & fresh flavours.',
@@ -699,6 +726,7 @@ function PromotionsForm({
   );
 }
 
+/* ----------------- SHOWCASE ----------------- */
 function ShowcaseForm({
   value,
   onChange
@@ -762,6 +790,7 @@ function ShowcaseForm({
   );
 }
 
+/* ----------------- REVIEWS ----------------- */
 function ReviewsForm({
   value,
   onChange
@@ -808,7 +837,7 @@ function ReviewsForm({
       </div>
 
       <div className={s.row}>
-        <button className={s.secondary} onClick={() => add()}>
+        <button className={s.secondary} onClick={add}>
           + Add Review
         </button>
       </div>

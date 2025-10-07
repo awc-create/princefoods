@@ -1,17 +1,45 @@
 // src/app/admin/site/SiteEditor.module.scss
+/* ---------- Layout ---------- */
 .wrap {
-  display: grid;
-  gap: 12px;
+  --bg: #f7f7fb;
+  --card: #ffffff;
+  --ink: #1f2937;
+  --muted: #6b7280;
+  --ring: #e5e7eb;
+  --primary: var(--primary, #e11d48);
+
+  background: var(--bg);
+  min-height: 100vh;
+  padding: 20px;
 }
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+
+/* ---------- Header ---------- */
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(247, 247, 251, 0.7);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--ring);
+  padding: 10px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
+
 .header h1 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--ink);
 }
 
 .actions {
@@ -19,6 +47,7 @@
   align-items: center;
   gap: 10px;
 }
+
 .saveBtn {
   background: var(--primary);
   color: #fff;
@@ -28,62 +57,107 @@
   font-weight: 800;
   cursor: pointer;
 }
+
 .savedHint {
   color: #059669;
   font-weight: 700;
 }
+
 .errorHint {
   color: #dc2626;
   font-weight: 700;
 }
 
+/* ---------- Tabs ---------- */
 .tabs {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
+
 .tab {
-  border: 1px solid var(--pf-border);
+  border: 1px solid var(--ring);
   background: #fff;
   border-radius: 999px;
-  padding: 6px 10px;
+  padding: 7px 12px;
   cursor: pointer;
   font-weight: 700;
+  color: #374151;
 }
+
 .tabActive {
   background: #fff0f0;
   border-color: #fecaca;
-  color: var(--pf-red);
+  color: var(--primary);
 }
 
+/* ---------- Panel / Cards ---------- */
 .panel {
-  background: #fff;
-  border: 1px solid var(--pf-border);
-  border-radius: 12px;
-  padding: 14px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  background: transparent;
+  display: grid;
+  gap: 16px;
 }
 
+.section {
+  background: var(--card);
+  border: 1px solid var(--ring);
+  border-radius: 14px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.sectionHeader {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ring);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sectionHeader h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.sectionBody {
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.card {
+  border: 1px solid var(--ring);
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+/* ---------- Forms ---------- */
 .field {
   display: grid;
   gap: 6px;
 }
+
 .label {
   font-weight: 800;
   font-size: 0.9rem;
   color: #333;
 }
+
 .help {
-  color: #6b7280;
+  color: var(--muted);
   font-size: 0.85rem;
 }
 
+/* Pure, local class only */
 .input {
-  border: 1px solid var(--pf-border);
+  border: 1px solid var(--ring);
   border-radius: 8px;
   padding: 8px 10px;
   font-size: 0.95rem;
   background: #fff;
+  width: 100%;
 }
 
 .grid2 {
@@ -91,15 +165,15 @@
   gap: 12px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+
 .grid3 {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
-@media (max-width: 900px) {
-  .grid3 {
-    grid-template-columns: 1fr;
-  }
+
+@media (max-width: 980px) {
+  .grid3,
   .grid2 {
     grid-template-columns: 1fr;
   }
@@ -109,10 +183,12 @@
   display: grid;
   gap: 12px;
 }
+
 .row {
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .templateBar {
@@ -120,19 +196,13 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+
 .templateBtn {
-  border: 1px dashed var(--pf-border);
+  border: 1px dashed var(--ring);
   background: #fff;
   border-radius: 8px;
   padding: 8px 10px;
   cursor: pointer;
-}
-
-.card {
-  border: 1px solid var(--pf-border);
-  background: #fff;
-  border-radius: 12px;
-  padding: 12px;
 }
 
 .badges {
@@ -140,27 +210,30 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+
 .badge {
-  border: 1px solid var(--pf-border);
+  border: 1px solid var(--ring);
   background: #fff;
   padding: 6px 10px;
   border-radius: 999px;
   font-size: 0.9rem;
   cursor: pointer;
 }
+
 .badgeActive {
   background: #eef2ff;
   border-color: #c7d2fe;
 }
 
 .secondary {
-  border: 1px solid var(--pf-border);
+  border: 1px solid var(--ring);
   background: #fff;
   border-radius: 8px;
   padding: 8px 10px;
   font-weight: 800;
   cursor: pointer;
 }
+
 .danger {
   border: 1px solid #fecaca;
   background: #fff5f5;
@@ -172,5 +245,41 @@
 }
 
 .empty {
-  color: #6b7280;
+  color: var(--muted);
+}
+
+/* ---------- Compact hero images list ---------- */
+.imagesWrap {
+  display: grid;
+  gap: 10px;
+}
+
+.imageRow {
+  display: grid;
+  grid-template-columns: 84px 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.thumb {
+  width: 84px;
+  height: 64px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--ring);
+  background: #f3f4f6;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.thumb :global(img) {
+  object-fit: cover;
+  width: 84px;
+  height: 64px;
+}
+
+.removeBtn {
+  white-space: nowrap;
 }
