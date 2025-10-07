@@ -12,7 +12,7 @@ import type {
   ReviewsSettings,
   ShowcaseKind
 } from '@/types/homeSettings';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import s from './SiteEditor.module.scss';
 
 const DEFAULT_HERO = '/assets/96bfc4_3547f98fa8f54128b23c97aa34bf83b9~mv2.avif';
@@ -82,16 +82,20 @@ export default function SiteHomeEditor() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [dirty, setDirty] = useState(false);
 
+  // Load existing settings
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         const res = await fetch('/api/admin/site/home/get', { cache: 'no-store' });
-        const json = (await res.json()) as { ok: boolean; data?: HomeSettingsDTO };
-        if (mounted && json?.ok && json.data) setData(json.data);
-      } catch {
-        // keep defaults
+        const json = (await res.json()) as { ok: boolean; data?: HomeSettingsDTO; error?: string };
+        if (!res.ok || !json?.ok) throw new Error(json?.error ?? 'Failed to load settings');
+        if (mounted && json.data) setData(json.data);
+        setDirty(false);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Failed to load settings');
       } finally {
         if (mounted) setLoading(false);
       }
@@ -101,7 +105,8 @@ export default function SiteHomeEditor() {
     };
   }, []);
 
-  const save = async () => {
+  // Save (memoized so effects can depend on it)
+  const save = useCallback(async () => {
     setSaving(true);
     setError(null);
     try {
@@ -110,18 +115,37 @@ export default function SiteHomeEditor() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
-      const json = await res.json();
-      if (!json?.ok) throw new Error('Save failed');
+      const json = (await res.json()) as { ok: boolean; error?: string };
+      if (!res.ok || !json?.ok) throw new Error(json?.error ?? 'Save failed');
       setSavedAt(Date.now());
-    } catch {
-      setError('Could not save. Please try again.');
+      setDirty(false);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not save. Please try again.');
     } finally {
       setSaving(false);
     }
-  };
+  }, [data]);
 
-  const setPartial = <K extends keyof HomeSettingsDTO>(key: K, value: HomeSettingsDTO[K]) =>
-    setData((prev) => ({ ...prev, [key]: value }));
+  // Keyboard shortcut: Cmd/Ctrl + S
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (!saving) void save();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [save, saving]);
+
+  // Helper to set a portion of the DTO and flag dirty
+  const setPartial = <K extends keyof HomeSettingsDTO>(key: K, value: HomeSettingsDTO[K]) => {
+    setData((prev) => {
+      const next = { ...prev, [key]: value };
+      return next;
+    });
+    setDirty(true);
+  };
 
   if (loading) return <div style={{ padding: 20 }}>Loading…</div>;
 
@@ -131,9 +155,16 @@ export default function SiteHomeEditor() {
         <div className={s.header}>
           <h1>Home Page Editor</h1>
           <div className={s.actions}>
-            {savedAt && <span className={s.savedHint}>Saved</span>}
+            {dirty && <span className={s.errorHint}>Unsaved changes</span>}
+            {savedAt && !dirty && <span className={s.savedHint}>Saved</span>}
             {error && <span className={s.errorHint}>{error}</span>}
-            <button className={s.saveBtn} onClick={save} disabled={saving}>
+            <button
+              className={s.saveBtn}
+              onClick={() => void save()}
+              disabled={saving}
+              aria-busy={saving}
+              title="Save (⌘/Ctrl+S)"
+            >
               {saving ? 'Saving…' : 'Save Changes'}
             </button>
           </div>
