@@ -1,4 +1,3 @@
-// src/app/api/admin/site/home/save/route.ts
 import { prisma } from '@/lib/prisma';
 import type { HomeSettingsDTO } from '@/types/homeSettings';
 import { Prisma } from '@prisma/client';

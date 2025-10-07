@@ -4,6 +4,8 @@ import type { HomeSettingsDTO } from '@/types/homeSettings';
 import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 const DEFAULTS: HomeSettingsDTO = {
   hero: {
     title: 'South Asian Groceries, Delivered.',
@@ -14,10 +16,14 @@ const DEFAULTS: HomeSettingsDTO = {
     secondaryCtaLabel: 'Browse Collections',
     secondaryCtaHref: '/collections',
     floatingTag: 'New • Onam Favourites',
+    // NEW canonical source for hero visuals
+    images: ['/assets/slider1.jpg'],
+    // keep legacy for backwards compatibility
     imageUrl: '/assets/slider1.jpg',
-    // optional windows default to null/undefined
+    // optional global windows (can be null/undefined)
     overrideStart: null,
     overrideEnd: null
+    // per-field timed overrides are optional; omit by default
   },
   delivery: {
     gbFreeThreshold: 30,
@@ -25,22 +31,48 @@ const DEFAULTS: HomeSettingsDTO = {
     frozenFee: 3.99,
     message: 'No hidden fees. Frozen items are insulated for freshness.',
     overrideStart: null,
-    overrideEnd: null
+    overrideEnd: null,
+    // NEW: dynamic cards with locked defaults (editable, not deletable in UI)
+    cards: [
+      {
+        id: 'gb',
+        title: 'Delivery – Great Britain',
+        freeThreshold: 30,
+        frozenFee: 3.99,
+        enabled: true
+      },
+      {
+        id: 'ni',
+        title: 'Delivery – Northern Ireland',
+        freeThreshold: 40,
+        frozenFee: 3.99,
+        enabled: true
+      }
+    ]
   },
-  instagram: { token: '', usernameUrl: 'https://www.instagram.com/princefoodsuk/', enabled: true },
+  instagram: {
+    token: '',
+    usernameUrl: 'https://www.instagram.com/princefoodsuk/',
+    enabled: true
+  },
   promotions: [],
   productShowcase: {
     title: 'Featured',
     kinds: ['best_sellers', 'on_sale', 'b1g1', 'new_arrivals', 'trending', 'top_rated', 'seasonal'],
     selectedKind: 'best_sellers'
   },
-  reviews: { autoplay: true, showCount: 4, items: [] }
+  reviews: {
+    autoplay: true,
+    showCount: 4,
+    items: []
+  }
 };
 
 export async function GET() {
   try {
     let row = await prisma.homeSettings.findUnique({ where: { id: 1 } });
 
+    // seed if missing
     row ??= await prisma.homeSettings.create({
       data: {
         id: 1,
