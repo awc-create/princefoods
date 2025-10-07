@@ -1,8 +1,7 @@
-// src/components/slider/Slider.module.scss
 .sliderWrapper {
   position: relative;
   width: 100%;
-  max-width: 1000px;
+  max-width: 1000px; /* overridden to 100% by hero :global, which is fine */
   margin: 0 auto;
 }
 
@@ -54,25 +53,32 @@
 .arrowLeft {
   left: 1rem;
 }
-
 .arrowRight {
   right: 1rem;
 }
 
+/* --- Dots: perfect circles, neatly centered over the slider --- */
 .dots {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 12px;
   display: flex;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 1.25rem;
+  gap: 8px;
+  margin-top: 0;
+  z-index: 6;
 }
 
 .dot {
   width: 10px;
   height: 10px;
+  padding: 0;
   border-radius: 50%;
   border: 1px solid white;
   background: transparent;
-  transition: background 0.3s ease;
+  display: block;
+  line-height: 0;
+  aspect-ratio: 1 / 1; /* guarantees perfect circle */
 }
 
 .dot.active {

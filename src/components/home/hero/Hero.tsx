@@ -1,7 +1,7 @@
 'use client';
 
+import Slider from '@/components/slider/Slider';
 import { Oswald } from 'next/font/google';
-import Image from 'next/image';
 import styles from './Hero.module.scss';
 
 const oswald = Oswald({ weight: '500', subsets: ['latin'] });
@@ -16,16 +16,25 @@ export default function Hero({
   subtitle = 'Since 2007—authentic Indian & Sri Lankan favourites at everyday low prices. Premium spices, snacks, frozen specialties and more with fast UK & Ireland delivery.',
   primaryCta = { label: 'Shop Best Sellers', href: '/shop' },
   secondaryCta = { label: 'Browse Collections', href: '/collections' },
-  floatingTag = 'New • Onam Favourites',
-  imageUrl = '/assets/slider1.jpg'
+  floatingTag = 'Welcome To Prince Foods',
+  images = ['/assets/96bfc4_3547f98fa8f54128b23c97aa34bf83b9~mv2.avif']
 }: {
   title?: string;
   subtitle?: string;
   primaryCta?: Cta;
   secondaryCta?: Cta;
   floatingTag?: string;
-  imageUrl?: string;
+  images?: string[]; // array for slider
 }) {
+  // Adapt images -> Slider's Slide shape (fill unused fields)
+  const slides = images.map((image) => ({
+    image,
+    siteLink: '',
+    techStack: '',
+    description: '',
+    review: ''
+  }));
+
   return (
     <section className={styles.hero} aria-labelledby="pf-hero-heading">
       <div className={styles.inner}>
@@ -39,9 +48,11 @@ export default function Hero({
             <a className={styles.ctaPrimary} href={primaryCta.href}>
               {primaryCta.label}
             </a>
-            <a className={styles.ctaGhost} href={secondaryCta.href}>
-              {secondaryCta.label}
-            </a>
+            {secondaryCta && (
+              <a className={styles.ctaGhost} href={secondaryCta.href}>
+                {secondaryCta.label}
+              </a>
+            )}
           </div>
 
           <ul className={styles.trust}>
@@ -52,9 +63,11 @@ export default function Hero({
         </div>
 
         <div className={styles.right}>
+          {/* Your existing Embla slider */}
           <div className={styles.heroCard} aria-hidden>
-            <Image src={imageUrl} alt="" fill sizes="(max-width: 900px) 95vw, 600px" priority />
+            <Slider slides={slides} />
           </div>
+
           {floatingTag && <div className={styles.floatingTag}>{floatingTag}</div>}
         </div>
       </div>

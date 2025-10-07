@@ -1,10 +1,11 @@
-"use client";
+// src/components/slider/Slider.tsx
+'use client';
 
-import React, { useEffect, useState } from "react";
-import Image from "next/image";
-import useEmblaCarousel from "embla-carousel-react";
-import styles from "./Slider.module.scss";
-import { FaArrowRight, FaArrowLeft } from "react-icons/fa";
+import useEmblaCarousel from 'embla-carousel-react';
+import Image from 'next/image';
+import { useEffect, useState } from 'react';
+import { FaArrowLeft, FaArrowRight } from 'react-icons/fa';
+import styles from './Slider.module.scss';
 
 interface Slide {
   image: string;
@@ -31,7 +32,7 @@ const Slider = ({ slides }: { slides: Slide[] }) => {
   useEffect(() => {
     if (!emblaApi) return;
     const updateSelected = () => setSelectedIndex(emblaApi.selectedScrollSnap());
-    emblaApi.on("select", updateSelected);
+    emblaApi.on('select', updateSelected);
     updateSelected();
   }, [emblaApi]);
 
@@ -45,12 +46,7 @@ const Slider = ({ slides }: { slides: Slide[] }) => {
         <div className={styles.emblaContainer}>
           {slides.map((slide, index) => (
             <div key={index} className={styles.emblaSlide}>
-              <Image
-                src={slide.image}
-                alt={`Slide ${index + 1}`}
-                fill
-                className={styles.image}
-              />
+              <Image src={slide.image} alt={`Slide ${index + 1}`} fill className={styles.image} />
             </div>
           ))}
         </div>
@@ -64,7 +60,7 @@ const Slider = ({ slides }: { slides: Slide[] }) => {
         {slides.map((_, index) => (
           <button
             key={index}
-            className={`${styles.dot} ${index === selectedIndex ? styles.active : ""}`}
+            className={`${styles.dot} ${index === selectedIndex ? styles.active : ''}`}
             onClick={() => emblaApi?.scrollTo(index)}
             aria-label={`Go to slide ${index + 1}`}
           />

@@ -1,6 +1,8 @@
+// src/app/admin/site/page.tsx
 'use client';
 
 import type {
+  DeliveryCard,
   DeliverySettings,
   HeroSettings,
   HomeSettingsDTO,
@@ -14,6 +16,8 @@ import type {
 import { useEffect, useState } from 'react';
 import s from './SiteEditor.module.scss';
 
+const DEFAULT_HERO = '/assets/96bfc4_3547f98fa8f54128b23c97aa34bf83b9~mv2.avif';
+
 const DEFAULTS: HomeSettingsDTO = {
   hero: {
     title: 'South Asian Groceries, Delivered.',
@@ -24,13 +28,30 @@ const DEFAULTS: HomeSettingsDTO = {
     secondaryCtaLabel: 'Browse Collections',
     secondaryCtaHref: '/collections',
     floatingTag: 'New • Onam Favourites',
-    imageUrl: '/assets/slider1.jpg'
+    images: [DEFAULT_HERO],
+    imageUrl: DEFAULT_HERO
   },
   delivery: {
     gbFreeThreshold: 30,
     niFreeThreshold: 40,
     frozenFee: 3.99,
-    message: 'No hidden fees. Frozen items are insulated for freshness.'
+    message: 'No hidden fees. Frozen items are insulated for freshness.',
+    cards: [
+      {
+        id: 'gb',
+        title: 'Delivery – Great Britain',
+        freeThreshold: 30,
+        frozenFee: 3.99,
+        enabled: true
+      },
+      {
+        id: 'ni',
+        title: 'Delivery – Northern Ireland',
+        freeThreshold: 40,
+        frozenFee: 3.99,
+        enabled: true
+      }
+    ]
   },
   instagram: { token: '', usernameUrl: 'https://www.instagram.com/princefoodsuk/', enabled: true },
   promotions: [],
@@ -164,7 +185,7 @@ export default function SiteHomeEditor() {
   );
 }
 
-/* ----------------- section forms (same as before) ----------------- */
+/* ----------------- section forms ----------------- */
 function Field({
   label,
   children,
@@ -190,6 +211,20 @@ function HeroForm({
   value: HeroSettings;
   onChange: (v: HeroSettings) => void;
 }) {
+  // images[] is canonical; keep imageUrl synced to first image for backwards compatibility
+  const images = value.images ?? (value.imageUrl ? [value.imageUrl] : []);
+
+  const setImage = (i: number, url: string) => {
+    const next = [...images];
+    next[i] = url;
+    onChange({ ...value, images: next, imageUrl: next[0] ?? '' });
+  };
+  const addImage = () => onChange({ ...value, images: [...images, ''], imageUrl: images[0] ?? '' });
+  const removeImage = (i: number) => {
+    const next = images.filter((_, idx) => idx !== i);
+    onChange({ ...value, images: next, imageUrl: next[0] ?? '' });
+  };
+
   return (
     <div className={s.grid2}>
       <Field label="Title">
@@ -223,31 +258,55 @@ function HeroForm({
       <Field label="Secondary CTA Label">
         <input
           className={s.input}
-          value={value.secondaryCtaLabel}
+          value={value.secondaryCtaLabel ?? ''}
           onChange={(e) => onChange({ ...value, secondaryCtaLabel: e.target.value })}
         />
       </Field>
       <Field label="Secondary CTA Link">
         <input
           className={s.input}
-          value={value.secondaryCtaHref}
+          value={value.secondaryCtaHref ?? ''}
           onChange={(e) => onChange({ ...value, secondaryCtaHref: e.target.value })}
         />
       </Field>
       <Field label="Floating Tag">
         <input
           className={s.input}
-          value={value.floatingTag}
+          value={value.floatingTag ?? ''}
           onChange={(e) => onChange({ ...value, floatingTag: e.target.value })}
         />
       </Field>
-      <Field label="Hero Image URL">
-        <input
-          className={s.input}
-          value={value.imageUrl}
-          onChange={(e) => onChange({ ...value, imageUrl: e.target.value })}
-        />
-      </Field>
+
+      {/* Images repeater */}
+      <div className={s.field} style={{ gridColumn: '1 / -1' }}>
+        <span className={s.label}>Hero Images (slider)</span>
+        <div className={s.stack}>
+          {images.length === 0 && <span className={s.help}>No images yet. Add one below.</span>}
+          {images.map((url, i) => (
+            <div key={i} className={s.row}>
+              <input
+                className={s.input}
+                style={{ flex: 1 }}
+                placeholder="/assets/… or https://…"
+                value={url}
+                onChange={(e) => setImage(i, e.target.value)}
+              />
+              <button type="button" className={s.secondary} onClick={() => removeImage(i)}>
+                Remove
+              </button>
+            </div>
+          ))}
+          <div>
+            <button type="button" className={s.secondary} onClick={addImage}>
+              + Add Image
+            </button>
+          </div>
+          <span className={s.help}>
+            Tip: Put files in <code>/public/assets</code> and reference as <code>/assets/…</code>.
+            First image shows first. Reorder by editing the rows.
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -259,40 +318,231 @@ function DeliveryForm({
   value: DeliverySettings;
   onChange: (v: DeliverySettings) => void;
 }) {
+  // Ensure GB/NI exist and are first
+  const seedLocked = (cards: DeliveryCard[] | undefined): DeliveryCard[] => {
+    const gb = cards?.find((c) => c.id === 'gb') ?? {
+      id: 'gb',
+      title: 'Delivery – Great Britain',
+      freeThreshold: value.gbFreeThreshold ?? 30,
+      frozenFee: value.frozenFee ?? 3.99,
+      enabled: true
+    };
+    const ni = cards?.find((c) => c.id === 'ni') ?? {
+      id: 'ni',
+      title: 'Delivery – Northern Ireland',
+      freeThreshold: value.niFreeThreshold ?? 40,
+      frozenFee: value.frozenFee ?? 3.99,
+      enabled: true
+    };
+    const rest = (cards ?? []).filter((c) => c.id !== 'gb' && c.id !== 'ni');
+    return [gb, ni, ...rest];
+  };
+
+  const cards = seedLocked(value.cards);
+  const locked = cards.slice(0, 2); // gb, ni
+  const custom = cards.slice(2);
+
+  const setCards = (next: DeliveryCard[]) => onChange({ ...value, cards: seedLocked(next) });
+
+  const updateCard = (idx: number, patch: Partial<DeliveryCard>, isCustom = false) => {
+    const next = [...cards];
+    const offset = isCustom ? 2 : 0;
+    next[idx + offset] = { ...next[idx + offset], ...patch };
+    setCards(next);
+  };
+
+  const addCard = () => {
+    const id = `d_${Date.now()}`;
+    setCards([
+      ...locked,
+      { id, title: 'Delivery – Region', freeThreshold: 30, frozenFee: 3.99, enabled: true },
+      ...custom
+    ]);
+  };
+
+  const removeCustomCard = (idx: number) => {
+    const nextCustom = custom.filter((_, i) => i !== idx);
+    setCards([...locked, ...nextCustom]);
+  };
+
+  // --- Drag & drop for custom cards only ---
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+
+  const onDragStart = (idx: number) => setDragIndex(idx);
+  const onDragOver = (e: React.DragEvent) => e.preventDefault();
+  const onDrop = (idx: number) => {
+    if (dragIndex === null || dragIndex === idx) return;
+    const next = [...custom];
+    const [moved] = next.splice(dragIndex, 1);
+    next.splice(idx, 0, moved);
+    setCards([...locked, ...next]);
+    setDragIndex(null);
+  };
+
   return (
-    <div className={s.grid3}>
-      <Field label="GB Free Threshold (£)">
-        <input
-          type="number"
-          className={s.input}
-          value={value.gbFreeThreshold}
-          onChange={(e) => onChange({ ...value, gbFreeThreshold: Number(e.target.value) })}
-        />
-      </Field>
-      <Field label="NI Free Threshold (£)">
-        <input
-          type="number"
-          className={s.input}
-          value={value.niFreeThreshold}
-          onChange={(e) => onChange({ ...value, niFreeThreshold: Number(e.target.value) })}
-        />
-      </Field>
-      <Field label="Frozen Packing Fee (£)">
-        <input
-          type="number"
-          step="0.01"
-          className={s.input}
-          value={value.frozenFee}
-          onChange={(e) => onChange({ ...value, frozenFee: Number(e.target.value) })}
-        />
-      </Field>
-      <Field label="Message">
-        <input
-          className={s.input}
-          value={value.message}
-          onChange={(e) => onChange({ ...value, message: e.target.value })}
-        />
-      </Field>
+    <div className={s.stack}>
+      {/* Global/fallback fields */}
+      <div className={s.grid3}>
+        <Field label="GB Free Threshold (£)">
+          <input
+            type="number"
+            className={s.input}
+            value={value.gbFreeThreshold}
+            onChange={(e) => onChange({ ...value, gbFreeThreshold: Number(e.target.value) })}
+          />
+        </Field>
+        <Field label="NI Free Threshold (£)">
+          <input
+            type="number"
+            className={s.input}
+            value={value.niFreeThreshold}
+            onChange={(e) => onChange({ ...value, niFreeThreshold: Number(e.target.value) })}
+          />
+        </Field>
+        <Field label="Frozen Packing Fee (£)">
+          <input
+            type="number"
+            step="0.01"
+            className={s.input}
+            value={value.frozenFee}
+            onChange={(e) => onChange({ ...value, frozenFee: Number(e.target.value) })}
+          />
+        </Field>
+        <Field label="Global Message">
+          <input
+            className={s.input}
+            value={value.message ?? ''}
+            onChange={(e) => onChange({ ...value, message: e.target.value })}
+          />
+        </Field>
+      </div>
+
+      {/* Locked cards (GB/NI): editable, not deletable, not draggable */}
+      {locked.map((c, idx) => (
+        <div key={c.id} className={s.card}>
+          <div className={s.grid3}>
+            <Field label={`Title (${c.id.toUpperCase()})`}>
+              <input
+                className={s.input}
+                value={c.title}
+                onChange={(e) => updateCard(idx, { title: e.target.value }, false)}
+              />
+            </Field>
+            <Field label="Free Threshold (£)">
+              <input
+                type="number"
+                className={s.input}
+                value={c.freeThreshold}
+                onChange={(e) => updateCard(idx, { freeThreshold: Number(e.target.value) }, false)}
+              />
+            </Field>
+            <Field label="Frozen Fee (£)">
+              <input
+                type="number"
+                step="0.01"
+                className={s.input}
+                value={c.frozenFee}
+                onChange={(e) => updateCard(idx, { frozenFee: Number(e.target.value) }, false)}
+              />
+            </Field>
+            <Field label="Card Message (optional)">
+              <input
+                className={s.input}
+                value={c.message ?? ''}
+                onChange={(e) => updateCard(idx, { message: e.target.value }, false)}
+              />
+            </Field>
+            <Field label="Enabled">
+              <select
+                className={s.input}
+                value={c.enabled !== false ? '1' : '0'}
+                onChange={(e) => updateCard(idx, { enabled: e.target.value === '1' }, false)}
+              >
+                <option value="1">Yes (show)</option>
+                <option value="0">No (hide)</option>
+              </select>
+            </Field>
+          </div>
+
+          <div className={s.row}>
+            <button className={s.danger} disabled title="Default card cannot be deleted">
+              Delete
+            </button>
+          </div>
+        </div>
+      ))}
+
+      <div className={s.row}>
+        <button className={s.secondary} onClick={addCard} type="button">
+          + Add Delivery Card
+        </button>
+      </div>
+
+      {/* Custom cards — draggable and deletable */}
+      {custom.length === 0 && <div className={s.empty}>No custom delivery cards yet.</div>}
+
+      {custom.map((c, idx) => (
+        <div
+          key={c.id}
+          className={s.card}
+          draggable
+          onDragStart={() => onDragStart(idx)}
+          onDragOver={onDragOver}
+          onDrop={() => onDrop(idx)}
+          title="Drag to reorder"
+          style={{ cursor: 'grab' }}
+        >
+          <div className={s.grid3}>
+            <Field label="Title">
+              <input
+                className={s.input}
+                value={c.title}
+                onChange={(e) => updateCard(idx, { title: e.target.value }, true)}
+              />
+            </Field>
+            <Field label="Free Threshold (£)">
+              <input
+                type="number"
+                className={s.input}
+                value={c.freeThreshold}
+                onChange={(e) => updateCard(idx, { freeThreshold: Number(e.target.value) }, true)}
+              />
+            </Field>
+            <Field label="Frozen Fee (£)">
+              <input
+                type="number"
+                step="0.01"
+                className={s.input}
+                value={c.frozenFee}
+                onChange={(e) => updateCard(idx, { frozenFee: Number(e.target.value) }, true)}
+              />
+            </Field>
+            <Field label="Card Message (optional)">
+              <input
+                className={s.input}
+                value={c.message ?? ''}
+                onChange={(e) => updateCard(idx, { message: e.target.value }, true)}
+              />
+            </Field>
+            <Field label="Enabled">
+              <select
+                className={s.input}
+                value={c.enabled !== false ? '1' : '0'}
+                onChange={(e) => updateCard(idx, { enabled: e.target.value === '1' }, true)}
+              >
+                <option value="1">Yes (show)</option>
+                <option value="0">No (hide)</option>
+              </select>
+            </Field>
+          </div>
+
+          <div className={s.row}>
+            <button className={s.danger} onClick={() => removeCustomCard(idx)} type="button">
+              Delete
+            </button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

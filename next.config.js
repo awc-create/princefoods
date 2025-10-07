@@ -17,7 +17,10 @@ const nextConfig = {
       { protocol: 'https', hostname: 'lh4.googleusercontent.com', pathname: '/**' },
       { protocol: 'https', hostname: 'lh5.googleusercontent.com', pathname: '/**' },
       { protocol: 'https', hostname: 'lh6.googleusercontent.com', pathname: '/**' },
-      { protocol: 'https', hostname: 'ssl.gstatic.com', pathname: '/**' }
+      { protocol: 'https', hostname: 'ssl.gstatic.com', pathname: '/**' },
+      { protocol: 'https', hostname: '*.cdninstagram.com', pathname: '/**' },
+      { protocol: 'https', hostname: '*.fbcdn.net', pathname: '/**' },
+      { protocol: 'https', hostname: 'scontent.cdninstagram.com', pathname: '/**' }
     ]
   },
 

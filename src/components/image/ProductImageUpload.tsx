@@ -1,3 +1,4 @@
+// src/components/image/ProductImageUpload.tsx
 'use client';
 
 import type { OurFileRouter } from '@/app/api/uploadthing/core';

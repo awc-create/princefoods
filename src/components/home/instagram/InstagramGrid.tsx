@@ -1,3 +1,4 @@
+// src/components/home/instagram/InstagramGrid.tsx
 'use client';
 
 import Image from 'next/image';

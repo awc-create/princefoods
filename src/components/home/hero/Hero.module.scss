@@ -2,7 +2,7 @@
   background: radial-gradient(1200px 600px at 50% -10%, #171717, #0d0d0d 60%, #000);
   color: #fff;
   position: relative;
-  overflow: hidden; /* clip any shadow/absolute children */
+  overflow: hidden;
 }
 
 .inner {
@@ -82,24 +82,46 @@
   font-size: 0.95rem;
 }
 
+/* RIGHT SIDE — slider left-aligned & vertically centered */
 .right {
   position: relative;
   min-height: 420px;
+
+  display: flex;
+  align-items: center; /* vertical center */
+  justify-content: flex-start; /* left align */
 }
 
+/* Slider shell */
 .heroCard {
   position: relative;
   border-radius: var(--radius-lg);
   overflow: hidden;
-  aspect-ratio: 4/3;
   box-shadow:
     0 22px 60px rgba(0, 0, 0, 0.28),
     inset 0 0 1px rgba(255, 255, 255, 0.08);
+  background: #111;
+
+  width: min(680px, 100%);
+  aspect-ratio: 16 / 9;
 }
 
+/* ✅ Scope global Embla helpers under a local class */
+.heroCard :global(.sliderWrapper) {
+  width: 100%;
+  max-width: none;
+}
+.heroCard :global(.emblaSlide) {
+  height: auto;
+}
+.heroCard :global(.image) {
+  object-fit: cover;
+}
+
+/* Floating tag kept for compatibility, but you’re not rendering it */
 .floatingTag {
   position: absolute;
-  bottom: 10px; /* was -10px, now sits inside hero */
+  bottom: 10px;
   right: 10px;
   background: #fff;
   color: #111;

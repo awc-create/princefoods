@@ -1,13 +1,15 @@
 // src/app/page.tsx
 import { prisma } from '@/lib/prisma';
 import type {
+  DeliveryCard,
   DeliverySettings,
   HeroSettings,
   HomeSettingsDTO,
   InstagramSettings,
   ProductShowcaseSettings,
   Promotion,
-  ReviewsSettings
+  ReviewsSettings,
+  TimedText
 } from '@/types/homeSettings';
 import { unstable_noStore as noStore } from 'next/cache';
 
@@ -36,19 +38,18 @@ const normalizeProducts = (rows: ProductRow[]) =>
 
 // Helpers
 const inWindow = (start?: string | null, end?: string | null, now = new Date()) => {
-  if (!start || !end) return true; // if no window, treat as always-on base
+  if (!start || !end) return true;
   const s = new Date(start);
   const e = new Date(end);
   return now >= s && now <= e;
 };
 
-const pickTimed = (
-  base: string | undefined,
-  override?: { text?: string; startAt?: string | null; endAt?: string | null }
-) => {
+const pickTimed = (base: string | undefined, override?: TimedText) => {
   if (!override?.text) return base;
   return inWindow(override.startAt ?? null, override.endAt ?? null) ? override.text : base;
 };
+
+const DEFAULT_HERO_IMAGE = '/assets/96bfc4_3547f98fa8f54128b23c97aa34bf83b9~mv2.avif';
 
 export default async function Home() {
   noStore();
@@ -83,10 +84,50 @@ export default async function Home() {
   } catch {
     products = [];
   }
-
   const displayProducts = normalizeProducts(products);
 
-  // 3) Derive props for existing components (they do NOT accept `settings`)
+  // Fallback: ONLY when DB is empty
+  const FALLBACK_PRODUCTS = [
+    {
+      id: 'tmp-1',
+      name: 'Prince Foods Nadan Chappathi 400g',
+      price: 1.99,
+      productImageUrl: '/assets/fallback/chappathi.jpg'
+    },
+    {
+      id: 'tmp-2',
+      name: 'Prince Foods Malabar Murukku 150g',
+      price: 2.29,
+      productImageUrl: '/assets/fallback/murukku.jpg'
+    },
+    {
+      id: 'tmp-3',
+      name: 'Prince Foods Sweet Banana Chips Sarkarra Varatti 150g',
+      price: 1.49,
+      productImageUrl: '/assets/fallback/banana-chips.jpg'
+    },
+    {
+      id: 'tmp-4',
+      name: 'Prince Foods Cassava Chips (Spicy) 150g',
+      price: 2.29,
+      productImageUrl: '/assets/fallback/cassava-chips.jpg'
+    },
+    {
+      id: 'tmp-5',
+      name: 'Prince Foods Plantain Chips 250g',
+      price: 1.99,
+      productImageUrl: '/assets/fallback/plantain-chips.jpg'
+    },
+    {
+      id: 'tmp-6',
+      name: 'Prince Foods Mixture 600g',
+      price: 3.99,
+      productImageUrl: '/assets/fallback/mixture.jpg'
+    }
+  ];
+  const sliderProducts = displayProducts.length > 0 ? displayProducts : FALLBACK_PRODUCTS;
+
+  // 3) Derive props
   const now = new Date();
 
   const heroBase = settings?.hero;
@@ -104,14 +145,11 @@ export default async function Home() {
       'Since 2007—authentic Indian & Sri Lankan favourites with fast UK & Ireland delivery.')
     : 'Since 2007—authentic Indian & Sri Lankan favourites with fast UK & Ireland delivery.';
 
-  const heroTag = heroBase
-    ? (pickTimed(
-        heroWithinGlobal ? heroBase.floatingTag : undefined,
-        heroBase.floatingTagOverride
-      ) ?? 'New • Onam Favourites')
-    : 'New • Onam Favourites';
-
-  const heroImage = heroBase?.imageUrl ?? '/assets/slider1.jpg';
+  // Prefer images[], fallback to legacy imageUrl, then default
+  const heroImages =
+    heroBase?.images && heroBase.images.length > 0
+      ? heroBase.images
+      : [heroBase?.imageUrl ?? DEFAULT_HERO_IMAGE];
 
   // Delivery
   const deliveryBase = settings?.delivery;
@@ -126,18 +164,38 @@ export default async function Home() {
       ) ?? 'No hidden fees. Frozen items are insulated for freshness.')
     : 'No hidden fees. Frozen items are insulated for freshness.';
 
-  const deliveryProps = {
-    gbFreeThreshold: deliveryBase?.gbFreeThreshold ?? 30,
-    niFreeThreshold: deliveryBase?.niFreeThreshold ?? 40,
-    frozenFee: deliveryBase?.frozenFee ?? 3.99,
-    message: deliveryMessage
-  };
+  // Locked defaults (non-deletable, but can be disabled via admin)
+  const lockedDefaults: DeliveryCard[] = [
+    {
+      id: 'gb',
+      title: 'Delivery – Great Britain',
+      freeThreshold: deliveryBase?.gbFreeThreshold ?? 30,
+      frozenFee: deliveryBase?.frozenFee ?? 3.99,
+      enabled: true
+    },
+    {
+      id: 'ni',
+      title: 'Delivery – Northern Ireland',
+      freeThreshold: deliveryBase?.niFreeThreshold ?? 40,
+      frozenFee: deliveryBase?.frozenFee ?? 3.99,
+      enabled: true
+    }
+  ];
 
-  // Instagram (component only needs username URL in your original)
+  // Use admin overrides when present
+  const gbOverride = deliveryBase?.cards?.find((c) => c.id === 'gb');
+  const niOverride = deliveryBase?.cards?.find((c) => c.id === 'ni');
+  const customCards = deliveryBase?.cards?.filter((c) => c.id !== 'gb' && c.id !== 'ni') ?? [];
+
+  const cardsForDelivery = [
+    gbOverride ?? lockedDefaults[0],
+    niOverride ?? lockedDefaults[1],
+    ...customCards
+  ].filter((c) => c.enabled !== false); // hide if disabled
+
   const instagramUsernameUrl =
     settings?.instagram?.usernameUrl ?? 'https://www.instagram.com/princefoodsuk/';
 
-  // Product Showcase title
   const showcaseTitle = settings?.productShowcase?.title ?? 'Best Sellers';
 
   return (
@@ -157,20 +215,21 @@ export default async function Home() {
               }
             : undefined
         }
-        floatingTag={heroTag}
-        imageUrl={heroImage}
+        // floatingTag intentionally omitted
+        images={heroImages}
       />
 
       <Delivery
-        gbFreeThreshold={deliveryProps.gbFreeThreshold}
-        niFreeThreshold={deliveryProps.niFreeThreshold}
-        frozenFee={deliveryProps.frozenFee}
-        message={deliveryProps.message}
+        cards={cardsForDelivery}
+        gbFreeThreshold={deliveryBase?.gbFreeThreshold ?? 30}
+        niFreeThreshold={deliveryBase?.niFreeThreshold ?? 40}
+        frozenFee={deliveryBase?.frozenFee ?? 3.99}
+        message={deliveryMessage}
       />
 
       <InstagramGrid usernameUrl={instagramUsernameUrl} />
 
-      <ProductSlider title={showcaseTitle} products={displayProducts} />
+      <ProductSlider title={showcaseTitle} products={sliderProducts} />
 
       <ReviewStrip
         autoplay={settings?.reviews?.autoplay ?? true}
