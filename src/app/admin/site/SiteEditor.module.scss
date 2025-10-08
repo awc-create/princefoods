@@ -47,8 +47,24 @@
   gap: 12px;
 }
 
+/* Status text (clear colors) */
+.statusText {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.statusUnsaved {
+  color: #b91c1c;
+} /* red */
+.statusSaved {
+  color: #059669;
+} /* green */
+.statusError {
+  color: #dc2626;
+} /* red (error) */
+
+/* Save button — readable even when disabled */
 .saveBtn {
-  background: var(--primary);
+  background: var(--primary, #e11d48);
   color: #fff;
   border: none;
   border-radius: 10px;
@@ -58,18 +74,23 @@
   box-shadow: 0 2px 8px rgba(225, 29, 72, 0.25);
   transition:
     transform 120ms ease,
-    opacity 120ms ease;
+    opacity 120ms ease,
+    background 120ms ease;
 }
-.saveBtn:hover {
+.saveBtn:hover:not(:disabled) {
   transform: translateY(-1px);
+  background: #be123c; /* darker hover */
 }
 .saveBtn:disabled {
-  opacity: 0.55;
+  background: #f3f4f6; /* light grey bg */
+  color: #6b7280; /* readable grey text */
   cursor: not-allowed;
-  filter: grayscale(15%);
   box-shadow: none;
+  opacity: 1;
+  filter: none;
 }
 
+/* Legacy hint styles (kept if referenced somewhere else) */
 .savedHint {
   color: #059669;
   font-weight: 700;
@@ -285,7 +306,6 @@
   width: 84px;
   height: 64px;
 }
-
 .removeBtn {
   white-space: nowrap;
 }

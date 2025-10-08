@@ -139,6 +139,30 @@ export default function SiteHomeEditor() {
     []
   );
 
+  // Warn before leaving if there are unsaved changes
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (dirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
+
+  // Cmd/Ctrl+S to save
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (dirty && !saving) void save();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [dirty, saving, save]);
+
   if (loading) return <div style={{ padding: 20 }}>Loading…</div>;
 
   return (
@@ -147,9 +171,15 @@ export default function SiteHomeEditor() {
         <div className={s.header}>
           <h1>Home Page Editor</h1>
           <div className={s.actions}>
-            {error && <span className={s.errorHint}>{error}</span>}
-            {!error && dirty && !saving && <span className={s.help}>Unsaved changes</span>}
-            {savedAt && !dirty && !error && <span className={s.savedHint}>All changes saved</span>}
+            {error && <span className={`${s.statusText} ${s.statusError}`}>{error}</span>}
+
+            {!error && dirty && !saving && (
+              <span className={`${s.statusText} ${s.statusUnsaved}`}>Unsaved changes</span>
+            )}
+
+            {savedAt && !dirty && !error && (
+              <span className={`${s.statusText} ${s.statusSaved}`}>All changes saved</span>
+            )}
 
             <button
               className={s.saveBtn}

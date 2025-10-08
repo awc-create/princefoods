@@ -10,72 +10,74 @@ datasource db {
   directUrl = env("DIRECT_DATABASE_URL")
 }
 
-/* =========================
-   PRODUCTS + CATEGORIES
-========================= */
+/**
+ * =========================
+ * PRODUCTS + CATEGORIES
+ * =========================
+ */
 model Product {
-  id                          String   @id
-  fieldType                   String
-  name                        String
-  description                 String?
-  productImageUrl             String?
-  collection                  String?
-  sku                         String?
-  ribbon                      String?
-  price                       Float?
-  surcharge                   Float?
-  visible                     Boolean  @default(true)
-  discountMode                String?
-  discountValue               Float?
-  inventory                   String?
-  weight                      Float?
-  cost                        Float?
+  id              String  @id
+  fieldType       String
+  name            String
+  description     String?
+  productImageUrl String?
+  collection      String?
+  sku             String?
+  ribbon          String?
+  price           Float?
+  surcharge       Float?
+  visible         Boolean @default(true)
+  discountMode    String?
+  discountValue   Float?
+  inventory       String?
+  weight          Float?
+  cost            Float?
 
-  productOptionName1          String?
-  productOptionType1          String?
-  productOptionDescription1   String?
-  productOptionName2          String?
-  productOptionType2          String?
-  productOptionDescription2   String?
-  productOptionName3          String?
-  productOptionType3          String?
-  productOptionDescription3   String?
-  productOptionName4          String?
-  productOptionType4          String?
-  productOptionDescription4   String?
-  productOptionName5          String?
-  productOptionType5          String?
-  productOptionDescription5   String?
-  productOptionName6          String?
-  productOptionType6          String?
-  productOptionDescription6   String?
+  productOptionName1        String?
+  productOptionType1        String?
+  productOptionDescription1 String?
+  productOptionName2        String?
+  productOptionType2        String?
+  productOptionDescription2 String?
+  productOptionName3        String?
+  productOptionType3        String?
+  productOptionDescription3 String?
+  productOptionName4        String?
+  productOptionType4        String?
+  productOptionDescription4 String?
+  productOptionName5        String?
+  productOptionType5        String?
+  productOptionDescription5 String?
+  productOptionName6        String?
+  productOptionType6        String?
+  productOptionDescription6 String?
 
-  additionalInfoTitle1        String?
-  additionalInfoDescription1  String?
-  additionalInfoTitle2        String?
-  additionalInfoDescription2  String?
-  additionalInfoTitle3        String?
-  additionalInfoDescription3  String?
-  additionalInfoTitle4        String?
-  additionalInfoDescription4  String?
-  additionalInfoTitle5        String?
-  additionalInfoDescription5  String?
-  additionalInfoTitle6        String?
-  additionalInfoDescription6  String?
+  additionalInfoTitle1       String?
+  additionalInfoDescription1 String?
+  additionalInfoTitle2       String?
+  additionalInfoDescription2 String?
+  additionalInfoTitle3       String?
+  additionalInfoDescription3 String?
+  additionalInfoTitle4       String?
+  additionalInfoDescription4 String?
+  additionalInfoTitle5       String?
+  additionalInfoDescription5 String?
+  additionalInfoTitle6       String?
+  additionalInfoDescription6 String?
 
-  customTextField1            String?
-  customTextCharLimit1        Int?
-  customTextMandatory1        Boolean?
-  customTextField2            String?
-  customTextCharLimit2        Int?
-  customTextMandatory2        Boolean?
+  customTextField1     String?
+  customTextCharLimit1 Int?
+  customTextMandatory1 Boolean?
+  customTextField2     String?
+  customTextCharLimit2 Int?
+  customTextMandatory2 Boolean?
 
-  brand                       String?
-  createdAt                   DateTime @default(now())
+  brand     String?
+  createdAt DateTime @default(now())
 
   // NEW: link products to (child) categories
-  categoryId                  String?
-  category                    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   @@index([categoryId])
 }
@@ -93,18 +95,20 @@ model Category {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-  products  Product[]
+  products Product[]
 }
 
-/* =========================
-   USERS + AUTH + AUDIT
-========================= */
+/**
+ * =========================
+ * USERS + AUTH + AUDIT
+ * =========================
+ */
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  password     String?
-  name         String
-  role         Role     @default(VIEWER)
+  id       String  @id @default(uuid())
+  email    String  @unique
+  password String?
+  name     String
+  role     Role    @default(VIEWER)
 
   firstName    String?
   lastName     String?
@@ -112,7 +116,7 @@ model User {
   phoneRaw     String?
   phoneCountry String?
 
-  source              UserSource    @default(LOCAL)
+  source              UserSource @default(LOCAL)
   wixSubscriberStatus String?
   wixLanguage         String?
   wixCreatedAt        DateTime?
@@ -126,8 +130,8 @@ model User {
 
   emailVerified DateTime?
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Restriction / Erasure
   deletedAt       DateTime?
@@ -135,21 +139,21 @@ model User {
   restrictedAt    DateTime?
   restrictionNote String?
   anonymizedAt    DateTime?
-  isAnonymized    Boolean  @default(false)
+  isAnonymized    Boolean   @default(false)
 
   // OAuth / sessions
-  accounts       Account[]
-  sessions       Session[]
+  accounts Account[]
+  sessions Session[]
 
   // OTP / tokens
   passwordTokens PasswordToken[]
 
   // Audit
-  audits         UserAudit[]
+  audits UserAudit[]
 
   // Orders & Addresses
-  orders         Order[]
-  addresses      Address[]
+  orders    Order[]
+  addresses Address[]
 
   @@index([email])
   @@index([deletedAt])
@@ -183,39 +187,56 @@ enum UserAuditAction {
 }
 
 model UserAudit {
-  id          String           @id @default(cuid())
-  userId      String
-  actorId     String?
-  actorEmail  String?
-  action      UserAuditAction
-  reason      String?
-  before      Json?
-  after       Json?
-  createdAt   DateTime         @default(now())
+  id         String          @id @default(cuid())
+  userId     String
+  actorId    String?
+  actorEmail String?
+  action     UserAuditAction
+  reason     String?
+  before     Json?
+  after      Json?
+  createdAt  DateTime        @default(now())
 
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
 }
 
-/* ---------- Auth.js adapter ---------- */
+/**
+ * ---------- Auth.js adapter ----------
+ */
 model Account {
-  id                 String  @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String? @db.Text
-  access_token       String? @db.Text
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String? @db.Text
-  session_state      String?
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  createdAt DateTime  @default(now())
+  kind      String
+  title     String
+  body      String
+  meta      Json?
+  link      String?
+  readAt    DateTime?
+  actorId   String?
+
+  @@index([createdAt])
+  @@index([readAt])
 }
 
 model Session {
@@ -235,11 +256,13 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-/* One-time password / welcome token */
+/**
+ * One-time password / welcome token
+ */
 model PasswordToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  token     String   @unique
+  token     String    @unique
   code      String?
   expiresAt DateTime
   usedAt    DateTime?
@@ -249,9 +272,11 @@ model PasswordToken {
   @@index([userId])
 }
 
-/* =========================
-   CONTENT (FAQ / Policies)
-========================= */
+/**
+ * =========================
+ * CONTENT (FAQ / Policies)
+ * =========================
+ */
 model Faq {
   id        String   @id @default(cuid())
   question  String   @unique
@@ -269,32 +294,34 @@ model PolicyDoc {
   updatedAt DateTime @updatedAt
 }
 
-/* =========================
-   CHAT + SLA + PUSH
-========================= */
+/**
+ * =========================
+ * CHAT + SLA + PUSH
+ * =========================
+ */
 model ChatThread {
-  id        String     @id @default(cuid())
+  id        String        @id @default(cuid())
   userKey   String
-  status    String     @default("open") // open | closed
-  createdAt DateTime   @default(now())
+  status    String        @default("open") // open | closed
+  createdAt DateTime      @default(now())
   messages  ChatMessage[]
 
   // SLA / escalation
-  lastUserAt               DateTime   @default(now())
-  lastAdminAt              DateTime?
-  escalatedAt              DateTime?
-  emailEscalationSentAt    DateTime?
-  slaMinutes               Int        @default(10)
+  lastUserAt            DateTime  @default(now())
+  lastAdminAt           DateTime?
+  escalatedAt           DateTime?
+  emailEscalationSentAt DateTime?
+  slaMinutes            Int       @default(10)
 
   // Email bridge
-  customerEmail            String?
+  customerEmail String?
 }
 
 model ChatMessage {
   id         String     @id @default(cuid())
   threadId   String
   thread     ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  role       String     // "user" | "assistant" | "admin" | "system"
+  role       String // "user" | "assistant" | "admin" | "system"
   content    String
   confidence Float?
   createdAt  DateTime   @default(now())
@@ -309,9 +336,11 @@ model PushSubscription {
   createdAt    DateTime @default(now())
 }
 
-/* =========================
-   ORDERS + ADDRESSES
-========================= */
+/**
+ * =========================
+ * ORDERS + ADDRESSES
+ * =========================
+ */
 enum OrderStatus {
   DRAFT
   PLACED
@@ -331,99 +360,101 @@ enum PaymentStatus {
 }
 
 model Address {
-  id         String   @id @default(cuid())
+  id String @id @default(cuid())
 
   // optional owner (for saved addresses)
-  userId     String?
-  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  firstName  String?
-  lastName   String?
-  line1      String
-  line2      String?
-  city       String
-  postcode   String
-  country    String    // ISO 3166-1 alpha-2 (e.g., "GB")
-  phoneE164  String?
-  kind       String?   // "SHIPPING" | "BILLING"
+  firstName String?
+  lastName  String?
+  line1     String
+  line2     String?
+  city      String
+  postcode  String
+  country   String // ISO 3166-1 alpha-2 (e.g., "GB")
+  phoneE164 String?
+  kind      String? // "SHIPPING" | "BILLING"
 
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // back-relations
-  shippingFor Order[]  @relation("ShippingAddress")
-  billingFor  Order[]  @relation("BillingAddress")
+  shippingFor Order[] @relation("ShippingAddress")
+  billingFor  Order[] @relation("BillingAddress")
 }
 
 model Order {
-  id                String        @id @default(cuid())
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  userId            String?
-  user              User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  contactEmail      String
+  contactEmail String
 
-  status            OrderStatus   @default(DRAFT)
-  paymentStatus     PaymentStatus @default(PENDING)
+  status        OrderStatus   @default(DRAFT)
+  paymentStatus PaymentStatus @default(PENDING)
 
-  currency          String        @default("GBP")
-  subtotal          Int           @default(0) // pence
-  shippingTotal     Int           @default(0)
-  discountTotal     Int           @default(0)
-  taxTotal          Int           @default(0)
-  grandTotal        Int           @default(0)
+  currency      String @default("GBP")
+  subtotal      Int    @default(0) // pence
+  shippingTotal Int    @default(0)
+  discountTotal Int    @default(0)
+  taxTotal      Int    @default(0)
+  grandTotal    Int    @default(0)
 
   shippingAddressId String?
-  shippingAddress   Address?      @relation("ShippingAddress", fields: [shippingAddressId], references: [id], onDelete: SetNull)
+  shippingAddress   Address? @relation("ShippingAddress", fields: [shippingAddressId], references: [id], onDelete: SetNull)
 
-  billingAddressId  String?
-  billingAddress    Address?      @relation("BillingAddress", fields: [billingAddressId], references: [id], onDelete: SetNull)
+  billingAddressId String?
+  billingAddress   Address? @relation("BillingAddress", fields: [billingAddressId], references: [id], onDelete: SetNull)
 
-  paymentProvider   String?
-  paymentIntentId   String?
-  paymentRef        String?
+  paymentProvider String?
+  paymentIntentId String?
+  paymentRef      String?
 
-  notes             String?
+  notes String?
 
-  items             OrderItem[]
+  items OrderItem[]
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
 }
 
 model OrderItem {
-  id          String   @id @default(cuid())
-  orderId     String
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  productId   String?
-  sku         String?
-  name        String
-  imageUrl    String?
+  productId String?
+  sku       String?
+  name      String
+  imageUrl  String?
 
-  unitPrice   Int
-  quantity    Int      @default(1)
-  lineTotal   Int      @default(0)
+  unitPrice Int
+  quantity  Int @default(1)
+  lineTotal Int @default(0)
 
-  options     Json?
+  options Json?
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([orderId])
 }
 
-/* =========================
-   HOME SETTINGS (NEW)
-========================= */
+/**
+ * =========================
+ * HOME SETTINGS (NEW)
+ * =========================
+ */
 model HomeSettings {
-  id               Int      @id @default(1)
-  hero             Json     @default("{}")
-  delivery         Json     @default("{}")
-  instagram        Json     @default("{}")
-  promotions       Json     @default("[]")
-  productShowcase  Json     @default("{}")
-  reviews          Json     @default("{}")
-  updatedAt        DateTime @updatedAt
+  id              Int      @id @default(1)
+  hero            Json     @default("{}")
+  delivery        Json     @default("{}")
+  instagram       Json     @default("{}")
+  promotions      Json     @default("[]")
+  productShowcase Json     @default("{}")
+  reviews         Json     @default("{}")
+  updatedAt       DateTime @updatedAt
 }
