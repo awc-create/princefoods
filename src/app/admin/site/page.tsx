@@ -84,18 +84,23 @@ export default function SiteHomeEditor() {
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [dirty, setDirty] = useState(false);
 
-  // Load existing settings
+  // load settings
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         const res = await fetch('/api/admin/site/home/get', { cache: 'no-store' });
         const json = (await res.json()) as { ok: boolean; data?: HomeSettingsDTO; error?: string };
-        if (!res.ok || !json?.ok) throw new Error(json?.error ?? 'Failed to load settings');
-        if (mounted && json.data) setData(json.data);
-        setDirty(false);
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : 'Failed to load settings');
+        if (mounted) {
+          if (json?.ok && json.data) {
+            setData(json.data);
+            setDirty(false);
+          } else if (json?.error) {
+            setError(`Failed to load settings: ${json.error}`);
+          }
+        }
+      } catch {
+        if (mounted) setError('Failed to load settings');
       } finally {
         if (mounted) setLoading(false);
       }
@@ -105,7 +110,6 @@ export default function SiteHomeEditor() {
     };
   }, []);
 
-  // Save (memoized so effects can depend on it)
   const save = useCallback(async () => {
     setSaving(true);
     setError(null);
@@ -116,36 +120,24 @@ export default function SiteHomeEditor() {
         body: JSON.stringify(data)
       });
       const json = (await res.json()) as { ok: boolean; error?: string };
-      if (!res.ok || !json?.ok) throw new Error(json?.error ?? 'Save failed');
+      if (!json?.ok) throw new Error(json?.error ?? 'Save failed');
       setSavedAt(Date.now());
       setDirty(false);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Could not save. Please try again.');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not save. Please try again.';
+      setError(msg);
     } finally {
       setSaving(false);
     }
   }, [data]);
 
-  // Keyboard shortcut: Cmd/Ctrl + S
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        if (!saving) void save();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [save, saving]);
-
-  // Helper to set a portion of the DTO and flag dirty
-  const setPartial = <K extends keyof HomeSettingsDTO>(key: K, value: HomeSettingsDTO[K]) => {
-    setData((prev) => {
-      const next = { ...prev, [key]: value };
-      return next;
-    });
-    setDirty(true);
-  };
+  const setPartial = useCallback(
+    <K extends keyof HomeSettingsDTO>(key: K, value: HomeSettingsDTO[K]) => {
+      setData((prev) => ({ ...prev, [key]: value }));
+      setDirty(true);
+    },
+    []
+  );
 
   if (loading) return <div style={{ padding: 20 }}>Loading…</div>;
 
@@ -155,17 +147,17 @@ export default function SiteHomeEditor() {
         <div className={s.header}>
           <h1>Home Page Editor</h1>
           <div className={s.actions}>
-            {dirty && <span className={s.errorHint}>Unsaved changes</span>}
-            {savedAt && !dirty && <span className={s.savedHint}>Saved</span>}
             {error && <span className={s.errorHint}>{error}</span>}
+            {!error && dirty && !saving && <span className={s.help}>Unsaved changes</span>}
+            {savedAt && !dirty && !error && <span className={s.savedHint}>All changes saved</span>}
+
             <button
               className={s.saveBtn}
-              onClick={() => void save()}
-              disabled={saving}
-              aria-busy={saving}
-              title="Save (⌘/Ctrl+S)"
+              onClick={save}
+              disabled={saving || !dirty}
+              title={!dirty ? 'No changes to save' : 'Save changes'}
             >
-              {saving ? 'Saving…' : 'Save Changes'}
+              {saving ? 'Saving…' : dirty ? 'Save Changes' : 'Saved'}
             </button>
           </div>
         </div>
@@ -592,7 +584,7 @@ function DeliveryForm({
             </Field>
           </div>
 
-          <div className={s.row}>
+          <div className={s.rowRight}>
             <button className={s.danger} onClick={() => removeCustomCard(idx)} type="button">
               Delete
             </button>
@@ -746,7 +738,7 @@ function PromotionsForm({
             </Field>
           </div>
 
-          <div className={s.row}>
+          <div className={s.rowRight}>
             <button className={s.danger} onClick={() => remove(idx)}>
               Delete
             </button>
@@ -893,7 +885,7 @@ function ReviewsForm({
               />
             </Field>
           </div>
-          <div className={s.row}>
+          <div className={s.rowRight}>
             <button className={s.danger} onClick={() => remove(idx)}>
               Delete
             </button>

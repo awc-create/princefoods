@@ -1,10 +1,12 @@
-// src/app/api/admin/site/home/get/route.ts
 import { prisma } from '@/lib/prisma';
 import type { HomeSettingsDTO } from '@/types/homeSettings';
 import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 
+// Run on Node, never cache (admin data)
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 const DEFAULTS: HomeSettingsDTO = {
   hero: {
@@ -16,23 +18,14 @@ const DEFAULTS: HomeSettingsDTO = {
     secondaryCtaLabel: 'Browse Collections',
     secondaryCtaHref: '/collections',
     floatingTag: 'New • Onam Favourites',
-    // NEW canonical source for hero visuals
-    images: ['/assets/slider1.jpg'],
-    // keep legacy for backwards compatibility
-    imageUrl: '/assets/slider1.jpg',
-    // optional global windows (can be null/undefined)
-    overrideStart: null,
-    overrideEnd: null
-    // per-field timed overrides are optional; omit by default
+    images: ['/assets/96bfc4_3547f98fa8f54128b23c97aa34bf83b9~mv2.avif'],
+    imageUrl: '/assets/96bfc4_3547f98fa8f54128b23c97aa34bf83b9~mv2.avif'
   },
   delivery: {
     gbFreeThreshold: 30,
     niFreeThreshold: 40,
     frozenFee: 3.99,
     message: 'No hidden fees. Frozen items are insulated for freshness.',
-    overrideStart: null,
-    overrideEnd: null,
-    // NEW: dynamic cards with locked defaults (editable, not deletable in UI)
     cards: [
       {
         id: 'gb',
@@ -50,29 +43,21 @@ const DEFAULTS: HomeSettingsDTO = {
       }
     ]
   },
-  instagram: {
-    token: '',
-    usernameUrl: 'https://www.instagram.com/princefoodsuk/',
-    enabled: true
-  },
+  instagram: { token: '', usernameUrl: 'https://www.instagram.com/princefoodsuk/', enabled: true },
   promotions: [],
   productShowcase: {
     title: 'Featured',
     kinds: ['best_sellers', 'on_sale', 'b1g1', 'new_arrivals', 'trending', 'top_rated', 'seasonal'],
     selectedKind: 'best_sellers'
   },
-  reviews: {
-    autoplay: true,
-    showCount: 4,
-    items: []
-  }
+  reviews: { autoplay: true, showCount: 4, items: [] }
 };
 
 export async function GET() {
   try {
     let row = await prisma.homeSettings.findUnique({ where: { id: 1 } });
 
-    // seed if missing
+    // prefer ??= (ESLint rule)
     row ??= await prisma.homeSettings.create({
       data: {
         id: 1,
@@ -85,6 +70,7 @@ export async function GET() {
       }
     });
 
+    // Avoid `any` casts; cast to specific slices
     const data: HomeSettingsDTO = {
       hero: row.hero as unknown as HomeSettingsDTO['hero'],
       delivery: row.delivery as unknown as HomeSettingsDTO['delivery'],
@@ -94,9 +80,13 @@ export async function GET() {
       reviews: row.reviews as unknown as HomeSettingsDTO['reviews']
     };
 
-    return NextResponse.json({ ok: true, data });
+    return NextResponse.json({ ok: true, data }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ ok: false }, { status: 500 });
+    const msg = e instanceof Error ? e.message : 'UNKNOWN_ERROR';
+    console.error('GET /api/admin/site/home/get failed:', e);
+    return NextResponse.json(
+      { ok: false, error: msg },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    );
   }
 }

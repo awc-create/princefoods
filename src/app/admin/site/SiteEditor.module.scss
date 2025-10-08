@@ -23,8 +23,8 @@
 .header {
   position: sticky;
   top: 0;
-  z-index: 30;
-  background: rgba(247, 247, 251, 0.9);
+  z-index: 50;
+  background: rgba(247, 247, 251, 0.85);
   backdrop-filter: blur(6px);
   border-bottom: 1px solid var(--ring);
   padding: 10px 0;
@@ -44,7 +44,7 @@
 .actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .saveBtn {
@@ -52,19 +52,35 @@
   color: #fff;
   border: none;
   border-radius: 10px;
-  padding: 8px 14px;
+  padding: 10px 16px;
   font-weight: 800;
   cursor: pointer;
+  box-shadow: 0 2px 8px rgba(225, 29, 72, 0.25);
+  transition:
+    transform 120ms ease,
+    opacity 120ms ease;
+}
+.saveBtn:hover {
+  transform: translateY(-1px);
+}
+.saveBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(15%);
+  box-shadow: none;
 }
 
 .savedHint {
   color: #059669;
   font-weight: 700;
 }
-
 .errorHint {
   color: #dc2626;
   font-weight: 700;
+}
+.help {
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 /* ---------- Tabs ---------- */
@@ -73,7 +89,6 @@
   gap: 8px;
   flex-wrap: wrap;
 }
-
 .tab {
   border: 1px solid var(--ring);
   background: #fff;
@@ -83,7 +98,6 @@
   font-weight: 700;
   color: #374151;
 }
-
 .tabActive {
   background: #fff0f0;
   border-color: #fecaca;
@@ -96,14 +110,12 @@
   display: grid;
   gap: 16px;
 }
-
 .section {
   background: var(--card);
   border: 1px solid var(--ring);
   border-radius: 14px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
-
 .sectionHeader {
   padding: 12px 14px;
   border-bottom: 1px solid var(--ring);
@@ -111,14 +123,12 @@
   align-items: center;
   justify-content: space-between;
 }
-
 .sectionHeader h2 {
   margin: 0;
   font-size: 0.95rem;
   font-weight: 800;
   color: var(--ink);
 }
-
 .sectionBody {
   padding: 14px;
   display: grid;
@@ -137,13 +147,11 @@
   display: grid;
   gap: 6px;
 }
-
 .label {
   font-weight: 800;
   font-size: 0.9rem;
   color: #333;
 }
-
 .help {
   color: var(--muted);
   font-size: 0.85rem;
@@ -164,7 +172,6 @@
   gap: 12px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-
 .grid3 {
   display: grid;
   gap: 12px;
@@ -182,12 +189,18 @@
   display: grid;
   gap: 12px;
 }
-
 .row {
   display: flex;
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
+}
+.rowRight {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 8px;
 }
 
 .templateBar {
@@ -195,7 +208,6 @@
   gap: 8px;
   flex-wrap: wrap;
 }
-
 .templateBtn {
   border: 1px dashed var(--ring);
   background: #fff;
@@ -209,7 +221,6 @@
   gap: 8px;
   flex-wrap: wrap;
 }
-
 .badge {
   border: 1px solid var(--ring);
   background: #fff;
@@ -218,7 +229,6 @@
   font-size: 0.9rem;
   cursor: pointer;
 }
-
 .badgeActive {
   background: #eef2ff;
   border-color: #c7d2fe;
@@ -252,14 +262,12 @@
   display: grid;
   gap: 10px;
 }
-
 .imageRow {
   display: grid;
   grid-template-columns: 84px 1fr auto;
   gap: 10px;
   align-items: center;
 }
-
 .thumb {
   width: 84px;
   height: 64px;
@@ -272,7 +280,6 @@
   font-size: 12px;
   color: var(--muted);
 }
-
 .thumb :global(img) {
   object-fit: cover;
   width: 84px;
@@ -281,6 +288,4 @@
 
 .removeBtn {
   white-space: nowrap;
-  align-self: center; /* prevents it from stretching into the field */
-  padding: 6px 10px; /* tidy spacing; no vertical push */
 }

@@ -3,9 +3,17 @@ import type { HomeSettingsDTO } from '@/types/homeSettings';
 import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as HomeSettingsDTO;
+
+    // Defensive normalization (helps avoid JSON undefined values)
+    const images = body.hero.images ?? (body.hero.imageUrl ? [body.hero.imageUrl] : []);
+    body.hero = { ...body.hero, images, imageUrl: images[0] ?? body.hero.imageUrl ?? '' };
 
     await prisma.homeSettings.upsert({
       where: { id: 1 },
@@ -28,9 +36,13 @@ export async function POST(req: Request) {
       }
     });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {
-    console.error('HomeSettings save failed:', err);
-    return NextResponse.json({ ok: false, error: 'SAVE_FAILED' }, { status: 400 });
+    const msg = err instanceof Error ? err.message : 'SAVE_FAILED';
+    console.error('POST /api/admin/site/home/save failed:', err);
+    return NextResponse.json(
+      { ok: false, error: msg },
+      { status: 400, headers: { 'Cache-Control': 'no-store' } }
+    );
   }
 }
