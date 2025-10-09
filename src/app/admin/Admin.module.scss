@@ -1,10 +1,37 @@
 /* ========== Admin Layout (compact, tidy) ========== */
-// src/app/admin/Admin.module.scss
+/* src/app/admin/Admin.module.scss */
 .adminWrapper {
   display: flex;
   min-height: 100vh;
   background: var(--pf-bg);
   font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* ---------- Top Bar (NEW) ---------- */
+.adminTopBar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 8px 14px;
+  background: #fff;
+  border-bottom: 1px solid var(--pf-border);
+}
+
+.logoTop {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--pf-red);
+  letter-spacing: 0.2px;
+}
+
+.topBarRight {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 /* ---------- Sidebar ---------- */
@@ -206,5 +233,9 @@
     width: 100%;
     border-right: 0;
     border-bottom: 1px solid var(--pf-border);
+  }
+  .adminTopBar {
+    position: sticky;
+    top: 0;
   }
 }

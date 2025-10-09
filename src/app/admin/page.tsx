@@ -1,7 +1,7 @@
-//  Admin Dashboard Page
 'use client';
 
 import styles from './Admin.module.scss';
+import RecentNotifications from './RecentNotifications'; // ✅ add
 import SetupPush from './SetupPush';
 
 export default function AdminDashboard() {
@@ -9,6 +9,7 @@ export default function AdminDashboard() {
     <div>
       <SetupPush />
       <h1>Admin Dashboard</h1>
+
       <div className={styles.dashboardStats}>
         <div className={styles.statCard}>
           <h2>Products</h2>
@@ -27,6 +28,9 @@ export default function AdminDashboard() {
           <p>£12,450</p>
         </div>
       </div>
+
+      {/* ✅ recent notifications list */}
+      <RecentNotifications />
     </div>
   );
 }

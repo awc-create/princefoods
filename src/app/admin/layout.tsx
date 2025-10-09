@@ -1,5 +1,6 @@
 'use client';
 
+import NotificationBell from '@/components/admin/NotificationBell'; // ✅ add bell
 import '@/styles/Global.scss';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -101,8 +102,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     admin: false
   });
 
-  // 2) Effects declared always; guard inside them
-
   // Auth gate (skip when on login path)
   useEffect(() => {
     if (onLogin) return;
@@ -154,6 +153,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className={styles.adminWrapper}>
       {role !== 'VIEWER' && <SetupPush />}
+
+      {/* ✅ Simple top bar with NotificationBell */}
+      <div className={styles.adminTopBar}>
+        <div className={styles.logoTop}>👑 Prince Foods</div>
+        <div className={styles.topBarRight}>
+          <NotificationBell />
+        </div>
+      </div>
 
       <aside className={styles.adminSidebar}>
         <div className={styles.logo}>👑 Prince Foods</div>
