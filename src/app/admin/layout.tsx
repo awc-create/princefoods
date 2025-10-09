@@ -1,5 +1,7 @@
 'use client';
 
+'use client';
+
 import NotificationBell from '@/components/admin/NotificationBell'; // ✅ add bell
 import '@/styles/Global.scss';
 import { useSession } from 'next-auth/react';
@@ -22,28 +24,25 @@ const hasRole = (u: unknown): u is UserWithRole =>
 const isLoginPath = (p?: string | null) => p === '/admin/login' || p === '/admin/login/';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  // 1) All hooks unconditionally
   const pathname = usePathname();
   const safePath = pathname ?? '/admin';
   const onLogin = isLoginPath(safePath);
 
   const router = useRouter();
   const { status, data } = useSession();
-
   const [role, setRole] = useState<Role | null>(null);
 
+  // --- Navigation groups ---
   const groups = useMemo(
     () => [
       {
         key: 'dashboard' as const,
         title: 'Dashboard',
-        kind: 'list' as const,
         items: [{ href: '/admin', label: 'Overview' }]
       },
       {
         key: 'site' as const,
         title: 'Site Editing',
-        kind: 'list' as const,
         items: [
           { href: '/admin/site', label: 'Home' },
           { href: '/admin/site/about', label: 'About' },
@@ -54,7 +53,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {
         key: 'products' as const,
         title: 'Products',
-        kind: 'chips' as const,
         items: [
           { href: '/admin/products', label: 'All Products' },
           { href: '/admin/products/create', label: 'Add Product' },
@@ -64,7 +62,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {
         key: 'operations' as const,
         title: 'Operations',
-        kind: 'list' as const,
         items: [
           { href: '/admin/chat', label: 'Chat' },
           { href: '/admin/customers', label: 'Customers' },
@@ -74,25 +71,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {
         key: 'admin' as const,
         title: 'Admin',
-        kind: 'list' as const,
         items: [{ href: '/admin/settings', label: 'Settings' }]
       }
     ],
     []
   );
-
-  const activeGroup = useMemo<GroupKey>(() => {
-    if (safePath.startsWith('/admin/site')) return 'site';
-    if (safePath.startsWith('/admin/products')) return 'products';
-    if (
-      safePath.startsWith('/admin/chat') ||
-      safePath.startsWith('/admin/customers') ||
-      safePath.startsWith('/admin/sales')
-    )
-      return 'operations';
-    if (safePath.startsWith('/admin/settings')) return 'admin';
-    return 'dashboard';
-  }, [safePath]);
 
   const [open, setOpen] = useState<Record<GroupKey, boolean>>({
     dashboard: false,
@@ -102,15 +85,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     admin: false
   });
 
-  // Auth gate (skip when on login path)
   useEffect(() => {
     if (onLogin) return;
     if (status === 'loading') return;
-
     const r: Role | undefined = hasRole(data?.user)
       ? ((data!.user.role as Role | null) ?? undefined)
       : undefined;
-
     if (!data?.user || !r) {
       const cb = encodeURIComponent(safePath);
       router.replace(`/admin/login?callbackUrl=${cb}`);
@@ -119,42 +99,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setRole(r);
   }, [onLogin, status, data, router, safePath]);
 
-  // Restore open-state
-  useEffect(() => {
-    if (onLogin) return;
-    try {
-      const raw = localStorage.getItem('pf:admin:navOpen');
-      if (raw) setOpen((prev) => ({ ...prev, ...JSON.parse(raw) }));
-      else setOpen((prev) => ({ ...prev, [activeGroup]: true }));
-    } catch {
-      setOpen((prev) => ({ ...prev, [activeGroup]: true }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onLogin]);
-
-  // Persist changes
-  useEffect(() => {
-    if (onLogin) return;
-    try {
-      localStorage.setItem('pf:admin:navOpen', JSON.stringify(open));
-    } catch {}
-  }, [onLogin, open]);
-
-  // 3) After all hooks, short-circuit render on login
   if (onLogin) return <>{children}</>;
-
-  if (status === 'loading' || !role) {
-    return <div style={{ padding: '2rem' }}>Loading…</div>;
-  }
+  if (status === 'loading' || !role) return <div style={{ padding: '2rem' }}>Loading…</div>;
 
   const isActive = (href: string) => safePath === href || safePath.startsWith(`${href}/`);
   const toggle = (key: GroupKey) => setOpen((o) => ({ ...o, [key]: !o[key] }));
 
   return (
     <div className={styles.adminWrapper}>
-      {role !== 'VIEWER' && <SetupPush />}
-
-      {/* ✅ Simple top bar with NotificationBell */}
+      {/* ---------- TOP BAR ---------- */}
       <div className={styles.adminTopBar}>
         <div className={styles.logoTop}>👑 Prince Foods</div>
         <div className={styles.topBarRight}>
@@ -162,9 +115,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </div>
 
+      {/* ---------- SIDEBAR ---------- */}
       <aside className={styles.adminSidebar}>
-        <div className={styles.logo}>👑 Prince Foods</div>
-
         {hasRole(data?.user) && data.user.email && (
           <div className={styles.loggedIn}>
             Logged in as:
@@ -186,33 +138,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {open[g.key] ? '−' : '+'}
               </span>
             </button>
-
-            {open[g.key] &&
-              (g.kind === 'chips' ? (
-                <div className={styles.pillBar}>
-                  {g.items.map((it) => (
-                    <Link
-                      key={it.href}
-                      href={it.href}
-                      className={`${styles.pill} ${isActive(it.href) ? styles.pillActive : ''}`}
-                    >
-                      {it.label}
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <nav className={styles.nav}>
-                  {g.items.map((it) => (
-                    <Link
-                      key={it.href}
-                      href={it.href}
-                      className={`${styles.navLink} ${isActive(it.href) ? styles.active : ''}`}
-                    >
-                      {it.label}
-                    </Link>
-                  ))}
-                </nav>
-              ))}
+            {open[g.key] && (
+              <nav className={styles.nav}>
+                {g.items.map((it) => (
+                  <Link
+                    key={it.href}
+                    href={it.href}
+                    className={`${styles.navLink} ${isActive(it.href) ? styles.active : ''}`}
+                  >
+                    {it.label}
+                  </Link>
+                ))}
+              </nav>
+            )}
           </div>
         ))}
 
@@ -225,7 +163,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
 
-      <main className={styles.adminMain}>{children}</main>
+      {/* ---------- MAIN ---------- */}
+      <main className={styles.adminMain}>
+        <SetupPush />
+        {children}
+      </main>
     </div>
   );
 }
