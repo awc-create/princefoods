@@ -47,6 +47,14 @@
   gap: 12px;
 }
 
+.textareaAuto {
+  resize: none; /* user can’t drag; we grow programmatically */
+  overflow: hidden; /* no scrollbar flicker */
+  line-height: 1.4;
+  min-height: 42px; /* matches input height nicely */
+  white-space: pre-wrap;
+}
+
 /* Status text (clear colors) */
 .statusText {
   font-weight: 700;
@@ -276,6 +284,10 @@
 
 .empty {
   color: var(--muted);
+}
+
+.uploaderSmall {
+  max-width: 300px; /* tweak as you like */
 }
 
 /* ---------- Compact hero images list ---------- */

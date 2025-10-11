@@ -1,0 +1,200 @@
+// src/components/admin/NotificationBell.module.scss
+.bellWrapper {
+  position: relative;
+}
+
+.bellBtn {
+  position: relative;
+  font-size: 1.35rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #444;
+  transition:
+    transform 0.15s ease,
+    color 0.15s ease;
+  &:hover {
+    transform: scale(1.08);
+    color: var(--pf-red);
+  }
+}
+.bellBtnActive {
+  color: var(--pf-red);
+}
+
+.bellBadge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  background: var(--pf-red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 2px solid #fff;
+}
+
+/* the panel is portaled to <body>, we position via inline style */
+.bellMenu {
+  position: fixed;
+  width: 340px;
+  max-width: 92vw;
+  max-height: 72vh;
+  overflow: hidden; /* header/footer fixed; list scrolls */
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14);
+  z-index: 9999;
+  animation: fadeIn 0.15s ease;
+}
+
+.bellHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #f9fafb;
+}
+
+.bellHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bellTitle {
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #111827;
+}
+
+.bellUnreadPill {
+  display: inline-block;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 22px;
+  color: #fff;
+  background: var(--pf-red);
+}
+
+.bellLinkBtn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  padding: 4px 6px;
+  &:hover {
+    color: #374151;
+  }
+}
+
+.bellList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 48vh;
+  overflow-y: auto;
+}
+
+.bellItem {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 10px;
+  padding: 12px;
+  text-decoration: none;
+  color: #111827;
+  border-bottom: 1px solid #f8fafc;
+  transition: background 0.15s ease;
+  &:hover {
+    background: #fff7f7;
+  }
+}
+
+.bellRead {
+  opacity: 0.7;
+}
+
+.bellDot {
+  width: 10px;
+  height: 10px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px #fff inset;
+}
+
+.bellText {
+  min-width: 0; /* allow clamp */
+}
+
+.bellItemTitle {
+  font-weight: 800;
+  font-size: 0.9rem;
+  line-height: 1.25rem;
+  color: #111827;
+  margin-bottom: 2px;
+  display: -webkit-box;
+  line-clamp: 1;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bellItemBody {
+  font-size: 0.85rem;
+  color: #4b5563;
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bellTime {
+  margin-left: 8px;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.bellEmpty {
+  padding: 18px 14px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+.bellEmoji {
+  font-size: 1.4rem;
+  margin-bottom: 6px;
+}
+
+.bellFooter {
+  display: flex;
+  justify-content: center;
+  padding: 10px 12px;
+  border-top: 1px solid #f1f5f9;
+  background: #fafafa;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

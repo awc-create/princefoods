@@ -1,8 +1,7 @@
+// src/app/admin/layout.tsx
 'use client';
 
-'use client';
-
-import NotificationBell from '@/components/admin/NotificationBell'; // ✅ add bell
+import NotificationBell from '@/components/admin/NotificationBell';
 import '@/styles/Global.scss';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -20,7 +19,6 @@ interface UserWithRole {
 }
 const hasRole = (u: unknown): u is UserWithRole =>
   !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
-
 const isLoginPath = (p?: string | null) => p === '/admin/login' || p === '/admin/login/';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -32,7 +30,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { status, data } = useSession();
   const [role, setRole] = useState<Role | null>(null);
 
-  // --- Navigation groups ---
+  const [open, setOpen] = useState<Record<GroupKey, boolean>>({
+    dashboard: false,
+    site: true,
+    products: false,
+    operations: false,
+    admin: false
+  });
+
   const groups = useMemo(
     () => [
       {
@@ -44,7 +49,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         key: 'site' as const,
         title: 'Site Editing',
         items: [
-          { href: '/admin/site', label: 'Home' },
+          { href: '/admin/site/home', label: 'Home' },
           { href: '/admin/site/about', label: 'About' },
           { href: '/admin/site/faq', label: 'FAQ' },
           { href: '/admin/site/contact', label: 'Contact' }
@@ -71,29 +76,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {
         key: 'admin' as const,
         title: 'Admin',
-        items: [{ href: '/admin/settings', label: 'Settings' }]
+        items: [
+          { href: '/admin/notifications', label: 'Notifications' }, // 👈 added
+          { href: '/admin/settings', label: 'Settings' },
+          { href: '/admin/notifications', label: 'Notifications' }
+        ]
       }
     ],
     []
   );
 
-  const [open, setOpen] = useState<Record<GroupKey, boolean>>({
-    dashboard: false,
-    site: true,
-    products: false,
-    operations: false,
-    admin: false
-  });
-
   useEffect(() => {
-    if (onLogin) return;
-    if (status === 'loading') return;
+    if (onLogin || status === 'loading') return;
     const r: Role | undefined = hasRole(data?.user)
       ? ((data!.user.role as Role | null) ?? undefined)
       : undefined;
     if (!data?.user || !r) {
-      const cb = encodeURIComponent(safePath);
-      router.replace(`/admin/login?callbackUrl=${cb}`);
+      router.replace(`/admin/login?callbackUrl=${encodeURIComponent(safePath)}`);
       return;
     }
     setRole(r);
@@ -103,25 +102,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (status === 'loading' || !role) return <div style={{ padding: '2rem' }}>Loading…</div>;
 
   const isActive = (href: string) => safePath === href || safePath.startsWith(`${href}/`);
-  const toggle = (key: GroupKey) => setOpen((o) => ({ ...o, [key]: !o[key] }));
+  const toggle = (k: GroupKey) => setOpen((o) => ({ ...o, [k]: !o[k] }));
 
   return (
     <div className={styles.adminWrapper}>
-      {/* ---------- TOP BAR ---------- */}
-      <div className={styles.adminTopBar}>
-        <div className={styles.logoTop}>👑 Prince Foods</div>
-        <div className={styles.topBarRight}>
-          <NotificationBell />
-        </div>
-      </div>
-
-      {/* ---------- SIDEBAR ---------- */}
       <aside className={styles.adminSidebar}>
+        {/* Logged in info with Bell beside */}
         {hasRole(data?.user) && data.user.email && (
-          <div className={styles.loggedIn}>
-            Logged in as:
-            <br />
-            <strong>{data.user.email}</strong>
+          <div className={styles.loggedInRow}>
+            <div className={styles.loggedIn}>
+              Logged in as:
+              <br />
+              <strong>{data.user.email}</strong>
+            </div>
+            <NotificationBell />
           </div>
         )}
 
@@ -138,6 +132,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {open[g.key] ? '−' : '+'}
               </span>
             </button>
+
             {open[g.key] && (
               <nav className={styles.nav}>
                 {g.items.map((it) => (
@@ -163,7 +158,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
 
-      {/* ---------- MAIN ---------- */}
       <main className={styles.adminMain}>
         <SetupPush />
         {children}

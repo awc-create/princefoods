@@ -1,5 +1,6 @@
 'use client';
 
+import ImageUploader from '@/components/image/ImageUploader';
 import type {
   DeliveryCard,
   DeliverySettings,
@@ -12,7 +13,7 @@ import type {
   ReviewsSettings,
   ShowcaseKind
 } from '@/types/homeSettings';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import s from './SiteEditor.module.scss';
 
 const DEFAULT_HERO = '/assets/96bfc4_3547f98fa8f54128b23c97aa34bf83b9~mv2.avif';
@@ -119,10 +120,24 @@ export default function SiteHomeEditor() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
-      const json = (await res.json()) as { ok: boolean; error?: string };
+      const json = (await res.json()) as { ok: boolean; error?: string; notificationId?: string };
       if (!json?.ok) throw new Error(json?.error ?? 'Save failed');
       setSavedAt(Date.now());
       setDirty(false);
+
+      // 🔔 Broadcast so notifications page updates instantly
+      try {
+        const bc = new BroadcastChannel('admin_notifications');
+        bc.postMessage({
+          type: 'notification:new',
+          source: '/admin/site/home',
+          id: json.notificationId ?? null
+        });
+        bc.close();
+      } catch {}
+      try {
+        window.dispatchEvent(new Event('admin:notif:new'));
+      } catch {}
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Could not save. Please try again.';
       setError(msg);
@@ -139,7 +154,7 @@ export default function SiteHomeEditor() {
     []
   );
 
-  // Warn before leaving if there are unsaved changes
+  // warn on unload
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (dirty) {
@@ -151,7 +166,7 @@ export default function SiteHomeEditor() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [dirty]);
 
-  // Cmd/Ctrl+S to save
+  // Cmd/Ctrl+S
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
@@ -172,15 +187,12 @@ export default function SiteHomeEditor() {
           <h1>Home Page Editor</h1>
           <div className={s.actions}>
             {error && <span className={`${s.statusText} ${s.statusError}`}>{error}</span>}
-
             {!error && dirty && !saving && (
               <span className={`${s.statusText} ${s.statusUnsaved}`}>Unsaved changes</span>
             )}
-
             {savedAt && !dirty && !error && (
               <span className={`${s.statusText} ${s.statusSaved}`}>All changes saved</span>
             )}
-
             <button
               className={s.saveBtn}
               onClick={save}
@@ -282,7 +294,10 @@ function HeroForm({
   onChange: (v: HeroSettings) => void;
 }) {
   // images[] is canonical; keep imageUrl synced to first image for backwards compatibility
-  const images = value.images ?? (value.imageUrl ? [value.imageUrl] : []);
+  const images = useMemo(
+    () => (value.images ?? (value.imageUrl ? [value.imageUrl] : [])).filter(Boolean),
+    [value.images, value.imageUrl]
+  );
 
   const setImage = (i: number, url: string) => {
     const next = [...images];
@@ -349,25 +364,33 @@ function HeroForm({
         </Field>
       </div>
 
-      {/* Compact images list with thumbnails */}
+      {/* Image URL text + uploader */}
       <div className={s.field}>
         <span className={s.label}>Hero Images (slider)</span>
+        <div className={s.uploaderSmall}>
+          <ImageUploader
+            label="Upload hero images"
+            endpoint="siteImage"
+            images={images}
+            setImages={(urls: string[]) =>
+              onChange({ ...value, images: urls, imageUrl: urls[0] ?? '' })
+            }
+          />
+        </div>
+        {/* Manual editor stays */}
         <div className={s.imagesWrap}>
           {images.length === 0 && <span className={s.help}>No images yet. Add one below.</span>}
-
           {images.map((url, i) => (
             <div key={i} className={s.imageRow}>
               <div className={s.thumb}>
                 {url ? <img src={url} alt="" width="84" height="64" /> : <span>84×64</span>}
               </div>
-
               <input
                 className={s.input}
                 placeholder="/assets/… or https://…"
                 value={url}
                 onChange={(e) => setImage(i, e.target.value)}
               />
-
               <button
                 type="button"
                 className={`${s.secondary} ${s.removeBtn}`}
@@ -377,7 +400,6 @@ function HeroForm({
               </button>
             </div>
           ))}
-
           <div className={s.row}>
             <button type="button" className={s.secondary} onClick={addImage}>
               + Add Image
@@ -745,6 +767,19 @@ function PromotionsForm({
                 <option value="0">No</option>
               </select>
             </Field>
+          </div>
+
+          {/* Uploader that updates imageUrl AND keeps the input in sync */}
+          <div className={s.stack}>
+            <div className={s.uploaderSmall}>
+              <ImageUploader
+                label="Promotion Image"
+                single
+                endpoint="siteImage"
+                images={p.imageUrl ? [p.imageUrl] : []}
+                setImages={(urls: string[]) => update(idx, { imageUrl: urls[0] ?? '' })}
+              />
+            </div>
             <Field label="Image URL">
               <input
                 className={s.input}
@@ -752,6 +787,9 @@ function PromotionsForm({
                 onChange={(e) => update(idx, { imageUrl: e.target.value })}
               />
             </Field>
+          </div>
+
+          <div className={s.grid3}>
             <Field label="CTA Label">
               <input
                 className={s.input}

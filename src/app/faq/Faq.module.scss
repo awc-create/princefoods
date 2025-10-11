@@ -1,24 +1,37 @@
-/* src/app/faq/Faq.module.scss */
+/* =========================
+   FAQ Page — Full Stylesheet (Full Black Background Scoped)
+   ========================= */
 
-/* ===== Theme (scoped) ===== */
-$bg: #000;
+/* ===== Theme ===== */
+$bg: #000; // full-page black
 $text: #eef1f5;
 $muted: #a8afbb;
 $card: #0b0c0e;
 $card2: #121317;
 $hairline: rgba(255, 255, 255, 0.08);
-$brand: #c8102e; // Prince red
+$brand: #c8102e;
 
-/* ===== Shell ===== */
-.shell {
-  max-width: 1440px; /* more spread across widescreens */
-  margin: 0 auto;
-  padding: clamp(16px, 3.6vw, 56px);
-  padding-top: clamp(8px, 2.2vw, 28px); /* pull headline up a touch */
-  color: $text;
+/* ===== Page Wrapper (full bleed black) ===== */
+.page {
   background: $bg;
+  min-height: 100dvh;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
 }
 
+/* ===== Container ===== */
+.shell {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: clamp(24px, 3.6vw, 56px) 16px 64px;
+  color: $text;
+  background: transparent; // transparent so black shows behind
+}
+
+/* ===== Header ===== */
 .head {
   text-align: center;
   margin-bottom: clamp(18px, 3vw, 36px);
@@ -26,24 +39,56 @@ $brand: #c8102e; // Prince red
 
 .title {
   margin: 0 0 6px;
-  font-size: clamp(26px, 3.2vw, 44px); /* a hair smaller than before */
+  font-size: clamp(28px, 3.2vw, 44px);
   font-weight: 900;
   letter-spacing: 0.25px;
   text-transform: uppercase;
+  color: #fff;
 }
 
 .sub {
   margin: 0;
-  color: #b7beca; /* brighter than $muted */
+  color: #b7beca;
   font-size: clamp(14px, 1.5vw, 17px);
 }
 
-/* ===== Two independent columns ===== */
+/* ===== Tools (Search) ===== */
+.tools {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.search {
+  width: min(720px, 92%);
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid $hairline;
+  background: $card2;
+  color: $text;
+  font-size: 14px;
+  outline: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+
+  &::placeholder {
+    color: rgba($text, 0.6);
+  }
+
+  &:focus {
+    border-color: rgba($brand, 0.35);
+    box-shadow: 0 0 0 3px rgba($brand, 0.15);
+  }
+}
+
+/* ===== Two Columns ===== */
 .cols {
   display: grid;
-  gap: clamp(16px, 2.2vw, 32px);
+  gap: clamp(16px, 2.2vw, 24px);
+  margin-top: clamp(18px, 3vw, 32px);
 
-  @media (min-width: 900px) {
+  @media (min-width: 992px) {
     grid-template-columns: 1fr 1fr;
     align-items: start;
   }
@@ -51,22 +96,26 @@ $brand: #c8102e; // Prince red
 
 .col {
   display: grid;
-  gap: clamp(12px, 1.8vw, 22px);
+  gap: clamp(12px, 1.6vw, 18px);
 }
 
-/* ===== Accordion card ===== */
+/* ===== Accordion Card ===== */
 $item-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
 
 .item {
   border-radius: 14px;
-  background: linear-gradient(180deg, #0a0b0d, #101215); /* slightly darker */
-  border: 1px solid rgba(255, 255, 255, 0.06); /* lighter hairline */
+  background: linear-gradient(180deg, #0a0b0d, #101215);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   box-shadow: $item-shadow;
   overflow: clip;
   transition:
     border-color 0.18s ease,
     box-shadow 0.18s ease,
     transform 0.12s ease;
+
+  opacity: 0;
+  transform: translateY(6px);
+  animation: reveal 0.28s ease forwards;
 
   &:hover {
     border-color: rgba(255, 255, 255, 0.1);
@@ -75,10 +124,14 @@ $item-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
   }
 }
 
-.h2 {
-  margin: 0;
+@keyframes reveal {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
+/* ===== Trigger ===== */
 .trigger {
   width: 100%;
   display: grid;
@@ -102,13 +155,22 @@ $item-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
 .q {
   font-size: clamp(14px, 1.5vw, 16px);
   font-weight: 800;
-  letter-spacing: 0.3px; /* tad more */
+  letter-spacing: 0.3px;
   text-transform: uppercase;
   line-height: 1.2;
-  color: #e8edf6; /* brighter label */
+  color: #e8edf6;
 }
 
-/* Minimal chevron (+ look) */
+/* ===== Search Highlight ===== */
+.hl {
+  background: transparent;
+  color: #fff;
+  text-decoration: underline;
+  text-decoration-color: rgba($brand, 0.45);
+  text-underline-offset: 3px;
+}
+
+/* ===== Chevron ===== */
 .chev {
   width: 28px;
   height: 28px;
@@ -117,7 +179,6 @@ $item-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
   transition:
-    transform 0.22s ease,
     box-shadow 0.2s ease,
     background 0.2s ease;
 
@@ -127,29 +188,55 @@ $item-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
     position: absolute;
     inset: 0;
     margin: auto;
-    background: #dbe2ee; /* clearer contrast */
-    transform-origin: center;
+    background: #dbe2ee;
     transition:
-      transform 0.22s ease,
+      opacity 0.2s ease,
       background 0.2s ease;
   }
 
-  /* Create a simple “+” using two bars */
   &::before {
     width: 12px;
     height: 2px;
   }
+
   &::after {
     width: 2px;
     height: 12px;
+    opacity: 1;
   }
 }
 
-/* Panel with smooth height; respects reduced-motion */
+/* ===== Expanded ===== */
+.expanded {
+  border-color: rgba($brand, 0.22);
+
+  .chev {
+    box-shadow: inset 0 0 0 1px rgba($brand, 0.28);
+    background: linear-gradient(180deg, rgba($brand, 0.14), rgba($brand, 0.05));
+
+    &::after {
+      opacity: 0;
+    }
+
+    &::before,
+    &::after {
+      background: #fff;
+    }
+  }
+
+  .q {
+    text-decoration: underline;
+    text-decoration-color: rgba($brand, 0.28);
+    text-underline-offset: 4px;
+  }
+}
+
+/* ===== Panel ===== */
 .panel {
   max-height: 0;
   overflow: hidden;
   transition: max-height 0.28s ease;
+  will-change: max-height;
 
   @media (prefers-reduced-motion: reduce) {
     transition: none;
@@ -160,6 +247,21 @@ $item-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
   padding: 0 clamp(14px, 2.2vw, 20px) clamp(16px, 2.2vw, 22px);
 }
 
+.opening .panelInner {
+  animation: fadeSlide 0.22s ease both;
+}
+
+@keyframes fadeSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .answer {
   margin: 0;
   color: #cfd6e2;
@@ -168,36 +270,94 @@ $item-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
   white-space: pre-wrap;
 }
 
-/* Expanded state */
-.expanded {
-  border-color: rgba($brand, 0.22);
+/* ===== Link Button ===== */
+.rowRight {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
 
-  .chev {
-    /* Switch to subtle red tone when open */
-    box-shadow: inset 0 0 0 1px rgba($brand, 0.28);
-    background: linear-gradient(180deg, rgba($brand, 0.14), rgba($brand, 0.05));
+.linkBtn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #dbe2ee;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease;
 
-    /* Turn + into × by rotating the vertical bar to match the horizontal (visually reads as “collapse”) */
-    transform: rotate(45deg);
-    &::before,
-    &::after {
-      background: #fff;
-    }
-  }
-
-  /* roomy for long answers */
-  .panel {
-    max-height: 440px;
-  }
-
-  .q {
-    text-decoration: underline;
-    text-decoration-color: rgba($brand, 0.28);
-    text-underline-offset: 4px;
+  &:hover {
+    border-color: rgba($brand, 0.35);
+    background: rgba($brand, 0.08);
   }
 }
 
-/* Small phones: add side padding so cards don't touch edges */
+/* ===== Ask-a-question Box ===== */
+.ask {
+  margin-top: clamp(28px, 6vw, 60px);
+  padding: clamp(16px, 3vw, 28px);
+  background: $card2;
+  border: 1px solid $hairline;
+  border-radius: 16px;
+}
+
+.askTitle {
+  margin: 0 0 8px;
+  font-weight: 800;
+}
+
+.askRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+
+.askInput {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid $hairline;
+  background: #0e1013;
+  color: $text;
+  outline: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+
+  &::placeholder {
+    color: rgba($text, 0.6);
+  }
+
+  &:focus {
+    border-color: rgba($brand, 0.35);
+    box-shadow: 0 0 0 3px rgba($brand, 0.12);
+  }
+}
+
+.askBtn {
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 0;
+  background: $brand;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.18s ease;
+
+  &:hover {
+    filter: brightness(1.05);
+  }
+}
+
+.askHelp {
+  margin: 8px 0 0;
+  color: $muted;
+  font-size: 13px;
+}
+
+/* ===== Small Phones ===== */
 @media (max-width: 399px) {
   .shell {
     padding-left: 14px;

@@ -1,15 +1,19 @@
 // site/next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone', // <- required to emit .next/standalone
+  output: 'standalone',
   reactStrictMode: true,
   trailingSlash: true,
   eslint: { ignoreDuringBuilds: true },
 
   images: {
-    unoptimized: true, // works well behind a reverse-proxy/CDN
+    unoptimized: true,
     remotePatterns: [
+      // UploadThing / utfs
       { protocol: 'https', hostname: 'utfs.io', pathname: '/**' },
+      { protocol: 'https', hostname: '**.uploadthing.com', pathname: '/**' },
+
+      // Existing allowlist (use ** not * for wildcards)
       { protocol: 'https', hostname: 'static.wixstatic.com', pathname: '/**' },
       { protocol: 'https', hostname: 'images.wixstatic.com', pathname: '/**' },
       { protocol: 'https', hostname: 'drive.google.com', pathname: '/**' },
@@ -18,13 +22,12 @@ const nextConfig = {
       { protocol: 'https', hostname: 'lh5.googleusercontent.com', pathname: '/**' },
       { protocol: 'https', hostname: 'lh6.googleusercontent.com', pathname: '/**' },
       { protocol: 'https', hostname: 'ssl.gstatic.com', pathname: '/**' },
-      { protocol: 'https', hostname: '*.cdninstagram.com', pathname: '/**' },
-      { protocol: 'https', hostname: '*.fbcdn.net', pathname: '/**' },
+      { protocol: 'https', hostname: '**.cdninstagram.com', pathname: '/**' },
+      { protocol: 'https', hostname: '**.fbcdn.net', pathname: '/**' },
       { protocol: 'https', hostname: 'scontent.cdninstagram.com', pathname: '/**' }
     ]
   },
 
-  // make sure native/optional deps get traced into the standalone build
   outputFileTracingIncludes: {
     '/**/*': ['./node_modules/bcryptjs/**']
   }

@@ -1,3 +1,4 @@
+// src/app/admin/products/create/page.tsx
 'use client';
 
 import CategorySelector, { CategoryMap } from '@/components/category/CategorySelector';

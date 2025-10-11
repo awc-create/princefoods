@@ -1,4 +1,3 @@
-// src/app/contact/page.tsx
 import ContactOffices from '@/components/contact/ContactOffice';
 import { Suspense } from 'react';
 import ContactClient from './ContactClient';
@@ -15,7 +14,6 @@ export const fetchCache = 'force-no-store';
 export default function ContactPage() {
   return (
     <>
-      {/* Wrap each client subtree that might use router hooks */}
       <Suspense fallback={null}>
         <ContactClient />
       </Suspense>

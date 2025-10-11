@@ -1,3 +1,4 @@
+// prisma/seed.ts
 import { Prisma, PrismaClient, Role, UserSource } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import 'dotenv/config';

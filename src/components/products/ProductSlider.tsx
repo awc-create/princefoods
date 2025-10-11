@@ -1,3 +1,4 @@
+// src/components/products/ProductSlider.tsx
 'use client';
 
 import Image from 'next/image';

@@ -277,14 +277,6 @@ model PasswordToken {
  * CONTENT (FAQ / Policies)
  * =========================
  */
-model Faq {
-  id        String   @id @default(cuid())
-  question  String   @unique
-  answer    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 model PolicyDoc {
   id        String   @id @default(cuid())
   title     String
@@ -292,6 +284,36 @@ model PolicyDoc {
   body      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/** Final FAQ models (single source of truth) */
+model Faq {
+  id        String   @id @default(cuid())
+  question  String   @unique
+  answer    String
+  active    Boolean  @default(true)
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([position, updatedAt])
+}
+
+model FaqSettings {
+  id         Int      @id @default(1)
+  heading    String   @default("FAQs")
+  subheading String   @default("Get answers to common questions.")
+  updatedAt  DateTime @updatedAt
+}
+
+model FaqQuestion {
+  id         String   @id @default(cuid())
+  question   String
+  askedCount Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([askedCount, updatedAt])
 }
 
 /**
@@ -445,7 +467,7 @@ model OrderItem {
 
 /**
  * =========================
- * HOME SETTINGS (NEW)
+ * HOME & ABOUT SETTINGS
  * =========================
  */
 model HomeSettings {
@@ -457,4 +479,15 @@ model HomeSettings {
   productShowcase Json     @default("{}")
   reviews         Json     @default("{}")
   updatedAt       DateTime @updatedAt
+}
+
+model AboutSettings {
+  id        Int      @id @default(1)
+  hero      Json?    // { title, subtitle, imageUrl }
+  media     Json?    // { imageUrl }
+  story     Json?    // { heading, paragraphs[] }
+  stats     Json?    // StatItem[]
+  values    Json?    // ValueCard[]
+  cta       Json?    // { text, href }
+  updatedAt DateTime @updatedAt
 }

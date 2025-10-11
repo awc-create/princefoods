@@ -1,10 +1,13 @@
-/* GLOBAL (not a module) */
+/* ============================================================
+   GLOBAL (not a module)
+   ============================================================ */
+
+/* ---------------- Site Tokens ---------------- */
 :root {
-  /* Site tokens */
   --color-bg: #ffffff;
   --color-text: #333333;
   --color-primary: #2c3e50;
-  --color-accent: #007bff; /* legacy site accent (blue) */
+  --color-accent: #007bff;
   --color-bg-light: #fafafa;
   --color-overlay: rgba(0, 0, 0, 0.35);
 
@@ -12,27 +15,27 @@
   --max-content-width: 1200px;
   --gutter: 5%;
 
-  /* Brand / Admin palette */
-  --primary: #ef4444; /* brand red */
-  --primary-strong: #dc2626; /* darker red */
+  /* Brand / Admin */
+  --primary: #ef4444;
+  --primary-strong: #dc2626;
 
-  /* Shop palette (shared) — matches navbar leaf green */
+  /* Shop palette */
   --accent: #6ca51c;
   --accent-d: #5a8d17;
 
   /* Greys */
-  --text-dark: #111827; /* gray-900 */
-  --text-muted: #4b5563; /* gray-600 */
-  --border: #e5e7eb; /* gray-200 */
-  --input-bg: #f9fafb; /* gray-50 */
+  --text-dark: #111827;
+  --text-muted: #4b5563;
+  --border: #e5e7eb;
+  --input-bg: #f9fafb;
 
-  /* Chips / subtle surfaces */
+  /* Chips */
   --chip: #f8fafc;
   --chip-hover: #f3f4f6;
   --chip-active: #eef2ff;
   --chip-active-border: #dbeafe;
 
-  /* Product card tokens */
+  /* Product card */
   --pf-card: #fff;
   --pf-border: var(--border);
   --pf-text: var(--text-dark);
@@ -40,32 +43,43 @@
   --pf-red: #b21e2b;
   --pf-red-d: #9a1a26;
 
-  /* Helpful aliases */
+  /* Aliases */
   --brand-primary: var(--color-primary);
   --brand-accent: var(--color-accent);
+
+  /* Radii + Shadows */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+
+  --shadow-soft: 0 6px 18px rgba(0, 0, 0, 0.06);
+  --shadow-1: 0 6px 24px rgba(0, 0, 0, 0.08);
+  --shadow-2: 0 30px 80px rgba(0, 0, 0, 0.35);
 }
 
 /* (optional) dark mode
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #0b0f14;
-    --color-text: #e6e6e6;
-    --color-bg-light: #11161c;
+@media (prefers-color-scheme: dark){
+  :root{
+    --color-bg:#0b0f14;
+    --color-text:#e6e6e6;
+    --color-bg-light:#11161c;
   }
 }
 */
 
-/* Base + helpers */
+/* ---------------- Base + Layout Guards ---------------- */
 *,
 *::before,
 *::after {
   box-sizing: border-box;
+  min-width: 0; /* stops flex/grid children from forcing overflow */
 }
 
 html,
 body {
-  min-height: 100%;
   margin: 0;
+  min-height: 100%;
+  width: 100%;
   background: var(--color-bg);
   color: var(--color-text);
   font-family:
@@ -79,20 +93,83 @@ body {
     'Segoe UI Emoji',
     'Segoe UI Symbol',
     sans-serif;
+
+  /* 🚫 kill horizontal scroll globally */
+  overflow-x: hidden; /* use hidden here for absolute lock */
 }
 
-/* The app content lives inside this for sticky-footer layout */
+/* App wrapper */
 .page-wrapper {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 main {
   flex: 1;
 }
 
-/* Nice scrollbars */
+/* ---------------- Media Safety ---------------- */
+img,
+video,
+canvas,
+svg,
+iframe {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Some embeds use inline width:100vw – clamp them */
+iframe[style*='100vw'],
+img[style*='100vw'] {
+  width: 100% !important;
+}
+
+/* ---------------- Background Watermark ---------------- */
+.background-wrapper {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: url('/assets/logo/logo-full.png') no-repeat center/ min(500px, 90vw);
+  opacity: 0.05;
+  pointer-events: none;
+  z-index: -1;
+  max-width: 100%; /* never exceed viewport */
+}
+
+/* ---------------- Containers (simpler, no calc) ---------------- */
+.container,
+.centered-container {
+  max-width: var(--max-content-width);
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 5vw, 72px);
+}
+
+/* ---------------- Links ---------------- */
+a {
+  color: var(--primary);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  transition: color 0.15s ease;
+}
+a:hover,
+a:focus-visible {
+  color: var(--primary-strong);
+}
+
+/* ---------------- Utilities ---------------- */
+.no-x-scroll {
+  overflow-x: hidden !important;
+}
+.contact-page {
+  background: #000;
+  color: #f2f4f7;
+}
+
+/* ---------------- Scrollbars ---------------- */
 ::-webkit-scrollbar {
   width: 10px;
 }
@@ -100,33 +177,17 @@ main {
   background: var(--color-bg-light);
 }
 ::-webkit-scrollbar-thumb {
-  background-color: var(--accent); /* match shop accent */
+  background-color: var(--accent);
   border-radius: 6px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--accent-d);
 }
 
-/* Optional faint background watermark */
-.background-wrapper {
-  position: fixed;
-  inset: 0;
-  background: url('/assets/logo/logo-full.png') no-repeat center/500px;
-  opacity: 0.05;
-  pointer-events: none;
-  z-index: -1;
-}
-
-/* ------------------------------------------------------------
-   Minimal, non-breaking aliases used by the new components
-   (you can tweak these, but nothing else depends on them now)
--------------------------------------------------------------*/
-:root {
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 18px;
-
-  --shadow-soft: 0 6px 18px rgba(0, 0, 0, 0.06);
-  --shadow-1: 0 6px 24px rgba(0, 0, 0, 0.08);
-  --shadow-2: 0 30px 80px rgba(0, 0, 0, 0.35);
+/* ---------------- Print ---------------- */
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
 }

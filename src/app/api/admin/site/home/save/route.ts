@@ -1,15 +1,23 @@
-// app/api/admin/site/home/save/route.ts
+// src/app/api/admin/site/home/save/route.ts
 import { fromJson, toJson } from '@/lib/json';
 import { prisma } from '@/lib/prisma';
 import { sendAdminPush } from '@/lib/push';
 import type { HomeSettingsDTO } from '@/types/homeSettings';
 import { NextResponse } from 'next/server';
+import crypto from 'node:crypto';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-/** Summarize section-level changes for concise notifications. */
+interface HomeUpdateMeta {
+  entity: 'homeSettings';
+  prev: HomeSettingsDTO | null;
+  next: HomeSettingsDTO;
+  hash: string;
+  source?: string;
+}
+
 function summarizeHomeChanges(prev: HomeSettingsDTO | null, next: HomeSettingsDTO): string {
   const changed: string[] = [];
   const cmp = <T>(a: T, b: T) => JSON.stringify(a) !== JSON.stringify(b);
@@ -34,35 +42,38 @@ function summarizeHomeChanges(prev: HomeSettingsDTO | null, next: HomeSettingsDT
   return changed.length ? `Updated: ${changed.join(', ')}` : 'No changes.';
 }
 
+const sha1 = (obj: unknown) => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex');
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as HomeSettingsDTO;
 
-    // Normalize hero.images and keep imageUrl in sync with first image.
+    // normalize hero images
     const images = body.hero.images ?? (body.hero.imageUrl ? [body.hero.imageUrl] : []);
     body.hero = { ...body.hero, images, imageUrl: images[0] ?? body.hero.imageUrl ?? '' };
 
-    // Read previous (narrow JSON to app types with fromJson<> to fix TS2352)
+    // load prev
     const existing = await prisma.homeSettings.findUnique({ where: { id: 1 } });
     const prev: HomeSettingsDTO | null = existing
       ? {
-          hero: fromJson<HomeSettingsDTO['hero']>(existing.hero),
-          delivery: fromJson<HomeSettingsDTO['delivery']>(existing.delivery),
-          instagram: fromJson<HomeSettingsDTO['instagram']>(existing.instagram),
-          promotions: fromJson<HomeSettingsDTO['promotions']>(existing.promotions),
-          productShowcase: fromJson<HomeSettingsDTO['productShowcase']>(existing.productShowcase),
-          reviews: fromJson<HomeSettingsDTO['reviews']>(existing.reviews)
+          hero: fromJson(existing.hero),
+          delivery: fromJson(existing.delivery),
+          instagram: fromJson(existing.instagram),
+          promotions: fromJson(existing.promotions),
+          productShowcase: fromJson(existing.productShowcase),
+          reviews: fromJson(existing.reviews)
         }
       : null;
 
-    // If identical, skip write + notifications
     if (prev && JSON.stringify(prev) === JSON.stringify(body)) {
       return NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
     const summary = summarizeHomeChanges(prev, body);
+    const nextHash = sha1(body);
 
-    // Persist and create notification atomically
+    let createdNotificationId: string | undefined;
+
     await prisma.$transaction(async (tx) => {
       await tx.homeSettings.upsert({
         where: { id: 1 },
@@ -85,28 +96,45 @@ export async function POST(req: Request) {
         }
       });
 
-      await tx.notification.create({
+      // de-dupe by hash against last home_update
+      const last = await tx.notification.findFirst({
+        orderBy: { createdAt: 'desc' },
+        where: { kind: 'home_update' },
+        take: 1
+      });
+      const lastMeta = last?.meta ? fromJson<HomeUpdateMeta>(last.meta) : null;
+      if (lastMeta?.hash === nextHash) return;
+
+      const meta: HomeUpdateMeta = {
+        entity: 'homeSettings',
+        prev,
+        next: body,
+        hash: nextHash,
+        source: '/admin/site/home'
+      };
+
+      const created = await tx.notification.create({
         data: {
           kind: 'home_update',
           title: 'Home settings updated',
           body: summary,
-          link: '/admin/site/home',
-          meta: toJson(body)
-          // actorId: user?.id // if you wire session auth
+          link: '/admin/notifications',
+          meta: toJson(meta)
         }
       });
+
+      createdNotificationId = created.id;
     });
 
-    // Best-effort push (non-blocking relative to DB commit)
     await sendAdminPush('Home settings updated', summary);
 
-    return NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json(
+      { ok: true, notificationId: createdNotificationId },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'SAVE_FAILED';
     console.error('POST /api/admin/site/home/save failed:', err);
-    return NextResponse.json(
-      { ok: false, error: msg },
-      { status: 400, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
 }

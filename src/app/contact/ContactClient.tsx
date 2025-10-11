@@ -1,40 +1,252 @@
-// src/app/contact/ContactClient.tsx
 'use client';
 
+import { useEffect, useState } from 'react';
 import styles from './Contact.module.scss';
 
+interface FormState {
+  name: string;
+  email: string;
+  phone: string;
+  subject: string;
+  message: string;
+  address?: string;
+  company?: string; // honeypot
+}
+
 export default function ContactClient() {
+  const [form, setForm] = useState<FormState>({
+    name: '',
+    email: '',
+    phone: '',
+    subject: '',
+    message: '',
+    address: '',
+    company: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [ok, setOk] = useState<null | string>(null);
+  const [err, setErr] = useState<null | string>(null);
+  const [copied, setCopied] = useState(false);
+
+  const onChange =
+    (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((s) => ({ ...s, [key]: e.target.value }));
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setOk(null);
+    setErr(null);
+
+    if (!form.name.trim() || !form.email.trim() || !form.message.trim()) {
+      setErr('Please fill in your name, email, and message.');
+      return;
+    }
+    // honeypot
+    if (form.company?.trim()) {
+      setOk('Thanks — we’ve got your message. We’ll reply within 24–48 hours.');
+      setForm({
+        name: '',
+        email: '',
+        phone: '',
+        subject: '',
+        message: '',
+        address: '',
+        company: ''
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form)
+      });
+      const data = res.ok ? ((await res.json()) as { ticketId?: string }) : {};
+      setOk(
+        `Thanks — we’ve got it${data?.ticketId ? ` (ticket #${data.ticketId})` : ''}. We’ll reply within 24–48 hours.`
+      );
+      setForm({
+        name: '',
+        email: '',
+        phone: '',
+        subject: '',
+        message: '',
+        address: '',
+        company: ''
+      });
+    } catch {
+      setErr('Something went wrong. Please try again or email support@prince-foods.com.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function copyEmail() {
+    try {
+      navigator.clipboard.writeText('support@prince-foods.com');
+      setCopied(true);
+    } catch {
+      // ignore
+    }
+  }
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1400);
+    return () => clearTimeout(t);
+  }, [copied]);
+
   return (
     <section className={styles.wrapper} aria-labelledby="contact-heading">
-      <div className={styles.left}>
-        <h1 id="contact-heading">Contact Us</h1>
-        <p>
-          Have questions about our South Asian groceries or frozen food delivery? Get in touch with
-          Prince Foods today. Whether you&apos;re looking for product information, order support, or
-          wholesale inquiries, our friendly team is ready to assist. Reach out and let&rsquo;s find
-          the right solution for your home or business.
-        </p>
-      </div>
+      <div className={styles.inner}>
+        <div className={styles.left}>
+          <h1 id="contact-heading">We’re here to help</h1>
+          <p className={styles.sub}>
+            Questions about orders, products, or wholesale? Our team usually replies within
+            <strong> 24–48 hours</strong>.
+          </p>
 
-      <div className={styles.right}>
-        <form aria-label="Contact Form">
-          <div className={styles.row}>
-            <input type="text" placeholder="Name" name="name" required aria-label="Name" />
-            <input type="email" placeholder="Email" name="email" required aria-label="Email" />
+          {/* Email chip (click to copy) */}
+          <div className={styles.contactRow} role="group" aria-label="Email">
+            <button
+              type="button"
+              className={styles.rowIconBtn}
+              aria-label="Copy email"
+              onClick={copyEmail}
+            >
+              ✉️
+            </button>
+            <a className={styles.emailLink} href="mailto:support@prince-foods.com">
+              support@prince-foods.com
+            </a>
+            <span aria-live="polite" className={styles.copyToast} data-show={copied ? '1' : '0'}>
+              Copied
+            </span>
           </div>
-          <div className={styles.row}>
-            <input type="text" placeholder="Phone" name="phone" aria-label="Phone" />
-            <input type="text" placeholder="Address" name="address" aria-label="Address" />
+
+          <div className={styles.badges} aria-hidden>
+            <span>UK-based</span>
+            <span>Since 2007</span>
+            <span>Secure &amp; private</span>
           </div>
-          <input type="text" placeholder="Subject" name="subject" aria-label="Subject" />
-          <textarea
-            placeholder="Type your message here..."
-            name="message"
-            aria-label="Message"
-            required
-          />
-          <button type="submit">Submit</button>
-        </form>
+
+          <nav className={styles.quickLinks} aria-label="Quick answers">
+            <a href="/faq#orders">Where is my order?</a>
+            <a href="/faq#frozen">Frozen items</a>
+            <a href="/wholesale">Wholesale</a>
+          </nav>
+        </div>
+
+        {/* WIDER card */}
+        <div className={styles.right} role="form" aria-label="Contact form card">
+          <form className={styles.form} onSubmit={onSubmit} noValidate>
+            {/* honeypot */}
+            <input
+              type="text"
+              name="company"
+              value={form.company}
+              onChange={onChange('company')}
+              className={styles.honeypot}
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+            />
+
+            <div className={styles.row}>
+              <div className={styles.field}>
+                <label htmlFor="name">Name*</label>
+                <input
+                  id="name"
+                  name="name"
+                  type="text"
+                  placeholder="Your full name"
+                  value={form.name}
+                  onChange={onChange('name')}
+                  required
+                />
+              </div>
+              <div className={styles.field}>
+                <label htmlFor="email">Email*</label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={form.email}
+                  onChange={onChange('email')}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className={styles.row}>
+              <div className={styles.field}>
+                <label htmlFor="phone">Phone</label>
+                <input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  placeholder="+44…"
+                  inputMode="tel"
+                  value={form.phone}
+                  onChange={onChange('phone')}
+                />
+              </div>
+              <div className={styles.field}>
+                <label htmlFor="address">Address (optional)</label>
+                <input
+                  id="address"
+                  name="address"
+                  type="text"
+                  placeholder="House no., street, city"
+                  value={form.address}
+                  onChange={onChange('address')}
+                />
+              </div>
+            </div>
+
+            <div className={styles.field}>
+              <label htmlFor="subject">Subject</label>
+              <input
+                id="subject"
+                name="subject"
+                type="text"
+                placeholder="How can we help?"
+                value={form.subject}
+                onChange={onChange('subject')}
+              />
+            </div>
+
+            <div className={styles.field}>
+              <label htmlFor="message">Message*</label>
+              <textarea
+                id="message"
+                name="message"
+                placeholder="Tell us what happened or what you need. Batch code, order #, product, etc."
+                value={form.message}
+                onChange={onChange('message')}
+                required
+                rows={6}
+              />
+            </div>
+
+            {err && (
+              <p className={styles.error} role="alert">
+                {err}
+              </p>
+            )}
+            {ok && (
+              <p className={styles.success} role="status">
+                {ok}
+              </p>
+            )}
+
+            <button type="submit" className={styles.button} disabled={loading}>
+              {loading ? 'Sending…' : 'Submit'}
+            </button>
+          </form>
+        </div>
       </div>
     </section>
   );
