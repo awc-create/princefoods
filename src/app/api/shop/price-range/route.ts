@@ -1,3 +1,4 @@
+// src/app/api/shop/price-range/route.ts
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 

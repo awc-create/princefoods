@@ -1,3 +1,4 @@
+// src/app/api/orders/route.ts
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
@@ -138,6 +139,24 @@ export async function POST(req: Request) {
       },
       select: { id: true }
     });
+
+    // 🔹 Fire analytics for each order line (product sales + revenue)
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ''}/api/track`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          items
+            .filter((it) => it.productId)
+            .map((it) => ({
+              type: 'order_line',
+              productId: it.productId!,
+              qty: it.quantity,
+              unitPricePence: it.unitPrice // already pence
+            }))
+        )
+      });
+    } catch {}
 
     return NextResponse.json({ ok: true, orderId: order.id });
   } catch (e) {

@@ -16,13 +16,13 @@ datasource db {
  * =========================
  */
 model Product {
-  id              String  @id
+  id              String  @id @default(cuid())
   fieldType       String
   name            String
   description     String?
   productImageUrl String?
   collection      String?
-  sku             String?
+  sku             String? @unique
   ribbon          String?
   price           Float?
   surcharge       Float?
@@ -32,6 +32,12 @@ model Product {
   inventory       String?
   weight          Float?
   cost            Float?
+
+  // --------- Analytics counters ----------
+  views        Int @default(0)     // page impressions
+  clicks       Int @default(0)     // CTA clicks (view/add-to-cart/quick-view)
+  unitsSold    Int @default(0)     // total quantity sold
+  revenuePence Int @default(0)     // accumulated revenue in pence
 
   productOptionName1        String?
   productOptionType1        String?
@@ -75,11 +81,17 @@ model Product {
   brand     String?
   createdAt DateTime @default(now())
 
-  // NEW: link products to (child) categories
+  // --------- Relations ----------
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  dailyStats ProductDailyStat[]
 
   @@index([categoryId])
+  @@index([views])
+  @@index([clicks])
+  @@index([unitsSold])
+  @@index([revenuePence])
+  @@index([sku])
 }
 
 model Category {
@@ -96,6 +108,29 @@ model Category {
   updatedAt DateTime   @updatedAt
 
   products Product[]
+}
+
+/**
+ * ---------- Daily analytics rollup ----------
+ * One row per product per (UTC) day.
+ */
+model ProductDailyStat {
+  id           String   @id @default(cuid())
+  productId    String
+  day          DateTime @db.Date
+  views        Int      @default(0)
+  clicks       Int      @default(0)
+  unitsSold    Int      @default(0)
+  revenuePence Int      @default(0)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, day])
+  @@index([day])
+  @@index([views])
+  @@index([clicks])
+  @@index([unitsSold])
+  @@index([revenuePence])
 }
 
 /**
@@ -129,6 +164,9 @@ model User {
   welcomedAt    DateTime?
 
   emailVerified DateTime?
+
+  // Stripe integration
+  stripeCustomerId String? @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -286,7 +324,6 @@ model PolicyDoc {
   updatedAt DateTime @updatedAt
 }
 
-/** Final FAQ models (single source of truth) */
 model Faq {
   id        String   @id @default(cuid())
   question  String   @unique
@@ -324,26 +361,23 @@ model FaqQuestion {
 model ChatThread {
   id        String        @id @default(cuid())
   userKey   String
-  status    String        @default("open") // open | closed
+  status    String        @default("open")
   createdAt DateTime      @default(now())
   messages  ChatMessage[]
 
-  // SLA / escalation
   lastUserAt            DateTime  @default(now())
   lastAdminAt           DateTime?
   escalatedAt           DateTime?
   emailEscalationSentAt DateTime?
   slaMinutes            Int       @default(10)
-
-  // Email bridge
-  customerEmail String?
+  customerEmail         String?
 }
 
 model ChatMessage {
   id         String     @id @default(cuid())
   threadId   String
   thread     ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  role       String // "user" | "assistant" | "admin" | "system"
+  role       String
   content    String
   confidence Float?
   createdAt  DateTime   @default(now())
@@ -384,7 +418,6 @@ enum PaymentStatus {
 model Address {
   id String @id @default(cuid())
 
-  // optional owner (for saved addresses)
   userId String?
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
@@ -394,14 +427,13 @@ model Address {
   line2     String?
   city      String
   postcode  String
-  country   String // ISO 3166-1 alpha-2 (e.g., "GB")
+  country   String
   phoneE164 String?
-  kind      String? // "SHIPPING" | "BILLING"
+  kind      String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // back-relations
   shippingFor Order[] @relation("ShippingAddress")
   billingFor  Order[] @relation("BillingAddress")
 }
@@ -420,7 +452,7 @@ model Order {
   paymentStatus PaymentStatus @default(PENDING)
 
   currency      String @default("GBP")
-  subtotal      Int    @default(0) // pence
+  subtotal      Int    @default(0)
   shippingTotal Int    @default(0)
   discountTotal Int    @default(0)
   taxTotal      Int    @default(0)
@@ -438,10 +470,13 @@ model Order {
 
   notes String?
 
-  items OrderItem[]
+  items    OrderItem[]
+  payments Payment[]
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
+  @@index([paymentIntentId])
+  @@index([contactEmail, createdAt])
 }
 
 model OrderItem {
@@ -463,6 +498,50 @@ model OrderItem {
   createdAt DateTime @default(now())
 
   @@index([orderId])
+}
+
+/**
+ * ---------- Stripe Payments ----------
+ */
+model Payment {
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  provider       String   @default("stripe")
+  intentId       String?  // Stripe PaymentIntent ID
+  chargeId       String?  // Latest Stripe Charge ID
+  refundId       String?  // Latest Refund ID
+
+  amountPence    Int
+  currency       String   @default("GBP")
+  status         PaymentStatus
+  idempotencyKey String?  @unique
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([intentId])
+  @@index([chargeId])
+  @@index([refundId])
+}
+
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  source      String   @default("stripe")
+  type        String
+  eventId     String   @unique
+  payload     Json
+  receivedAt  DateTime @default(now())
+  processedAt DateTime?
+  success     Boolean  @default(false)
+  error       String?
+
+  orderId     String?
+  paymentId   String?
+
+  @@index([type, receivedAt])
 }
 
 /**

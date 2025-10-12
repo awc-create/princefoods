@@ -31,6 +31,7 @@ export default function ShopClient() {
   const [pageCount, setPageCount] = useState(1);
   const [minPrice, setMinPrice] = useState<number | null>(null);
   const [maxPrice, setMaxPrice] = useState<number | null>(null);
+  const [sort, setSort] = useState<string>('newest'); // 🔸 NEW
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -38,6 +39,7 @@ export default function ShopClient() {
     if (minPrice != null) params.set('min', String(minPrice));
     if (maxPrice != null) params.set('max', String(maxPrice));
     params.set('page', String(page));
+    if (sort) params.set('sort', sort); // 🔸 NEW
 
     let cancelled = false;
     (async () => {
@@ -60,7 +62,7 @@ export default function ShopClient() {
     return () => {
       cancelled = true;
     };
-  }, [selectedSlug, page, minPrice, maxPrice]);
+  }, [selectedSlug, page, minPrice, maxPrice, sort]); // 🔸 sort in deps
 
   const showDemo = products.length === 0;
   const displayProducts = showDemo ? DEMO_PRODUCTS : products;
@@ -84,7 +86,28 @@ export default function ShopClient() {
         />
 
         <div className={styles.products}>
-          <h2>{selectedSlug ? selectedSlug.replace(/-/g, ' ') : 'All Products'}</h2>
+          {/* 🔸 Sort control */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2>{selectedSlug ? selectedSlug.replace(/-/g, ' ') : 'All Products'}</h2>
+            <label style={{ fontSize: 14 }}>
+              Sort:&nbsp;
+              <select
+                value={sort}
+                onChange={(e) => {
+                  setSort(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="newest">Newest</option>
+                <option value="best">Best sellers</option>
+                <option value="worst">Worst sellers</option>
+                <option value="most_clicked">Most clicked</option>
+                <option value="least_clicked">Least clicked</option>
+                <option value="price_asc">Price ↑</option>
+                <option value="price_desc">Price ↓</option>
+              </select>
+            </label>
+          </div>
 
           <div className={styles.productGrid}>
             {displayProducts.map((product) => (

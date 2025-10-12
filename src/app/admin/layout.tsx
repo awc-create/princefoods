@@ -61,7 +61,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         items: [
           { href: '/admin/products', label: 'All Products' },
           { href: '/admin/products/create', label: 'Add Product' },
-          { href: '/admin/products/categories', label: 'Categories' }
+          { href: '/admin/products/categories', label: 'Categories' },
+          { href: '/admin/analytics/products', label: 'Analytics' } // ✅ added
         ]
       },
       {
@@ -77,9 +78,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         key: 'admin' as const,
         title: 'Admin',
         items: [
-          { href: '/admin/notifications', label: 'Notifications' }, // 👈 added
-          { href: '/admin/settings', label: 'Settings' },
-          { href: '/admin/notifications', label: 'Notifications' }
+          { href: '/admin/notifications', label: 'Notifications' },
+          { href: '/admin/settings', label: 'Settings' }
         ]
       }
     ],
@@ -99,7 +99,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [onLogin, status, data, router, safePath]);
 
   if (onLogin) return <>{children}</>;
-  if (status === 'loading' || !role) return <div style={{ padding: '2rem' }}>Loading…</div>;
+  if (status === 'loading' || !role) return <div style={{ padding: '2rem' }}>Loading...</div>;
 
   const isActive = (href: string) => safePath === href || safePath.startsWith(`${href}/`);
   const toggle = (k: GroupKey) => setOpen((o) => ({ ...o, [k]: !o[k] }));
@@ -129,7 +129,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               <span className={styles.groupTitle}>{g.title}</span>
               <span className={styles.groupIcon} aria-hidden>
-                {open[g.key] ? '−' : '+'}
+                {open[g.key] ? '-' : '+'}
               </span>
             </button>
 

@@ -63,11 +63,38 @@ export async function GET(req: NextRequest) {
       ...categoryFilter
     };
 
+    // Sorting
+    const sort = (url.searchParams.get('sort') ?? '').toLowerCase();
+    let orderBy: Prisma.ProductOrderByWithRelationInput[] = [{ createdAt: 'desc' }];
+    switch (sort) {
+      case 'best':
+        orderBy = [{ unitsSold: 'desc' }, { revenuePence: 'desc' }];
+        break;
+      case 'worst':
+        orderBy = [{ unitsSold: 'asc' }, { clicks: 'desc' }]; // low sales despite attention
+        break;
+      case 'most_clicked':
+        orderBy = [{ clicks: 'desc' }];
+        break;
+      case 'least_clicked':
+        orderBy = [{ clicks: 'asc' }];
+        break;
+      case 'price_asc':
+        orderBy = [{ price: 'asc' }];
+        break;
+      case 'price_desc':
+        orderBy = [{ price: 'desc' }];
+        break;
+      case 'newest':
+      default:
+        orderBy = [{ createdAt: 'desc' }];
+    }
+
     const [total, rows] = await Promise.all([
       prisma.product.count({ where }),
       prisma.product.findMany({
         where,
-        orderBy: [{ createdAt: 'desc' }],
+        orderBy,
         skip,
         take: limit,
         select: {
@@ -78,22 +105,25 @@ export async function GET(req: NextRequest) {
           productImageUrl: true,
           ribbon: true,
           collection: true,
-          inventory: true, // string in schema; we’ll coerce if numeric
+          inventory: true,
           visible: true,
-          discountMode: true, // to help derive “special”
-          discountValue: true
+          discountMode: true,
+          discountValue: true,
+          // analytics
+          views: true,
+          clicks: true,
+          unitsSold: true,
+          revenuePence: true
         }
       })
     ]);
 
-    // helper to coerce your inventory string → number (if it’s numeric)
     const coerceInventory = (inv: string | null): number | undefined => {
       if (!inv) return undefined;
       const n = Number(inv);
       return Number.isFinite(n) ? n : undefined;
     };
 
-    // derive "special" (you can tune this)
     const isSpecial = (r: {
       ribbon: string | null;
       discountMode: string | null;
@@ -104,14 +134,13 @@ export async function GET(req: NextRequest) {
           (r.discountMode && r.discountValue && r.discountValue > 0)
       );
 
-    // ✅ normalised to your Product interface
     const products = rows.map((r) => ({
       id: r.id,
       title: r.name,
       description: r.description ?? undefined,
       price: r.price ?? 0,
       imageUrl: r.productImageUrl ?? null,
-      slug: undefined, // (add if/when you add a product slug column)
+      slug: undefined,
       collection: r.collection ?? undefined,
       inventory: coerceInventory(r.inventory ?? null),
       visible: r.visible ?? true,
@@ -120,7 +149,12 @@ export async function GET(req: NextRequest) {
         ribbon: r.ribbon ?? null,
         discountMode: r.discountMode ?? null,
         discountValue: r.discountValue ?? null
-      })
+      }),
+      // expose analytics (optional to use in UI)
+      views: r.views,
+      clicks: r.clicks,
+      unitsSold: r.unitsSold,
+      revenuePence: r.revenuePence
     }));
 
     const pageCount = Math.max(1, Math.ceil(total / limit));

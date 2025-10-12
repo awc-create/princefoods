@@ -1,3 +1,4 @@
+// src/app/admin/products/categories/[parentId]/page.tsx
 'use client';
 
 import Link from 'next/link';

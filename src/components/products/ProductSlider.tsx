@@ -19,6 +19,14 @@ const priceStr = (n: number) =>
 const TEST_IMG = '/assets/96bfc4_3a3fd4d7b9824b31a86d7d873dff083a~mv2.jpeg';
 const imgPath = (_img: string | null) => TEST_IMG;
 
+// 🔸 analytics helper
+const trackClick = (productId: string) =>
+  fetch('/api/track', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'product_click', productId })
+  }).catch(() => {});
+
 export default function ProductSlider({ title, products }: { title: string; products: Product[] }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
 
@@ -151,6 +159,7 @@ export default function ProductSlider({ title, products }: { title: string; prod
                       className={styles.btnGhost}
                       type="button"
                       aria-label={`Quick view ${p.name}`}
+                      onClick={() => trackClick(p.id)}
                     >
                       Quick View
                     </button>
@@ -158,6 +167,7 @@ export default function ProductSlider({ title, products }: { title: string; prod
                       className={styles.btnPrimary}
                       type="button"
                       aria-label={`Add ${p.name} to cart`}
+                      onClick={() => trackClick(p.id)}
                     >
                       Add to Cart
                     </button>

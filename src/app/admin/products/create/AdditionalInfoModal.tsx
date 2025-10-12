@@ -1,3 +1,4 @@
+// src/app/admin/products/create/AdditionalInfoModal.tsx
 'use client';
 
 import { useState } from 'react';
@@ -18,9 +19,7 @@ export default function AdditionalInfoModal({ onClose, onSave }: Props) {
   const origin = 'India, Kerala';
 
   const toggleCert = (label: string) => {
-    setCerts(prev =>
-      prev.includes(label) ? prev.filter(c => c !== label) : [...prev, label]
-    );
+    setCerts((prev) => (prev.includes(label) ? prev.filter((c) => c !== label) : [...prev, label]));
   };
 
   const handleSave = () => {

@@ -1,9 +1,9 @@
-// src/components/shop/ProductCard.tsx
 'use client';
 
 import { useCart } from '@/lib/cart-store';
 import type { Product } from '@/types/product';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useState } from 'react';
 import s from './ProductCard.module.scss';
 
@@ -16,6 +16,13 @@ const normalizeImage = (src?: string | null): string =>
 
 const poundsToPence = (n: number) => Math.round(n * 100);
 
+const track = (payload: unknown) =>
+  fetch('/api/track', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).catch(() => {});
+
 export default function ProductCard({ product }: { product: Product }) {
   const [qty, setQty] = useState(1);
   const add = useCart((s) => s.add);
@@ -27,20 +34,28 @@ export default function ProductCard({ product }: { product: Product }) {
 
   const handleAdd = () => {
     add({
-      id: product.id, // must be unique
+      id: product.id,
       productId: product.id,
       name: product.title,
       image: img,
       imageUrl: img,
-      unitPrice: poundsToPence(product.price), // pence for the store
+      unitPrice: poundsToPence(product.price),
       quantity: qty
     });
-    open(); // open basket drawer
+    open();
+    track({ type: 'product_click', productId: product.id, action: 'add_to_cart' });
   };
+
+  const onCardClick = () => track({ type: 'product_click', productId: product.id, action: 'view' });
 
   return (
     <article className={s.card} tabIndex={-1}>
-      <div className={s.imageWrap}>
+      <Link
+        href={`/product/${product.id}`}
+        onClick={onCardClick}
+        className={s.imageWrap}
+        aria-label={product.title}
+      >
         <Image
           src={img}
           alt={product.title}
@@ -49,9 +64,13 @@ export default function ProductCard({ product }: { product: Product }) {
           sizes="(max-width: 900px) 50vw, 300px"
           priority={false}
         />
-      </div>
+      </Link>
 
-      <h3 className={s.title}>{product.title}</h3>
+      <h3 className={s.title}>
+        <Link href={`/product/${product.id}`} onClick={onCardClick}>
+          {product.title}
+        </Link>
+      </h3>
 
       <div className={s.priceRow}>
         <span className={s.price}>£{product.price.toFixed(2)}</span>

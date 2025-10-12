@@ -1,3 +1,4 @@
+// src/app/api/admin/notifications/route.ts
 import { prisma } from '@/lib/prisma';
 import { urlFrom } from '@/lib/url';
 import { NextResponse } from 'next/server';
@@ -14,7 +15,16 @@ export async function GET(req: Request) {
 
     const rows = await prisma.notification.findMany({
       orderBy: { createdAt: 'desc' },
-      take: limit
+      take: limit,
+      select: {
+        id: true,
+        createdAt: true,
+        kind: true,
+        title: true,
+        body: true,
+        link: true,
+        readAt: true
+      }
     });
 
     return NextResponse.json(
@@ -22,6 +32,7 @@ export async function GET(req: Request) {
         ok: true,
         data: rows.map((n) => ({
           id: n.id,
+          kind: n.kind,
           title: n.title,
           body: n.body,
           link: n.link,
