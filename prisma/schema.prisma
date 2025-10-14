@@ -439,39 +439,42 @@ model Address {
 }
 
 model Order {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  displayId          String   @unique                      // 👈 short order number
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  userId String?
-  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId             String?
+  user               User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  contactEmail String
+  contactEmail       String
 
-  status        OrderStatus   @default(DRAFT)
-  paymentStatus PaymentStatus @default(PENDING)
+  status             OrderStatus   @default(DRAFT)
+  paymentStatus      PaymentStatus @default(PENDING)
 
-  currency      String @default("GBP")
-  subtotal      Int    @default(0)
-  shippingTotal Int    @default(0)
-  discountTotal Int    @default(0)
-  taxTotal      Int    @default(0)
-  grandTotal    Int    @default(0)
+  currency           String @default("GBP")
+  subtotal           Int    @default(0)
+  shippingTotal      Int    @default(0)
+  discountTotal      Int    @default(0)
+  taxTotal           Int    @default(0)
+  grandTotal         Int    @default(0)
 
-  shippingAddressId String?
-  shippingAddress   Address? @relation("ShippingAddress", fields: [shippingAddressId], references: [id], onDelete: SetNull)
+  totalWeightGrams   Int?                                           // 👈 denormalized total
 
-  billingAddressId String?
-  billingAddress   Address? @relation("BillingAddress", fields: [billingAddressId], references: [id], onDelete: SetNull)
+  shippingAddressId  String?
+  shippingAddress    Address? @relation("ShippingAddress", fields: [shippingAddressId], references: [id], onDelete: SetNull)
 
-  paymentProvider String?
-  paymentIntentId String?
-  paymentRef      String?
+  billingAddressId   String?
+  billingAddress     Address? @relation("BillingAddress", fields: [billingAddressId], references: [id], onDelete: SetNull)
 
-  notes String?
+  paymentProvider    String?
+  paymentIntentId    String?
+  paymentRef         String?
 
-  items    OrderItem[]
-  payments Payment[]
+  notes              String?
+
+  items              OrderItem[]
+  payments           Payment[]
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
@@ -480,22 +483,24 @@ model Order {
 }
 
 model OrderItem {
-  id      String @id @default(cuid())
-  orderId String
-  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id               String  @id @default(cuid())
+  orderId          String
+  order            Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  productId String?
-  sku       String?
-  name      String
-  imageUrl  String?
+  productId        String?
+  sku              String?
+  name             String
+  imageUrl         String?
 
-  unitPrice Int
-  quantity  Int @default(1)
-  lineTotal Int @default(0)
+  unitPrice        Int
+  quantity         Int     @default(1)
+  lineTotal        Int     @default(0)
 
-  options Json?
+  unitWeightGrams  Int?    // 👈 snapshot of per-unit weight at purchase time
 
-  createdAt DateTime @default(now())
+  options          Json?
+
+  createdAt        DateTime @default(now())
 
   @@index([orderId])
 }

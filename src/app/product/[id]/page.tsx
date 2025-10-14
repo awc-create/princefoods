@@ -1,3 +1,4 @@
+// src/app/product/[id]/page.tsx
 import { prisma } from '@/lib/prisma';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -7,9 +8,11 @@ import ViewTracker from './view-tracker';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default async function ProductPage({ params }: { params: { id: string } }) {
+export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+
   const p = await prisma.product.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: {
       id: true,
       name: true,

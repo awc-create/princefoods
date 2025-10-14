@@ -2,15 +2,11 @@
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-interface Ctx {
-  params: Promise<{ id: string }>;
-}
-
-export async function GET(_: Request, ctx: Ctx) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
 
   const session = await getServerSession(authOptions);

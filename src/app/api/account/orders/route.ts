@@ -1,4 +1,3 @@
-// src/app/api/account/orders/route.ts
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
@@ -22,10 +21,12 @@ export async function GET() {
     orderBy: { createdAt: 'desc' },
     select: {
       id: true,
+      displayId: true, // 👈 expose short number
       status: true,
       paymentStatus: true,
       grandTotal: true,
       createdAt: true,
+      totalWeightGrams: true, // 👈 expose weight
       items: {
         select: {
           id: true,

@@ -1,7 +1,9 @@
 import { prisma } from '@/lib/prisma';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+
   const url = new URL(req.url);
   const days = Math.max(1, Math.min(365, Number(url.searchParams.get('days') ?? 90) || 90));
   const to = new Date();
@@ -10,7 +12,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   from.setUTCHours(0, 0, 0, 0);
 
   const product = await prisma.product.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: {
       id: true,
       name: true,
@@ -27,7 +29,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   const rows = await prisma.productDailyStat.findMany({
     where: {
-      productId: params.id,
+      productId: id,
       day: { gte: from, lte: to }
     },
     orderBy: { day: 'asc' },

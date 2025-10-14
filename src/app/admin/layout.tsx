@@ -1,4 +1,3 @@
-// src/app/admin/layout.tsx
 'use client';
 
 import NotificationBell from '@/components/admin/NotificationBell';
@@ -34,7 +33,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     dashboard: false,
     site: true,
     products: false,
-    operations: false,
+    operations: true, // open to surface Orders
     admin: false
   });
 
@@ -62,13 +61,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           { href: '/admin/products', label: 'All Products' },
           { href: '/admin/products/create', label: 'Add Product' },
           { href: '/admin/products/categories', label: 'Categories' },
-          { href: '/admin/analytics/products', label: 'Analytics' } // ✅ added
+          { href: '/admin/analytics/products', label: 'Analytics' }
         ]
       },
       {
         key: 'operations' as const,
         title: 'Operations',
         items: [
+          { href: '/admin/orders', label: 'Orders' }, // ✅ added
           { href: '/admin/chat', label: 'Chat' },
           { href: '/admin/customers', label: 'Customers' },
           { href: '/admin/sales', label: 'Sales' }

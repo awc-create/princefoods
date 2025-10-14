@@ -30,18 +30,19 @@ async function checkPassword(email: string, password: string) {
 }
 
 export const authOptions: NextAuthOptions = {
-  // Keep adapter so Google OAuth can link accounts to your Prisma models
   adapter: PrismaAdapter(prisma),
-
   session: { strategy: 'jwt' },
 
-  // Secure cookie for prod; in local dev, omit AUTH_COOKIE_DOMAIN and use HTTPS tunnel if needed
   cookies: {
     sessionToken: {
-      name: '__Secure-next-auth.session-token',
+      // Use the non-__Secure cookie name locally (HTTP). Use __Secure-* only on HTTPS (prod).
+      name:
+        process.env.NODE_ENV === 'production'
+          ? '__Secure-next-auth.session-token'
+          : 'next-auth.session-token',
       options: {
         httpOnly: true,
-        secure: true,
+        secure: process.env.NODE_ENV === 'production', // 🔑 only secure in prod
         sameSite: 'lax',
         path: '/',
         ...(process.env.AUTH_COOKIE_DOMAIN ? { domain: process.env.AUTH_COOKIE_DOMAIN } : {})
