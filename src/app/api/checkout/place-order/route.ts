@@ -1,5 +1,6 @@
 // src/app/api/checkout/place-order/route.ts
 import { authOptions } from '@/lib/auth-options';
+import { logActivity } from '@/lib/order-activity';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
@@ -148,7 +149,7 @@ export async function POST(req: Request) {
 
         const created = await prisma.order.create({
           data: {
-            displayId, // required by your schema/client
+            displayId,
             contactEmail: emailForOrder,
             ...(maybeUserId ? { userId: maybeUserId } : {}),
             status: 'PLACED',
@@ -179,6 +180,9 @@ export async function POST(req: Request) {
           },
           select: { id: true, displayId: true }
         });
+
+        // Log activity (PLACED)
+        await logActivity(created.id, 'PLACED');
 
         // Best-effort analytics
         try {

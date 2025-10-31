@@ -1,3 +1,4 @@
+// src/app/admin/analytics/products/page.tsx
 'use client';
 
 import Image from 'next/image';

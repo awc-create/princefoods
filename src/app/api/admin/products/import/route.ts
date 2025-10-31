@@ -9,30 +9,23 @@ export const runtime = 'nodejs';
 /* -------------------------------------------
    Types
 ------------------------------------------- */
-
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
 interface SessionUserWithRole {
   role?: Role | null;
 }
-
 const hasRole = (u: unknown): u is SessionUserWithRole =>
   !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
 
 // One CSV row as parsed (original headers preserved)
 type Row = Record<string, string>;
-
 // Row after normalizing keys (lowercase + no spaces)
 type NormalizedRow = Record<string, string>;
 
 /* -------------------------------------------
-   Image URL detection + normalization
-   (handles Wix bare ids, /media paths, wix:image://v1/,
-    Google Drive / Photos, and regular URLs)
+   Image URL detection (unchanged)
 ------------------------------------------- */
-
 const WIX_MEDIA_HOST = 'https://static.wixstatic.com';
 const WIX_MEDIA_PREFIX = `${WIX_MEDIA_HOST}/media/`;
-// e.g. 96bfc4_a4613d3675074b0b97f11a2f8093f585~mv2.webp
 const WIX_ID_RE = /^[0-9a-f]{6,}_[^/]+~mv2\.[a-z0-9]+$/i;
 
 type ImgDetect =
@@ -54,59 +47,36 @@ function detectAndNormalizeImageUrl(input: unknown): ImgDetect {
   if (input == null) return { url: null, source: 'invalid' };
   let s = String(input).trim();
   if (!s) return { url: null, source: 'invalid' };
-
-  // protocol-relative → https
   if (s.startsWith('//')) s = 'https:' + s;
-
-  // 1) Bare Wix media id
-  if (WIX_ID_RE.test(s)) {
-    return { url: WIX_MEDIA_PREFIX + s, source: 'wix-id' };
-  }
-
-  // 2) Wix /media/... path
-  if (s.startsWith('/media/')) {
-    return { url: WIX_MEDIA_HOST + s, source: 'wix-media' };
-  }
-
-  // 3) wix:image://v1/... → pull last segment if it looks like an id
+  if (WIX_ID_RE.test(s)) return { url: WIX_MEDIA_PREFIX + s, source: 'wix-id' };
+  if (s.startsWith('/media/')) return { url: WIX_MEDIA_HOST + s, source: 'wix-media' };
   if (s.startsWith('wix:image://v1/')) {
     const last = s.split('/').pop();
-    if (last && WIX_ID_RE.test(last)) {
+    if (last && WIX_ID_RE.test(last))
       return { url: WIX_MEDIA_PREFIX + last, source: 'wix-image-v1' };
-    }
-    // fallthrough to URL handling
   }
-
-  // try to salvage odd characters so new URL() succeeds
   try {
     new URL(s);
   } catch {
     s = encodeURI(s);
   }
-
   if (!/^https?:\/\//i.test(s)) return { url: null, source: 'invalid' };
-
   let u: URL;
   try {
     u = new URL(s);
   } catch {
     return { url: null, source: 'invalid' };
   }
-
   const host = u.hostname.toLowerCase();
-
-  // Google Drive → convert share links to direct "view"
   if (host === 'drive.google.com') {
     const parts = u.pathname.split('/').filter(Boolean);
     const fileIndex = parts.indexOf('file');
     let id: string | null = null;
-
     if (fileIndex !== -1) {
       const dIndex = parts.indexOf('d', fileIndex);
       if (dIndex !== -1 && parts[dIndex + 1]) id = parts[dIndex + 1];
     }
     id ??= u.searchParams.get('id');
-
     if (id) {
       const direct = new URL('https://drive.google.com/uc');
       direct.searchParams.set('export', 'view');
@@ -115,31 +85,21 @@ function detectAndNormalizeImageUrl(input: unknown): ImgDetect {
     }
     return { url: null, source: 'invalid' };
   }
-
-  if (host.endsWith('googleusercontent.com') || host.endsWith('ggpht.com')) {
+  if (host.endsWith('googleusercontent.com') || host.endsWith('ggpht.com'))
     return { url: u.toString(), source: 'google-photos' };
-  }
-
-  if (host.endsWith('gstatic.com')) {
-    return { url: u.toString(), source: 'google-static' };
-  }
-
-  if (host === 'static.wixstatic.com' || host.endsWith('.wixstatic.com')) {
+  if (host.endsWith('gstatic.com')) return { url: u.toString(), source: 'google-static' };
+  if (host === 'static.wixstatic.com' || host.endsWith('.wixstatic.com'))
     return { url: u.toString(), source: 'wix' };
-  }
-
   return { url: u.toString(), source: 'other' };
 }
 
 /* -------------------------------------------
-   CSV parsing helpers (no external deps)
+   CSV helpers (unchanged)
 ------------------------------------------- */
-
 function splitCSVLine(line: string): string[] {
   const out: string[] = [];
   let cur = '';
   let inQ = false;
-
   for (let i = 0; i < line.length; i++) {
     const c = line[i];
     if (inQ) {
@@ -150,28 +110,26 @@ function splitCSVLine(line: string): string[] {
         } else {
           inQ = false;
         }
-      } else {
-        cur += c;
-      }
+      } else cur += c;
     } else {
       if (c === ',') {
         out.push(cur);
         cur = '';
-      } else if (c === '"') {
-        inQ = true;
-      } else {
-        cur += c;
-      }
+      } else if (c === '"') inQ = true;
+      else cur += c;
     }
   }
   out.push(cur);
   return out;
 }
 
-function parseCSV(csv: string): { headers: string[]; rows: Row[] } {
+interface ParsedCSV {
+  headers: string[];
+  rows: Row[];
+}
+function parseCSV(csv: string): ParsedCSV {
   const lines = csv.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (lines.length === 0) return { headers: [], rows: [] };
-
+  if (!lines.length) return { headers: [], rows: [] };
   const headers = splitCSVLine(lines[0]);
   const rows: Row[] = lines.slice(1).map((line) => {
     const cols = splitCSVLine(line);
@@ -189,7 +147,6 @@ function normalizeKeys(o: Row): NormalizedRow {
   for (const k of Object.keys(o)) out[k.replace(/\s+/g, '').toLowerCase()] = o[k];
   return out;
 }
-
 function truthy(val: unknown): boolean | undefined {
   const v = String(val ?? '')
     .trim()
@@ -198,33 +155,120 @@ function truthy(val: unknown): boolean | undefined {
   if (v === 'FALSE') return false;
   return undefined;
 }
-
 function numOrNull(val: unknown): number | null {
   if (val === '' || val == null) return null;
   const n = Number(val);
   return Number.isFinite(n) ? n : null;
 }
-
 function pickKeys<T extends Record<string, unknown>>(obj: T, keys: string[]): Partial<T> {
   const out: Partial<T> = {};
-  for (const k of keys) {
-    if (k in obj) {
-      (out as Record<string, unknown>)[k] = (obj as Record<string, unknown>)[k];
-    }
-  }
+  for (const k of keys)
+    if (k in obj) (out as Record<string, unknown>)[k] = (obj as Record<string, unknown>)[k];
   return out;
 }
 
 /* -------------------------------------------
-   Map CSV row → Prisma Product data
+   Weight parsing → grams
+   - handles: "200g", "1kg", "500 ml", "1L", "2 x 500g", "3×330ml", etc.
+   - liquids: ml ≈ g (density ~ water) — good enough for shipping
 ------------------------------------------- */
+function parseWeightToGramsFromName(name: string): number | null {
+  const s = name.toLowerCase();
+
+  // 2x500g / 2 × 500 g
+  const multi = s.match(/(\d+)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(kg|g|l|ml)\b/);
+  if (multi) {
+    const qty = Number(multi[1]);
+    const unitVal = Number(multi[2]);
+    const unit = multi[3];
+    const per =
+      unit === 'kg'
+        ? unitVal * 1000
+        : unit === 'g'
+          ? unitVal
+          : unit === 'l'
+            ? unitVal * 1000
+            : unit === 'ml'
+              ? unitVal
+              : 0;
+    const grams = Math.round(qty * per);
+    return grams > 0 ? grams : null;
+  }
+
+  // Single: 200g / 0.5 kg / 500ml / 1 l
+  const single = s.match(/(\d+(?:\.\d+)?)\s*(kg|g|l|ml)\b/);
+  if (single) {
+    const val = Number(single[1]);
+    const unit = single[2];
+    const grams =
+      unit === 'kg'
+        ? val * 1000
+        : unit === 'g'
+          ? val
+          : unit === 'l'
+            ? val * 1000
+            : unit === 'ml'
+              ? val
+              : 0;
+    return grams > 0 ? Math.round(grams) : null;
+  }
+
+  return null;
+}
+
+// Normalize a CSV "weight" field (string) → kilograms
+function normalizeWeightKg(raw?: string | null): number | null {
+  if (!raw) return null;
+  const s = raw.trim().toLowerCase();
+  const m = s.match(/(\d+(?:\.\d+)?)\s*(kg|g|l|ml)\b/);
+  if (!m) {
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null; // assume already kg if bare number
+  }
+  const val = Number(m[1]);
+  const unit = m[2];
+  if (unit === 'kg') return val;
+  if (unit === 'g') return val / 1000;
+  if (unit === 'l') return val; // treat 1L ≈ 1kg
+  if (unit === 'ml') return val / 1000;
+  return null;
+}
+
+/* -------------------------------------------
+   Map CSV row → Prisma Product data
+   (now fills both weight (kg) and shippingWeightGrams (g))
+------------------------------------------- */
+function deriveWeights(row: NormalizedRow): { weightKg: number | null; grams: number | null } {
+  // 1) explicit weight column wins (if present)
+  const explicitKg = normalizeWeightKg(row.weight ?? null);
+  if (explicitKg != null) {
+    return { weightKg: explicitKg, grams: Math.round(explicitKg * 1000) };
+  }
+
+  // 2) explicit shipping_weight column (grams) if provided
+  const swRaw = row.shipping_weight ?? row.shippingweight ?? null;
+  if (swRaw != null && swRaw !== '') {
+    const g = Math.round(Number(swRaw));
+    if (Number.isFinite(g) && g > 0) return { weightKg: g / 1000, grams: g };
+  }
+
+  // 3) fallback: parse from name
+  const name = (row.name ?? '').trim();
+  if (name) {
+    const g = parseWeightToGramsFromName(name);
+    if (g != null) return { weightKg: g / 1000, grams: g };
+  }
+
+  return { weightKg: null, grams: null };
+}
 
 function mapToProductCreate(id: string, r: NormalizedRow) {
-  // Prefer a non-empty productimageurl; otherwise use image; otherwise null
   const primary = r.productimageurl?.trim();
   const secondary = r.image?.trim();
   const chosen = primary && primary.length > 0 ? primary : (secondary ?? null);
   const detected = detectAndNormalizeImageUrl(chosen && chosen.length > 0 ? chosen : null);
+
+  const { weightKg, grams } = deriveWeights(r);
 
   return {
     id,
@@ -232,7 +276,6 @@ function mapToProductCreate(id: string, r: NormalizedRow) {
     name: r.name || '',
     description: r.description || null,
 
-    // normalized image URL (supports Wix, Drive/Photos, others)
     productImageUrl: detected.url,
 
     collection: r.collection || null,
@@ -244,7 +287,11 @@ function mapToProductCreate(id: string, r: NormalizedRow) {
     discountMode: r.discountmode || null,
     discountValue: numOrNull(r.discountvalue),
     inventory: r.inventory || null,
-    weight: numOrNull(r.weight),
+
+    // ✅ weights
+    weight: weightKg, // kg
+    shippingWeightGrams: grams ?? null, // grams
+
     cost: numOrNull(r.cost),
 
     productOptionName1: r.productoptionname1 || null,
@@ -300,7 +347,6 @@ function mapToProductUpdate(r: NormalizedRow) {
 /* -------------------------------------------
    POST /api/admin/products/import
 ------------------------------------------- */
-
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   const role: Role | undefined = hasRole(session?.user)
@@ -327,7 +373,7 @@ export async function POST(req: Request) {
     skipped = 0;
 
   if (hasFieldType) {
-    // Wix-style: pair "Product" + "Variant" by handleId
+    // Wix-style: pair Product + Variant by handleId
     interface AccValue {
       product?: NormalizedRow;
       variant?: NormalizedRow;
@@ -342,8 +388,6 @@ export async function POST(req: Request) {
         skipped++;
         continue;
       }
-
-      // ✅ nullish coalescing assignment (fixes lint)
       acc[handleId] ??= {};
       if (fieldType === 'Product') acc[handleId].product = row;
       else if (fieldType === 'Variant') acc[handleId].variant = row;
@@ -353,7 +397,6 @@ export async function POST(req: Request) {
     for (const id of Object.keys(acc)) {
       const p = acc[id].product ?? {};
       const v = acc[id].variant ?? {};
-      // Variant can override sku/price/inventory/weight AND image fields
       const merged: NormalizedRow = {
         ...p,
         ...(pickKeys(v, [
@@ -361,6 +404,7 @@ export async function POST(req: Request) {
           'price',
           'inventory',
           'weight',
+          'shipping_weight',
           'productimageurl',
           'image'
         ]) as NormalizedRow)
@@ -378,7 +422,7 @@ export async function POST(req: Request) {
       }
     }
   } else {
-    // Simple CSV (no fieldType) — allow id or handleId as primary key
+    // Simple CSV (no fieldType)
     for (const r of rows) {
       const row = normalizeKeys(r);
       const id = (row.id ?? row.handleid ?? '').trim();

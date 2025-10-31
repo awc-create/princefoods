@@ -16,28 +16,29 @@ datasource db {
  * =========================
  */
 model Product {
-  id              String  @id @default(cuid())
-  fieldType       String
-  name            String
-  description     String?
-  productImageUrl String?
-  collection      String?
-  sku             String? @unique
-  ribbon          String?
-  price           Float?
-  surcharge       Float?
-  visible         Boolean @default(true)
-  discountMode    String?
-  discountValue   Float?
-  inventory       String?
-  weight          Float?
-  cost            Float?
+  id                   String  @id @default(cuid())
+  fieldType            String
+  name                 String
+  description          String?
+  productImageUrl      String?
+  collection           String?
+  sku                  String? @unique
+  ribbon               String?
+  price                Float?
+  surcharge            Float?
+  visible              Boolean @default(true)
+  discountMode         String?
+  discountValue        Float?
+  inventory            String?
+  weight               Float?
+  shippingWeightGrams  Int?
+  cost                 Float?
 
   // --------- Analytics counters ----------
-  views        Int @default(0)     // page impressions
-  clicks       Int @default(0)     // CTA clicks (view/add-to-cart/quick-view)
-  unitsSold    Int @default(0)     // total quantity sold
-  revenuePence Int @default(0)     // accumulated revenue in pence
+  views        Int @default(0) // page impressions
+  clicks       Int @default(0) // CTA clicks (view/add-to-cart/quick-view)
+  unitsSold    Int @default(0) // total quantity sold
+  revenuePence Int @default(0) // accumulated revenue in pence
 
   productOptionName1        String?
   productOptionType1        String?
@@ -83,7 +84,7 @@ model Product {
 
   // --------- Relations ----------
   categoryId String?
-  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  category   Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   dailyStats ProductDailyStat[]
 
   @@index([categoryId])
@@ -91,6 +92,7 @@ model Product {
   @@index([clicks])
   @@index([unitsSold])
   @@index([revenuePence])
+  @@index([shippingWeightGrams])
   @@index([sku])
 }
 
@@ -439,92 +441,165 @@ model Address {
 }
 
 model Order {
-  id                 String   @id @default(cuid())
-  displayId          String   @unique                      // 👈 short order number
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id        String   @id @default(cuid())
+  displayId String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  userId             String?
-  user               User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  contactEmail       String
+  contactEmail String
 
-  status             OrderStatus   @default(DRAFT)
-  paymentStatus      PaymentStatus @default(PENDING)
+  status        OrderStatus   @default(DRAFT)
+  paymentStatus PaymentStatus @default(PENDING)
 
-  currency           String @default("GBP")
-  subtotal           Int    @default(0)
-  shippingTotal      Int    @default(0)
-  discountTotal      Int    @default(0)
-  taxTotal           Int    @default(0)
-  grandTotal         Int    @default(0)
+  currency      String @default("GBP")
+  subtotal      Int    @default(0)
+  shippingTotal Int    @default(0)
+  discountTotal Int    @default(0)
+  taxTotal      Int    @default(0)
+  grandTotal    Int    @default(0)
 
-  totalWeightGrams   Int?                                           // 👈 denormalized total
+  totalWeightGrams Int?
 
-  shippingAddressId  String?
-  shippingAddress    Address? @relation("ShippingAddress", fields: [shippingAddressId], references: [id], onDelete: SetNull)
+  shippingAddressId String?
+  shippingAddress   Address? @relation("ShippingAddress", fields: [shippingAddressId], references: [id], onDelete: SetNull)
 
-  billingAddressId   String?
-  billingAddress     Address? @relation("BillingAddress", fields: [billingAddressId], references: [id], onDelete: SetNull)
+  billingAddressId String?
+  billingAddress   Address? @relation("BillingAddress", fields: [billingAddressId], references: [id], onDelete: SetNull)
 
-  paymentProvider    String?
-  paymentIntentId    String?
-  paymentRef         String?
+  paymentProvider String?
+  paymentIntentId String?
+  paymentRef      String?
 
-  notes              String?
+  notes String?
 
-  items              OrderItem[]
-  payments           Payment[]
+  // ---------- Admin lifecycle (yours) ----------
+  archivedAt     DateTime?
+  canceledAt     DateTime?
+  canceledReason String?
+  refundTotal    Int        @default(0) // summary/rollup you already use
+  notesAdmin     String?
+  editableUntil  DateTime?
+
+  // ---------- Cancellation reversal window (new) ----------
+  cancellationRequestedAt DateTime?
+  /// When staff can still reverse cancellation (we’ll set to now()+24h in code)
+  cancelReversibleUntil   DateTime?
+  cancelReversedAt        DateTime?
+  cancelReversalReason    String?
+
+  // ---------- Refund lifecycle (new) ----------
+  /// Mark that a refund should happen after the reversal window
+  refundQueuedAt          DateTime?
+  /// When the refund was actually executed (Stripe or local)
+  refundExecutedAt        DateTime?
+  refundAmountPence       Int?
+  refundId                String?
+
+  // Relations
+  items      OrderItem[]
+  payments   Payment[]
+  activities OrderActivity[]
+  orderTags  OrderTag[]
+  shipments  Shipment[]
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([paymentIntentId])
   @@index([contactEmail, createdAt])
+
+  // Helpful for dashboards/cron
+  @@index([cancellationRequestedAt])
+  @@index([cancelReversibleUntil])
+  @@index([refundQueuedAt])
+  @@index([refundExecutedAt])
 }
 
 model OrderItem {
-  id               String  @id @default(cuid())
-  orderId          String
-  order            Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  productId        String?
-  sku              String?
-  name             String
-  imageUrl         String?
+  productId String?
+  sku       String?
+  name      String
+  imageUrl  String?
 
-  unitPrice        Int
-  quantity         Int     @default(1)
-  lineTotal        Int     @default(0)
+  unitPrice Int
+  quantity  Int @default(1)
+  lineTotal Int @default(0)
 
-  unitWeightGrams  Int?    // 👈 snapshot of per-unit weight at purchase time
+  unitWeightGrams Int?
 
-  options          Json?
+  options Json?
 
-  createdAt        DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([orderId])
+}
+
+model OrderActivity {
+  id        String       @id @default(cuid())
+  order     Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId   String
+  type      ActivityType
+  note      String?
+  meta      Json?
+  createdAt DateTime     @default(now())
+}
+
+enum ActivityType {
+  PLACED
+  PAID
+  FULFILLED
+  REFUNDED
+  CANCELLED
+  NOTE
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  label     String
+  color     String?
+  createdAt DateTime @default(now())
+
+  orders OrderTag[]
+}
+
+model OrderTag {
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId String
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  tagId   String
+
+  assignedAt DateTime @default(now())
+
+  @@id([orderId, tagId])
 }
 
 /**
  * ---------- Stripe Payments ----------
  */
 model Payment {
-  id             String   @id @default(cuid())
-  orderId        String
-  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  provider       String   @default("stripe")
-  intentId       String?  // Stripe PaymentIntent ID
-  chargeId       String?  // Latest Stripe Charge ID
-  refundId       String?  // Latest Refund ID
+  provider String  @default("stripe")
+  intentId String?
+  chargeId String?
+  refundId String?
 
   amountPence    Int
-  currency       String   @default("GBP")
+  currency       String        @default("GBP")
   status         PaymentStatus
-  idempotencyKey String?  @unique
+  idempotencyKey String?       @unique
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([orderId])
   @@index([intentId])
@@ -533,18 +608,18 @@ model Payment {
 }
 
 model WebhookEvent {
-  id          String   @id @default(cuid())
-  source      String   @default("stripe")
+  id          String    @id @default(cuid())
+  source      String    @default("stripe")
   type        String
-  eventId     String   @unique
+  eventId     String    @unique
   payload     Json
-  receivedAt  DateTime @default(now())
+  receivedAt  DateTime  @default(now())
   processedAt DateTime?
-  success     Boolean  @default(false)
+  success     Boolean   @default(false)
   error       String?
 
-  orderId     String?
-  paymentId   String?
+  orderId   String?
+  paymentId String?
 
   @@index([type, receivedAt])
 }
@@ -567,11 +642,40 @@ model HomeSettings {
 
 model AboutSettings {
   id        Int      @id @default(1)
-  hero      Json?    // { title, subtitle, imageUrl }
-  media     Json?    // { imageUrl }
-  story     Json?    // { heading, paragraphs[] }
-  stats     Json?    // StatItem[]
-  values    Json?    // ValueCard[]
-  cta       Json?    // { text, href }
+  hero      Json?
+  media     Json?
+  story     Json?
+  stats     Json?
+  values    Json?
+  cta       Json?
   updatedAt DateTime @updatedAt
+}
+
+/**
+ * =========================
+ * SHIPPING / FULFILLMENT
+ * =========================
+ */
+model Shipment {
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  carrier        String
+  service        String?
+  trackingNumber String?
+  trackingUrl    String?
+  labelUrl       String?
+
+  weightGrams    Int?
+  costPence      Int?
+
+  status         String   @default("purchased") // purchased|shipped|in_transit|delivered
+  shippedAt      DateTime?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([carrier, trackingNumber])
 }

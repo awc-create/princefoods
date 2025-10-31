@@ -1,3 +1,4 @@
+// src/app/admin/settings/Settings.module.scss
 .container {
   padding: 32px clamp(16px, 3vw, 36px);
   max-width: 980px;
@@ -25,8 +26,10 @@
   padding: 10px 14px;
   border-radius: 10px;
   cursor: pointer;
-  transition: filter .2s ease;
-  &:hover { filter: brightness(.95); }
+  transition: filter 0.2s ease;
+  &:hover {
+    filter: brightness(0.95);
+  }
 }
 
 .tabs {
@@ -38,23 +41,29 @@
   button {
     display: inline-flex;
     align-items: center;
-    gap: .55rem;
+    gap: 0.55rem;
     padding: 10px 14px;
     background: #f3f4f6;
     border: 1px solid #e5e7eb;
     color: #111827;
     border-radius: 12px;
     font-weight: 700;
-    transition: all .18s ease;
-    svg { opacity: .85; }
-    &:hover { background: #eef0f3; }
+    transition: all 0.18s ease;
+    svg {
+      opacity: 0.85;
+    }
+    &:hover {
+      background: #eef0f3;
+    }
   }
 
   button.active {
     background: var(--accent);
     color: #fff;
     border-color: transparent;
-    box-shadow: 0 1px 0 rgba(0,0,0,.12), 0 6px 20px rgba(0,0,0,.08);
+    box-shadow:
+      0 1px 0 rgba(0, 0, 0, 0.12),
+      0 6px 20px rgba(0, 0, 0, 0.08);
   }
 }
 
@@ -69,7 +78,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: clamp(16px, 2vw, 22px);
-  box-shadow: 0 1px 0 rgba(0,0,0,.04);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
 }
 
 .grid {
@@ -90,7 +99,8 @@
     font-weight: 600;
   }
 
-  input, select {
+  input,
+  select {
     padding: 12px 12px;
     border: 1px solid var(--line);
     border-radius: 10px;
@@ -107,9 +117,15 @@
     border-radius: 10px;
     cursor: pointer;
     font-weight: 700;
-    transition: transform .04s ease, filter .18s ease;
-    &:hover { filter: brightness(1.04); }
-    &:active { transform: translateY(1px); }
+    transition:
+      transform 0.04s ease,
+      filter 0.18s ease;
+    &:hover {
+      filter: brightness(1.04);
+    }
+    &:active {
+      transform: translateY(1px);
+    }
   }
 }
 
@@ -169,8 +185,12 @@
   gap: 8px 12px;
   align-items: baseline;
 
-  .name { font-weight: 800; }
-  .email { color: var(--muted); }
+  .name {
+    font-weight: 800;
+  }
+  .email {
+    color: var(--muted);
+  }
 }
 
 .badge {
@@ -198,10 +218,17 @@
   display: grid;
   place-items: center;
   cursor: pointer;
-  transition: background .18s ease, transform .04s ease, filter .18s ease;
+  transition:
+    background 0.18s ease,
+    transform 0.04s ease,
+    filter 0.18s ease;
 
-  &:hover { background: #f6f7f9; }
-  &:active { transform: translateY(1px); }
+  &:hover {
+    background: #f6f7f9;
+  }
+  &:active {
+    transform: translateY(1px);
+  }
 }
 
 .iconBtnDanger {
@@ -209,7 +236,9 @@
   color: #fff;
   background: var(--error);
   border-color: var(--error);
-  &:hover { background: var(--error-600); }
+  &:hover {
+    background: var(--error-600);
+  }
 }
 
 .inlineEdit {
@@ -218,7 +247,8 @@
   gap: 8px;
   align-items: center;
 
-  input, select {
+  input,
+  select {
     padding: 10px 12px;
     border: 1px solid var(--line);
     border-radius: 10px;
@@ -237,7 +267,8 @@
     gap: 10px;
   }
 
-  input, select {
+  input,
+  select {
     padding: 12px 12px;
     border: 1px solid var(--line);
     border-radius: 10px;
@@ -253,15 +284,214 @@
     cursor: pointer;
     font-weight: 800;
     justify-self: start;
-    transition: transform .04s ease, filter .18s ease;
-    &:hover { filter: brightness(1.06); }
-    &:active { transform: translateY(1px); }
+    transition:
+      transform 0.04s ease,
+      filter 0.18s ease;
+    &:hover {
+      filter: brightness(1.06);
+    }
+    &:active {
+      transform: translateY(1px);
+    }
   }
 }
 
-.muted { color: var(--muted); }
+/* --- Order Settings --- */
+.orderCard {
+  display: grid;
+  gap: 18px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: clamp(20px, 1.9vw, 24px);
+  letter-spacing: -0.01em;
+}
+
+.cardSub {
+  margin: 6px 0 0;
+  color: var(--muted);
+  max-width: 64ch;
+}
+
+/* Wider, more breathable grid */
+.formGrid {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: minmax(320px, 1fr) minmax(360px, 1fr);
+  align-items: start;
+}
+
+@media (max-width: 920px) {
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fieldset {
+  display: grid;
+  gap: 14px;
+  background: var(--card);
+}
+
+.fieldRow {
+  display: grid;
+  gap: 10px;
+}
+
+.labelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.label {
+  font-weight: 800;
+}
+
+/* Input + custom stepper + unit */
+.inputWithUnits {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+
+.numInput {
+  width: 180px; /* adjust if you want wider/narrower */
+  padding: 12px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
+.unit {
+  color: #374151;
+  font-weight: 800;
+  font-size: 13px;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.stepper {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stepBtn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: #f3f4f6;
+  font-size: 10px;
+  line-height: 1;
+  width: 22px;
+  height: 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition:
+    background 0.18s ease,
+    transform 0.04s ease,
+    filter 0.18s ease;
+
+  &:hover {
+    background: #eef0f3;
+  }
+  &:active {
+    transform: translateY(1px);
+  }
+}
+
+/* Help + current value inline, wrap nicely on small widths */
+.hintRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.help {
+  color: var(--muted);
+  font-size: 13px;
+}
+.currentVal {
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+}
+
+/* Chips */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: #f3f4f6;
+  color: #111827;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    transform 0.04s ease,
+    filter 0.18s ease;
+  &:hover {
+    background: #eef0f3;
+  }
+  &:active {
+    transform: translateY(1px);
+  }
+}
+.chipActive {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* Preview panel */
+.previewPanel {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: #f9fafb;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: #374151;
+}
+.previewStrong {
+  display: block;
+  margin-top: 6px;
+  font-size: clamp(16px, 1.6vw, 18px);
+  color: #111827;
+}
+
+.muted {
+  color: var(--muted);
+}
 
 @media (max-width: 740px) {
-  .inlineEdit { grid-template-columns: 1fr; }
-  .staffForm .formRow { grid-template-columns: 1fr; }
+  .inlineEdit {
+    grid-template-columns: 1fr;
+  }
+  .staffForm .formRow {
+    grid-template-columns: 1fr;
+  }
 }

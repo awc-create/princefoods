@@ -11,7 +11,16 @@ interface SessionUserWithRole {
 const hasRole = (u: unknown): u is SessionUserWithRole =>
   !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
 
-const HEADERS = ['Pic', 'Name', 'SKU', 'Price', 'Inventory', 'Collection'] as const;
+// ✅ add shipping_weight (grams)
+const HEADERS = [
+  'Pic',
+  'Name',
+  'SKU',
+  'Price',
+  'Inventory',
+  'Collection',
+  'shipping_weight'
+] as const;
 type CsvHeader = (typeof HEADERS)[number];
 
 function esc(val: unknown): string {
@@ -58,7 +67,9 @@ export async function GET(req: Request) {
       price: true,
       inventory: true,
       collection: true,
-      productImageUrl: true
+      productImageUrl: true,
+      shippingWeightGrams: true,
+      weight: true // fallback if grams missing
     }
   });
 
@@ -66,13 +77,15 @@ export async function GET(req: Request) {
   lines.push(HEADERS.join(','));
 
   for (const p of items) {
-    const row: Record<CsvHeader, string> = {
+    const grams = p.shippingWeightGrams ?? (p.weight != null ? Math.round(p.weight * 1000) : '');
+    const row: Record<CsvHeader, string | number> = {
       Pic: p.productImageUrl ?? '',
       Name: p.name ?? '',
       SKU: p.sku ?? '',
       Price: p.price != null ? String(p.price) : '',
       Inventory: p.inventory ?? '',
-      Collection: childCategory(p.collection)
+      Collection: childCategory(p.collection),
+      shipping_weight: grams as number | ''
     };
     lines.push(HEADERS.map((h) => esc(row[h])).join(','));
   }

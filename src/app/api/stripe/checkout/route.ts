@@ -1,3 +1,4 @@
+// src/app/api/stripe/checkout/route.ts
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     payment_method_types: ['card'],
+    client_reference_id: orderId,
     line_items: lines.map((l) => ({
       price_data: {
         currency: 'gbp',

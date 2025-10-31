@@ -201,7 +201,11 @@ export default function CustomerDetailPage() {
                 <tbody>
                   {orders.map((o) => (
                     <tr key={o.id}>
-                      <td>{o.number}</td>
+                      <td>
+                        <Link className={styles.viewLink} href={`/admin/orders/${o.id}`}>
+                          {o.number}
+                        </Link>
+                      </td>
                       <td>{o.date}</td>
                       <td>{o.items}</td>
                       <td>{o.total}</td>
@@ -271,11 +275,22 @@ function RestrictEraseCard({ contact }: { contact: Contact }) {
             onClick={() =>
               post(`/api/customers/${contact.id}/restrict`, { reason: 'Admin request' })
             }
+            className={styles.primaryBtn}
           >
             Restrict (Soft-delete)
           </button>
-          <button onClick={() => post(`/api/customers/${contact.id}/anonymize`)}>Anonymize</button>
-          <button onClick={() => post(`/api/customers/${contact.id}/restore`)}>Restore</button>
+          <button
+            onClick={() => post(`/api/customers/${contact.id}/anonymize`)}
+            className={styles.primaryBtn}
+          >
+            Anonymize
+          </button>
+          <button
+            onClick={() => post(`/api/customers/${contact.id}/restore`)}
+            className={styles.primaryBtn}
+          >
+            Restore
+          </button>
         </div>
       </div>
     </section>

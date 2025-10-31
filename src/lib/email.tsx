@@ -1,4 +1,5 @@
 import ChatSLAEmail from '@/emails/ChatSLAEmail';
+import TrackingEmail from '@/emails/TrackingEmail';
 import WelcomeEmail from '@/emails/WelcomeEmail';
 import { renderAsync } from '@react-email/render';
 import { getResendOrThrow } from './resend';
@@ -6,7 +7,12 @@ import { getResendOrThrow } from './resend';
 const FROM = process.env.EMAIL_FROM ?? 'Prince Foods <support@prince-foods.com>';
 const DEFAULT_TO = process.env.SUPPORT_EMAIL ?? 'support@prince-foods.com';
 
-/** Match the props your WelcomeEmail expects */
+// Single source of truth for public site URL + brand assets
+const SITE_BASE =
+  process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://www.prince-foods.com';
+
+const LOGO_URL = `${SITE_BASE.replace(/\/$/, '')}/assets/logo/logo-full.png`;
+
 export interface CategoryTeaser {
   title: string;
   href: string;
@@ -20,9 +26,7 @@ export interface ProductTeaser {
   price?: number | null;
 }
 
-/**
- * Send SLA breach email to support/admins
- */
+/** SLA Email */
 export async function sendSlaEmailTemplate(params: {
   threadId: string;
   preview: string;
@@ -38,20 +42,16 @@ export async function sendSlaEmailTemplate(params: {
       minutesOverdue={params.minutesOverdue}
       brand={{
         primary: '#D62828',
-        logoUrl: `${
-          process.env.NEXT_PUBLIC_ADMIN_URL ??
-          process.env.SITE_URL ??
-          'https://www.prince-foods.com'
-        }/assets/prince-foods-logo.png`,
+        logoUrl: LOGO_URL, // ← consistent absolute logo
         supportEmail: DEFAULT_TO
       }}
     />
   );
 
   const to = Array.isArray(params.to) ? params.to : [params.to ?? DEFAULT_TO];
-
   const resend = getResendOrThrow();
-  const { error } = await resend.emails.send({
+
+  const { data, error } = await resend.emails.send({
     from: FROM,
     to,
     subject: `Chat SLA breached • ${params.threadId}`,
@@ -61,18 +61,16 @@ export async function sendSlaEmailTemplate(params: {
   });
 
   if (error) throw error;
+  return { id: data?.id ?? null };
 }
 
-/**
- * Simple Welcome (no verification)
- */
+/** Welcome Email */
 export async function sendWelcomeEmail(params: { to: string; name?: string }) {
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com';
+  const siteUrl = SITE_BASE;
   const html = await renderAsync(<WelcomeEmail name={params.name} siteUrl={siteUrl} />);
 
   const resend = getResendOrThrow();
-  const { error } = await resend.emails.send({
+  const { data, error } = await resend.emails.send({
     from: FROM,
     to: params.to,
     subject: 'Welcome to Prince Foods',
@@ -82,22 +80,20 @@ export async function sendWelcomeEmail(params: { to: string; name?: string }) {
   });
 
   if (error) throw error;
+  return { id: data?.id ?? null };
 }
 
-/**
- * Welcome + verification (code + one-click link)
- */
+/** Welcome Verify Email */
 export async function sendWelcomeVerifyEmail(params: {
   to: string;
   name?: string;
-  code: string; // e.g. "416829"
+  code: string;
   verifyUrl: string;
   expiresInMinutes?: number;
   categories?: CategoryTeaser[];
   bestSellers?: ProductTeaser[];
 }) {
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com';
+  const siteUrl = SITE_BASE;
 
   const html = await renderAsync(
     <WelcomeEmail
@@ -112,7 +108,7 @@ export async function sendWelcomeVerifyEmail(params: {
   );
 
   const resend = getResendOrThrow();
-  const { error } = await resend.emails.send({
+  const { data, error } = await resend.emails.send({
     from: FROM,
     to: params.to,
     subject: 'Verify your Prince Foods account',
@@ -122,4 +118,142 @@ export async function sendWelcomeVerifyEmail(params: {
   });
 
   if (error) throw error;
+  return { id: data?.id ?? null };
+}
+
+/** Shipment / tracking email (styled + product thumbnails) */
+export async function sendTrackingEmail(params: {
+  to: string;
+  orderId: string;
+  displayId?: string | null;
+  carrier: string;
+  trackingNumber: string;
+  trackingUrl?: string; // optional
+  products?: ProductTeaser[]; // optional product teasers
+}) {
+  const { to, orderId, displayId, carrier, trackingNumber, trackingUrl, products = [] } = params;
+
+  const html = await renderAsync(
+    <TrackingEmail
+      orderId={orderId}
+      displayId={displayId}
+      carrier={carrier}
+      trackingNumber={trackingNumber}
+      trackingUrl={trackingUrl}
+      products={products}
+      brand={{
+        logoUrl: LOGO_URL, // ← consistent absolute logo
+        primary: '#D62828',
+        supportEmail: DEFAULT_TO,
+        siteUrl: SITE_BASE
+      }}
+    />
+  );
+
+  const resend = getResendOrThrow();
+  const { data, error } = await resend.emails.send({
+    from: FROM,
+    to,
+    subject: `Your Prince Foods order ${displayId ?? orderId} is on its way`,
+    html,
+    replyTo: process.env.REPLY_TO ?? DEFAULT_TO,
+    tags: [
+      { name: 'orderId', value: orderId },
+      { name: 'kind', value: 'tracking' }
+    ]
+  });
+
+  if (error) throw error;
+  return { id: data?.id ?? null };
+}
+
+/** Order cancelled email */
+export async function sendOrderCancelledEmail(params: {
+  to: string;
+  orderId: string;
+  displayId?: string | null;
+  reason?: string | null;
+}) {
+  const html = `
+  <div style="font-family: system-ui, sans-serif; line-height:1.5; color:#111">
+    <h2 style="margin:0 0 12px">Your order ${params.displayId ?? params.orderId} was cancelled</h2>
+    ${params.reason ? `<p>Reason: ${params.reason}</p>` : ''}
+    <p style="margin:12px 0 0">If this was unexpected, please contact <a href="mailto:${DEFAULT_TO}">${DEFAULT_TO}</a>.</p>
+  </div>`;
+
+  const resend = getResendOrThrow();
+  const { data, error } = await resend.emails.send({
+    from: FROM,
+    to: params.to,
+    subject: `Order ${params.displayId ?? params.orderId} cancelled`,
+    html,
+    replyTo: DEFAULT_TO,
+    tags: [{ name: 'category', value: 'order-cancelled' }]
+  });
+
+  if (error) throw error;
+  return { id: data?.id ?? null };
+}
+
+/** Refund issued email */
+export async function sendRefundEmail(params: {
+  to: string;
+  orderId: string;
+  displayId?: string | null;
+  amountPence: number;
+}) {
+  const amount = `£${(params.amountPence / 100).toFixed(2)}`;
+  const html = `
+  <div style="font-family: system-ui, sans-serif; line-height:1.5; color:#111">
+    <h2>Your refund has been issued</h2>
+    <p>Order: <strong>${params.displayId ?? params.orderId}</strong></p>
+    <p>Amount: <strong>${amount}</strong></p>
+    <p style="margin-top:12px;color:#555">It may take a few days to appear on your statement.</p>
+  </div>`;
+
+  const resend = getResendOrThrow();
+  const { data, error } = await resend.emails.send({
+    from: FROM,
+    to: params.to,
+    subject: `Refund for order ${params.displayId ?? params.orderId}`,
+    html,
+    replyTo: DEFAULT_TO,
+    tags: [{ name: 'category', value: 'refund' }]
+  });
+
+  if (error) throw error;
+  return { id: data?.id ?? null };
+}
+
+/** Contact email changed notice */
+export async function sendEmailChangedNotice(params: {
+  oldEmail?: string | null;
+  newEmail: string;
+  orderId: string;
+  displayId?: string | null;
+}) {
+  const html = `
+  <div style="font-family: system-ui, sans-serif; line-height:1.5; color:#111">
+    <h2>Your contact email was updated</h2>
+    <p>Order: <strong>${params.displayId ?? params.orderId}</strong></p>
+    ${params.oldEmail ? `<p>Previous: ${params.oldEmail}</p>` : ''}
+    <p>New: <strong>${params.newEmail}</strong></p>
+    <p style="margin-top:12px;color:#555">If you did not request this, please reply immediately.</p>
+  </div>`;
+
+  const resend = getResendOrThrow();
+  const recipients = [params.newEmail];
+  if (params.oldEmail && params.oldEmail !== params.newEmail) recipients.push(params.oldEmail);
+
+  const { data, error } = await resend.emails.send({
+    from: FROM,
+    to: recipients,
+    subject: `Email changed for order ${params.displayId ?? params.orderId}`,
+    html,
+    replyTo: DEFAULT_TO,
+    tags: [{ name: 'category', value: 'order-email-changed' }]
+  });
+
+  if (error) throw error;
+  return { id: data?.id ?? null };
 }

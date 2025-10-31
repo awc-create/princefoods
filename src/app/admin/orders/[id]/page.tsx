@@ -4,6 +4,13 @@ import type { Address } from '@prisma/client';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import React from 'react';
+import ActivityComposer from './ActivityComposer';
+import ActivityList from './ActivityList';
+import EditEmailInline from './EditEmailInline';
+import MoreActions from './MoreActions';
+import TagEditor from './TagEditor';
+import UndoCancelButton from './UndoCancelButton';
 
 function formatMoney(pence: number, currency = 'GBP') {
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format((pence ?? 0) / 100);
@@ -43,20 +50,32 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const { id } = await params;
   if (!id) notFound();
 
-  const order = await prisma.order.findUnique({
-    where: { id },
-    include: {
-      user: true,
-      items: true,
-      payments: true,
-      shippingAddress: true,
-      billingAddress: true
-    }
-  });
+  const [order, activities, orderTagRows] = await Promise.all([
+    prisma.order.findUnique({
+      where: { id },
+      include: {
+        user: true,
+        items: true,
+        payments: true,
+        shippingAddress: true,
+        billingAddress: true
+      }
+    }),
+    prisma.orderActivity.findMany({
+      where: { orderId: id },
+      orderBy: { createdAt: 'asc' }
+    }),
+    prisma.orderTag.findMany({
+      where: { orderId: id },
+      include: { tag: true },
+      orderBy: { assignedAt: 'asc' }
+    })
+  ]);
 
   if (!order) notFound();
 
   const currency = order.currency || 'GBP';
+  const tags = orderTagRows.map((r) => r.tag);
 
   const statusTone =
     order.status === 'FULFILLED'
@@ -78,185 +97,384 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           ? 'warn'
           : 'muted';
 
-  // Tag test orders (either explicit provider flag or idempotency markers)
   const isTestOrder =
     order.paymentProvider === 'stripe_test' ||
     order.payments.some((p) => (p.idempotencyKey ?? '').includes('test'));
 
-  // Weight (prefer denormalized, fallback to sum)
   const itemsWeightGrams = order.items.reduce(
     (sum, it) => sum + (it.unitWeightGrams ?? 0) * it.quantity,
     0
   );
   const totalWeightGrams = order.totalWeightGrams ?? itemsWeightGrams;
 
+  const hasStripeCapture = order.payments.some(
+    (p) => p.status === 'CAPTURED' && (p.provider ?? '').includes('stripe')
+  );
+  const refundableRemainingPence = Math.max(0, (order.grandTotal ?? 0) - (order.refundTotal ?? 0));
+
+  // Reversal window banner (prefer new field, fallback to legacy)
+  const now = new Date();
+  const reversibleUntilRaw = order.cancelReversibleUntil ?? order.editableUntil;
+  const reversibleUntil = reversibleUntilRaw ? new Date(reversibleUntilRaw) : null;
+  const isReversible = !!reversibleUntil && reversibleUntil.getTime() > now.getTime();
+  const minutesLeft = isReversible
+    ? Math.max(0, Math.round((reversibleUntil.getTime() - now.getTime()) / 60000))
+    : 0;
+
+  const isArchived = !!order.archivedAt;
+
   return (
-    <div style={{ padding: 24 }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+    <div style={{ padding: 24, display: 'grid', gap: 14 }}>
+      <header style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <h1 style={{ margin: 0, lineHeight: 1.2, fontWeight: 700 }}>
           Order #{order.displayId ?? order.id}
         </h1>
         <Badge tone={statusTone}>{order.status}</Badge>
         <Badge tone={paymentTone}>Payment: {order.paymentStatus}</Badge>
+        {isArchived && <Badge tone="muted">Archived</Badge>}
         {isTestOrder && <Badge tone="muted">Test</Badge>}
       </header>
 
-      <div style={{ color: '#888', marginBottom: 16 }}>
+      <div style={{ color: '#888' }}>
         Placed {order.createdAt.toLocaleString('en-GB')}
-        {order.user && (
+        {order.user ? (
           <>
             {' '}
             • Customer:{' '}
-            <Link href={`/admin/customers?email=${encodeURIComponent(order.contactEmail)}`}>
+            <Link href={`/admin/customers/${order.user.id}`}>
               {order.user.name || order.contactEmail}
             </Link>
           </>
+        ) : (
+          order.contactEmail && <> • Guest: {order.contactEmail}</>
         )}
-        {!order.user && order.contactEmail && <> • Guest: {order.contactEmail}</>}
+        {isArchived && order.archivedAt && (
+          <>
+            {' '}
+            • <span title="This order is archived">Archived:</span>{' '}
+            {new Date(order.archivedAt).toLocaleString('en-GB')}
+          </>
+        )}
       </div>
 
-      {/* Totals */}
-      <section
-        style={{
-          display: 'grid',
-          gap: 12,
-          gridTemplateColumns: 'repeat(4, minmax(0,1fr))',
-          marginBottom: 18
-        }}
-      >
-        <Card label="Subtotal" value={formatMoney(order.subtotal, currency)} />
-        <Card label="Shipping" value={formatMoney(order.shippingTotal, currency)} />
-        {order.discountTotal > 0 && (
-          <Card label="Discount" value={`-${formatMoney(order.discountTotal, currency)}`} />
-        )}
-        {order.taxTotal > 0 && <Card label="Tax" value={formatMoney(order.taxTotal, currency)} />}
-        <Card label="Grand total" value={formatMoney(order.grandTotal, currency)} />
-        <Card label="Total weight" value={formatKg(totalWeightGrams)} />
-      </section>
-
-      {/* Items */}
-      <h2 style={{ marginTop: 12, marginBottom: 8 }}>Items</h2>
-      <div style={{ overflow: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
-          <thead>
-            <tr>
-              <th style={th}>Product</th>
-              <th style={th}>SKU</th>
-              <th style={th} title="Unit price">
-                Unit
-              </th>
-              <th style={th}>Qty</th>
-              <th style={th}>Weight</th>
-              <th style={th}>Line total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {order.items.map((it) => {
-              const lineG = (it.unitWeightGrams ?? 0) * it.quantity;
-              return (
-                <tr key={it.id} style={{ borderTop: '1px solid #222' }}>
-                  <td style={td}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div
-                        style={{ position: 'relative', width: 48, height: 48, flex: '0 0 auto' }}
-                      >
-                        <Image
-                          src={it.imageUrl ?? '/assets/prince-foods-logo.png'}
-                          alt=""
-                          fill
-                          sizes="48px"
-                          style={{ objectFit: 'contain' }}
-                        />
-                      </div>
-                      <div>{it.name}</div>
-                    </div>
-                  </td>
-                  <td style={td}>{it.sku ?? '—'}</td>
-                  <td style={td}>{formatMoney(it.unitPrice, currency)}</td>
-                  <td style={td}>{it.quantity}</td>
-                  <td style={td}>{lineG ? formatKg(lineG) : '—'}</td>
-                  <td style={td}>{formatMoney(it.lineTotal, currency)}</td>
-                </tr>
-              );
-            })}
-            {order.items.length === 0 && (
-              <tr>
-                <td colSpan={6} style={{ ...td, color: '#888' }}>
-                  No items on this order.
-                </td>
-              </tr>
+      {reversibleUntil && (
+        <div
+          style={{
+            padding: '8px 12px',
+            border: '1px solid #e5e7eb',
+            borderRadius: 10,
+            background: isReversible ? '#fff8e1' : '#f6f7f9',
+            color: isReversible ? '#5a4a17' : '#666',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            justifyContent: 'space-between'
+          }}
+        >
+          <div>
+            {isReversible ? (
+              <>
+                <strong>Reversible until:</strong> {reversibleUntil.toLocaleString('en-GB')} (
+                {minutesLeft} min left)
+              </>
+            ) : (
+              <>
+                <strong>Reversal window ended:</strong> {reversibleUntil.toLocaleString('en-GB')}
+              </>
             )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Payments */}
-      <h2 style={{ marginTop: 20, marginBottom: 8 }}>Payment(s)</h2>
-      {order.payments.length === 0 ? (
-        <div style={{ color: '#888' }}>No payments yet.</div>
-      ) : (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-          {order.payments.map((p) => (
-            <li key={p.id} style={{ padding: '10px 0', borderBottom: '1px solid #222' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <Badge
-                  tone={
-                    p.status === 'CAPTURED' ? 'ok' : p.status === 'REFUNDED' ? 'danger' : 'muted'
-                  }
-                >
-                  {p.status}
-                </Badge>
-                <strong>{formatMoney(p.amountPence, p.currency || currency)}</strong>
-                <span style={{ color: '#888' }}>
-                  {new Date(p.createdAt).toLocaleString('en-GB')}
-                </span>
-              </div>
-              <div style={{ color: '#888', fontSize: 13, marginTop: 4 }}>
-                provider: {p.provider ?? '—'} • intent: {p.intentId ?? '—'} • charge:{' '}
-                {p.chargeId ?? '—'} • refund: {p.refundId ?? '—'}
-                {p.idempotencyKey ? <> • key: {p.idempotencyKey}</> : null}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {/* Addresses */}
-      <h2 style={{ marginTop: 20, marginBottom: 8 }}>Addresses</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 12 }}>
-        <AddrCard title="Shipping" addr={order.shippingAddress} />
-        <AddrCard title="Billing" addr={order.billingAddress} />
-      </div>
-
-      {/* Meta */}
-      <section style={{ marginTop: 20 }}>
-        <h3 style={{ marginBottom: 8 }}>Meta</h3>
-        <div style={{ display: 'grid', gap: 8 }}>
-          <div>
-            <span style={{ color: '#888' }}>Payment provider:&nbsp;</span>
-            <span>{order.paymentProvider ?? '—'}</span>
           </div>
-          <div>
-            <span style={{ color: '#888' }}>Payment intent:&nbsp;</span>
-            <span>{order.paymentIntentId ?? '—'}</span>
-          </div>
-          {order.notes && (
-            <div>
-              <span style={{ color: '#888' }}>Notes:&nbsp;</span>
-              <span>{order.notes}</span>
-            </div>
+
+          {isReversible && order.status === 'CANCELLED' && (order.refundTotal ?? 0) === 0 && (
+            <UndoCancelButton
+              orderId={order.id}
+              untilISO={reversibleUntil.toISOString()}
+              disabled={false}
+            />
           )}
         </div>
-      </section>
+      )}
+
+      {/* Flags for CancelDialog */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            window.__order_isTest = ${JSON.stringify(isTestOrder)};
+            window.__order_hasStripeCapture = ${JSON.stringify(hasStripeCapture)};
+            window.__order_refundableRemainingPence = ${JSON.stringify(refundableRemainingPence)};
+          `
+        }}
+      />
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <MoreActions
+          orderId={order.id}
+          contactEmail={order.contactEmail}
+          canFulfill={
+            order.status !== 'FULFILLED' &&
+            order.status !== 'CANCELLED' &&
+            order.status !== 'REFUNDED'
+          }
+        />
+      </div>
+
+      {/* Main layout */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+        {/* Left column */}
+        <div style={{ display: 'grid', gap: 12 }}>
+          <section
+            style={{
+              display: 'grid',
+              gap: 10,
+              gridTemplateColumns: 'repeat(4, minmax(0,1fr))'
+            }}
+          >
+            <Card label="Subtotal" value={formatMoney(order.subtotal, currency)} />
+            <Card label="Shipping" value={formatMoney(order.shippingTotal, currency)} />
+            {order.discountTotal > 0 && (
+              <Card label="Discount" value={`-${formatMoney(order.discountTotal, currency)}`} />
+            )}
+            {order.taxTotal > 0 && (
+              <Card label="Tax" value={formatMoney(order.taxTotal, currency)} />
+            )}
+            <Card label="Grand total" value={formatMoney(order.grandTotal, currency)} />
+            <Card label="Total weight" value={formatKg(totalWeightGrams)} />
+          </section>
+
+          <section>
+            <h2 style={{ margin: '6px 0' }}>Items</h2>
+            <div style={{ overflow: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+                <thead>
+                  <tr>
+                    <th style={th}>Product</th>
+                    <th style={th}>SKU</th>
+                    <th style={th}>Unit</th>
+                    <th style={th}>Qty</th>
+                    <th style={th}>Weight</th>
+                    <th style={th}>Line total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {order.items.map((it) => {
+                    const lineG = (it.unitWeightGrams ?? 0) * it.quantity;
+                    return (
+                      <tr key={it.id} style={{ borderTop: '1px solid #222' }}>
+                        <td style={td}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div
+                              style={{
+                                position: 'relative',
+                                width: 48,
+                                height: 48,
+                                flex: '0 0 auto'
+                              }}
+                            >
+                              <Image
+                                src={it.imageUrl ?? '/assets/prince-foods-logo.png'}
+                                alt=""
+                                fill
+                                sizes="48px"
+                                style={{ objectFit: 'contain' }}
+                              />
+                            </div>
+                            <div>{it.name}</div>
+                          </div>
+                        </td>
+                        <td style={td}>{it.sku ?? '—'}</td>
+                        <td style={td}>{formatMoney(it.unitPrice, currency)}</td>
+                        <td style={td}>{it.quantity}</td>
+                        <td style={td}>{lineG ? formatKg(lineG) : '—'}</td>
+                        <td style={td}>{formatMoney(it.lineTotal, currency)}</td>
+                      </tr>
+                    );
+                  })}
+                  {order.items.length === 0 && (
+                    <tr>
+                      <td colSpan={6} style={{ ...td, color: '#888' }}>
+                        No items on this order.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section>
+            <h2 style={{ margin: '6px 0' }}>Payment(s)</h2>
+            {order.payments.length === 0 ? (
+              <div style={{ color: '#888' }}>No payments yet.</div>
+            ) : (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {order.payments.map((p) => (
+                  <li key={p.id} style={{ padding: '10px 0', borderBottom: '1px solid #222' }}>
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
+                    >
+                      <Badge
+                        tone={
+                          p.status === 'CAPTURED'
+                            ? 'ok'
+                            : p.status === 'REFUNDED'
+                              ? 'danger'
+                              : 'muted'
+                        }
+                      >
+                        {p.status}
+                      </Badge>
+                      <strong>{formatMoney(p.amountPence, p.currency || currency)}</strong>
+                      <span style={{ color: '#888' }}>
+                        {new Date(p.createdAt).toLocaleString('en-GB')}
+                      </span>
+                    </div>
+                    <div style={{ color: '#888', fontSize: 13, marginTop: 4 }}>
+                      provider: {p.provider ?? '—'} • intent: {p.intentId ?? '—'} • charge:{' '}
+                      {p.chargeId ?? '—'} • refund: {p.refundId ?? '—'}
+                      {p.idempotencyKey ? <> • key: {p.idempotencyKey}</> : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section>
+            <h3 style={{ marginBottom: 6 }}>Activity</h3>
+
+            <ActivityList
+              orderId={order.id}
+              initial={activities.map((a) => ({
+                id: a.id,
+                orderId: a.orderId,
+                type: a.type,
+                note: a.note,
+                createdAt:
+                  a.createdAt instanceof Date ? a.createdAt.toISOString() : String(a.createdAt)
+              }))}
+            />
+
+            <ActivityComposer orderId={order.id} />
+          </section>
+        </div>
+
+        {/* Right sidebar — compact spacing fix */}
+        <aside
+          style={{
+            display: 'grid',
+            gap: 2
+          }}
+        >
+          <style>
+            {`
+      aside section {
+        margin: 0 !important;
+      }
+      aside h2, aside h3 {
+        margin: 0 0 4px 0 !important;
+      }
+    `}
+          </style>
+
+          {/* Customer */}
+          <section>
+            <h2>Customer</h2>
+            <div
+              style={{
+                border: '1px solid #222',
+                borderRadius: 10,
+                padding: 10,
+                display: 'grid',
+                gap: 8
+              }}
+            >
+              {order.user ? (
+                <>
+                  <div style={{ display: 'grid', gap: 2 }}>
+                    <strong style={{ lineHeight: 1.2 }}>{order.user.name || 'Customer'}</strong>
+                    <div style={{ color: '#666', fontSize: 13 }}>
+                      <Link
+                        href={`/admin/customers/${order.user.id}`}
+                        style={{ color: '#007bff', textDecoration: 'none' }}
+                      >
+                        Open customer page →
+                      </Link>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div style={{ color: '#666' }}>Guest order</div>
+              )}
+
+              <div style={{ display: 'grid', gap: 6 }}>
+                <div style={{ color: '#888', fontSize: 12, fontWeight: 600 }}>
+                  Order contact email
+                </div>
+                <EditEmailInline orderId={order.id} initial={order.contactEmail} />
+              </div>
+            </div>
+          </section>
+
+          {/* Meta */}
+          <section>
+            <h3>Meta</h3>
+            <div
+              style={{
+                display: 'grid',
+                gap: 6,
+                border: '1px solid #222',
+                borderRadius: 10,
+                padding: 10
+              }}
+            >
+              <div>
+                <span style={{ color: '#888' }}>Payment provider:&nbsp;</span>
+                <span>{order.paymentProvider ?? '—'}</span>
+              </div>
+              <div>
+                <span style={{ color: '#888' }}>Payment intent:&nbsp;</span>
+                <span>{order.paymentIntentId ?? '—'}</span>
+              </div>
+              {order.notes && (
+                <div>
+                  <span style={{ color: '#888' }}>Notes:&nbsp;</span>
+                  <span>{order.notes}</span>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Addresses */}
+          <section>
+            <h2>Addresses</h2>
+            <div style={{ display: 'grid', gap: 6 }}>
+              <AddrCard title="Shipping" addr={order.shippingAddress} />
+              <AddrCard title="Billing" addr={order.billingAddress} />
+            </div>
+          </section>
+
+          {/* Tags */}
+          <section>
+            <h3>Tags</h3>
+            <TagEditor
+              orderId={order.id}
+              initial={tags.map((t) => ({
+                slug: t.slug,
+                label: t.label,
+                color: t.color ?? undefined
+              }))}
+            />
+          </section>
+        </aside>
+      </div>
     </div>
   );
 }
 
 function Card({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ border: '1px solid #222', borderRadius: 10, padding: '12px 14px' }}>
+    <div style={{ border: '1px solid #222', borderRadius: 10, padding: '10px 12px' }}>
       <div style={{ fontSize: 12, opacity: 0.75 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{value}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>{value}</div>
     </div>
   );
 }
@@ -264,12 +482,13 @@ function Card({ label, value }: { label: string; value: string }) {
 function AddrCard({ title, addr }: { title: string; addr: Address | null }) {
   if (!addr) {
     return (
-      <div style={{ border: '1px solid #222', borderRadius: 10, padding: 12 }}>
+      <div style={{ border: '1px solid #222', borderRadius: 10, padding: 10 }}>
         <div style={{ fontWeight: 600, marginBottom: 6 }}>{title}</div>
         <div style={{ color: '#888' }}>—</div>
       </div>
     );
   }
+
   const lines = [
     [addr.firstName ?? '', addr.lastName ?? ''].filter(Boolean).join(' ').trim(),
     addr.line1,
@@ -280,7 +499,7 @@ function AddrCard({ title, addr }: { title: string; addr: Address | null }) {
   ].filter(Boolean) as string[];
 
   return (
-    <div style={{ border: '1px solid #222', borderRadius: 10, padding: 12 }}>
+    <div style={{ border: '1px solid #222', borderRadius: 10, padding: 10 }}>
       <div style={{ fontWeight: 600, marginBottom: 6 }}>{title}</div>
       {lines.map((l, i) => (
         <div key={i}>{l}</div>
@@ -291,13 +510,14 @@ function AddrCard({ title, addr }: { title: string; addr: Address | null }) {
 
 const th: React.CSSProperties = {
   textAlign: 'left',
-  padding: '10px 8px',
+  padding: '8px 8px',
   fontWeight: 600,
   borderBottom: '1px solid #333',
   whiteSpace: 'nowrap'
 };
+
 const td: React.CSSProperties = {
-  padding: '10px 8px',
+  padding: '8px 8px',
   verticalAlign: 'middle',
   whiteSpace: 'nowrap'
 };

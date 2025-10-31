@@ -1,8 +1,9 @@
+// src/app/admin/settings/page.tsx
 'use client';
 
-import { Lock, Pencil, Save, Trash2, User, Users, X } from 'lucide-react';
+import { Clock, Lock, Pencil, Save, Trash2, User, Users, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styles from './Settings.module.scss';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
@@ -14,8 +15,10 @@ interface StaffUser {
   role: Role;
 }
 
+type TabKey = 'account' | 'password' | 'staff' | 'orders';
+
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<'account' | 'password' | 'staff'>('account');
+  const [activeTab, setActiveTab] = useState<TabKey>('account');
   const [userRole, setUserRole] = useState<Role | null>(null);
   const router = useRouter();
 
@@ -30,6 +33,8 @@ export default function SettingsPage() {
     await fetch('/api/admin/logout', { method: 'POST' });
     router.push('/admin/login');
   }
+
+  const canSeeHeadTabs = userRole === 'HEAD';
 
   return (
     <div className={styles.container}>
@@ -53,20 +58,32 @@ export default function SettingsPage() {
         >
           <Lock size={16} /> Change Password
         </button>
-        {userRole === 'HEAD' && (
-          <button
-            className={activeTab === 'staff' ? styles.active + ' active' : ''}
-            onClick={() => setActiveTab('staff')}
-          >
-            <Users size={16} /> Staff Permissions
-          </button>
+
+        {canSeeHeadTabs && (
+          <>
+            <button
+              className={activeTab === 'staff' ? styles.active + ' active' : ''}
+              onClick={() => setActiveTab('staff')}
+            >
+              <Users size={16} /> Staff Permissions
+            </button>
+
+            <button
+              className={activeTab === 'orders' ? styles.active + ' active' : ''}
+              onClick={() => setActiveTab('orders')}
+              title="Order Settings"
+            >
+              <Clock size={16} /> Order Settings
+            </button>
+          </>
         )}
       </div>
 
       <div className={styles.tabContent}>
         {activeTab === 'account' && <AccountInfo />}
         {activeTab === 'password' && <ChangePassword />}
-        {activeTab === 'staff' && userRole === 'HEAD' && <StaffPermissions />}
+        {activeTab === 'staff' && canSeeHeadTabs && <StaffPermissions />}
+        {activeTab === 'orders' && canSeeHeadTabs && <OrdersSettings />}
       </div>
     </div>
   );
@@ -164,6 +181,207 @@ function ChangePassword() {
       </label>
       <button type="submit">Change Password</button>
       {toast && <div className={styles.toast}>{toast}</div>}
+    </form>
+  );
+}
+
+/* ---------- Order Settings (HEAD only) ---------- */
+function OrdersSettings() {
+  const [minutes, setMinutes] = useState<number | ''>('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<string>('');
+  const [error, setError] = useState<string>('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/settings/orders');
+        if (!res.ok) throw new Error('Failed to load settings');
+        const data = (await res.json()) as { cancelReversalMinutes?: number };
+        setMinutes(
+          typeof data.cancelReversalMinutes === 'number' ? data.cancelReversalMinutes : 1440
+        );
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const presets = [
+    { label: '1h', value: 60 },
+    { label: '4h', value: 240 },
+    { label: '24h', value: 1440 },
+    { label: '7d', value: 10080 }
+  ];
+
+  const previewDeadline = useMemo(() => {
+    const n = Number(minutes);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    const d = new Date(Date.now() + n * 60 * 1000);
+    return d.toLocaleString('en-GB');
+  }, [minutes]);
+
+  const humanised = useMemo(() => {
+    const n = Number(minutes);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    if (n % 10080 === 0) return `${n / 10080} week${n / 10080 === 1 ? '' : 's'}`;
+    if (n % 1440 === 0) return `${n / 1440} day${n / 1440 === 1 ? '' : 's'}`;
+    if (n % 60 === 0) return `${n / 60} hour${n / 60 === 1 ? '' : 's'}`;
+    return `${n} minutes`;
+  }, [minutes]);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setToast('');
+    setError('');
+    const n = Number(minutes);
+    if (!Number.isFinite(n) || n <= 0 || n > 40320) {
+      setError('Invalid minutes');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/settings/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cancelReversalMinutes: n }) // ✅ correct key
+      });
+      const data = await res.json();
+      if (!res.ok || data?.ok === false) throw new Error(data?.error ?? 'Save failed');
+      setToast('✅ Order settings saved.');
+      setTimeout(() => setToast(''), 4000);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <p className={styles.muted}>Loading order settings…</p>;
+
+  return (
+    <form onSubmit={save} className={`${styles.card} ${styles.orderCard}`}>
+      <div className={styles.cardHeader}>
+        <div>
+          <h2 className={styles.cardTitle}>Order Settings</h2>
+          <p className={styles.cardSub}>
+            Configure how long a cancelled order can be reversed. Enforced in the cancel/refund
+            flow.
+          </p>
+        </div>
+        <button type="submit" disabled={saving} className={styles.primary}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+
+      {error && (
+        <div
+          className={styles.toast}
+          style={{ background: '#fff1f1', color: '#991b1b', borderColor: '#fecaca' }}
+        >
+          ❌ {error}
+        </div>
+      )}
+
+      <div className={styles.formGrid}>
+        {/* LEFT: number input */}
+        <div className={styles.fieldset}>
+          <div className={styles.fieldRow}>
+            <label htmlFor="reversalMinutes" className={styles.label}>
+              Reversal window
+            </label>
+
+            <div className={styles.inputWithUnits}>
+              <input
+                id="reversalMinutes"
+                className={styles.numInput}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                type="number"
+                min={1}
+                max={40320}
+                step={1}
+                value={minutes}
+                onChange={(e) => setMinutes(e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="e.g. 1440"
+                required
+                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+              />
+
+              <div className={styles.stepper} aria-hidden="false">
+                <button
+                  type="button"
+                  className={styles.stepBtn}
+                  aria-label="Increase minutes"
+                  onClick={() => {
+                    const n = Math.min(40320, Math.max(1, (Number(minutes) || 0) + 1));
+                    setMinutes(n);
+                  }}
+                >
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  className={styles.stepBtn}
+                  aria-label="Decrease minutes"
+                  onClick={() => {
+                    const n = Math.min(40320, Math.max(1, (Number(minutes) || 0) - 1));
+                    setMinutes(n);
+                  }}
+                >
+                  ▼
+                </button>
+              </div>
+
+              <span className={styles.unit}>minutes</span>
+            </div>
+
+            <div className={styles.hintRow}>
+              <span className={styles.help}>1440 = 24 hours. Max 40320 (28 days).</span>
+              {humanised && <span className={styles.currentVal}>Currently: {humanised}</span>}
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT: presets + preview */}
+        <div className={styles.fieldset}>
+          <div className={styles.labelRow}>
+            <span className={styles.label}>Quick presets</span>
+          </div>
+          <div className={styles.chips}>
+            {presets.map((p) => {
+              const active = minutes === p.value;
+              return (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => setMinutes(p.value)}
+                  className={`${styles.chip} ${active ? styles.chipActive : ''}`}
+                  aria-pressed={active}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {previewDeadline && (
+            <div className={styles.previewPanel}>
+              <div>If cancelled now, reversal allowed until:</div>
+              <strong className={styles.previewStrong}>{previewDeadline}</strong>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {toast && (
+        <div className={styles.toast} style={{ marginTop: 4 }}>
+          {toast}
+        </div>
+      )}
     </form>
   );
 }

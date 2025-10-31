@@ -22,10 +22,6 @@ async function getParams<T extends Record<string, unknown>>(ctx: unknown): Promi
   return (raw ?? {}) as T;
 }
 
-async function currentRole(): Promise<Role | null> {
-  const s = await getServerSession(authOptions);
-  return (s?.user as Partial<{ role: Role }> | undefined)?.role ?? null;
-}
 function needRole(allowed: Role[], role: Role | null) {
   if (!role) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!allowed.includes(role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -59,7 +55,7 @@ export async function GET(_: NextRequest, ctx: unknown) {
   const [threadsById, threadsByEmail] = await Promise.all([
     prisma.chatThread.findMany({
       where: { userKey: user.id },
-      orderBy: { createdAt: 'asc' }, // we take latest via messages, so order isn't critical
+      orderBy: { createdAt: 'asc' },
       take: 10,
       include: { messages: { orderBy: { createdAt: 'desc' }, take: 1 } }
     }),
@@ -97,7 +93,9 @@ export async function GET(_: NextRequest, ctx: unknown) {
 }
 
 export async function PATCH(req: NextRequest, ctx: unknown) {
-  const role = await currentRole();
+  // inline role check (no unused helper)
+  const session = await getServerSession(authOptions);
+  const role = (session?.user as Partial<{ role: Role }> | undefined)?.role ?? null;
   const forbid = needRole(['HEAD', 'STAFF'], role);
   if (forbid) return forbid;
 
@@ -121,7 +119,6 @@ export async function PATCH(req: NextRequest, ctx: unknown) {
     if (!/^\S+@\S+\.\S+$/.test(e)) {
       return NextResponse.json({ error: 'Invalid email' }, { status: 400 });
     }
-    // lock email for WIX source if desired
     if (before.source !== 'WIX') updates.email = e;
   }
 
@@ -161,8 +158,9 @@ export async function PATCH(req: NextRequest, ctx: unknown) {
 }
 
 export async function DELETE(_: NextRequest, ctx: unknown) {
-  // Default: anonymize instead of hard delete (HEAD-only)
-  const role = await currentRole();
+  // inline role check (no unused helper)
+  const session = await getServerSession(authOptions);
+  const role = (session?.user as Partial<{ role: Role }> | undefined)?.role ?? null;
   const forbid = needRole(['HEAD'], role);
   if (forbid) return forbid;
 
@@ -182,7 +180,7 @@ export async function DELETE(_: NextRequest, ctx: unknown) {
         phoneRaw: null,
         isAnonymized: true,
         anonymizedAt: new Date(),
-        deletedAt: new Date(), // also restricted
+        deletedAt: new Date(),
         restrictedAt: new Date(),
         role: 'VIEWER',
         deletionReason: 'Anonymized via DELETE'
