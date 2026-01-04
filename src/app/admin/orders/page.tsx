@@ -1,5 +1,7 @@
+// src/app/admin/orders/page.tsx
 'use client';
 
+import BuyApcLabelButton from '@/components/admin/orders/BuyApcLabelButton';
 import Link from 'next/link';
 import { useEffect, useRef, useState, useTransition } from 'react';
 
@@ -57,7 +59,7 @@ export default function OrdersPage() {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('');
-  const [provider, setProvider] = useState<ProviderFilter>('all'); // show all by default
+  const [provider, setProvider] = useState<ProviderFilter>('all');
   const [archived, setArchived] = useState<ArchivedFilter>('active');
 
   const [page, setPage] = useState(1);
@@ -116,7 +118,47 @@ export default function OrdersPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      <h1 style={{ marginBottom: 16 }}>Orders</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <h1 style={{ marginBottom: 16 }}>Orders</h1>
+
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <Link
+            href="/admin/orders/exceptions"
+            style={{
+              height: 34,
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '0 12px',
+              borderRadius: 10,
+              border: '1px solid #ddd',
+              background: '#fff',
+              textDecoration: 'none',
+              color: '#111',
+              fontWeight: 700,
+              fontSize: 13
+            }}
+          >
+            Exceptions / Returns →
+          </Link>
+
+          <button
+            type="button"
+            onClick={refresh}
+            style={{
+              height: 34,
+              borderRadius: 10,
+              padding: '0 12px',
+              border: '1px solid #ddd',
+              background: '#fff',
+              cursor: 'pointer',
+              fontWeight: 700,
+              fontSize: 13
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
 
       {/* filters */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -254,6 +296,37 @@ export default function OrdersPage() {
                   </td>
                   <td style={{ ...td, textAlign: 'right' }}>
                     <MiniActionsMenu order={order} onDone={refresh} />
+
+                    {/* Returns shortcut */}
+                    <span style={{ marginLeft: 8 }}>
+                      <Link
+                        href={`/admin/orders/${order.id}#returns`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          height: 32,
+                          padding: '0 10px',
+                          borderRadius: 10,
+                          border: '1px solid #ddd',
+                          background: '#fff',
+                          color: '#111',
+                          textDecoration: 'none',
+                          fontWeight: 800,
+                          fontSize: 12
+                        }}
+                        title="Open returns section"
+                      >
+                        ↩ Returns
+                      </Link>
+                    </span>
+
+                    {/* APC label from list view (modal will fetch address on open) */}
+                    <span style={{ marginLeft: 8 }}>
+                      <BuyApcLabelButton
+                        orderId={order.id}
+                        weightGrams={order.totalWeightGrams ?? undefined}
+                      />
+                    </span>
                   </td>
                 </tr>
               ))}

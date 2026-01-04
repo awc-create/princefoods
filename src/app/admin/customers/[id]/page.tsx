@@ -1,5 +1,6 @@
 'use client';
 
+import CustomerPromotions from '@/components/admin/customer/promotions/promotions';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -216,6 +217,10 @@ export default function CustomerDetailPage() {
               </table>
             </div>
           )}
+        </div>
+
+        <div className={styles.card}>
+          <CustomerPromotions customerId={id} />
         </div>
       </section>
     </div>

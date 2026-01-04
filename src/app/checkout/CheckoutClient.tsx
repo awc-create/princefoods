@@ -2,59 +2,161 @@
 'use client';
 
 import { useCart, type CartLine } from '@/lib/cart-store';
-import { penceToGBP } from '@/lib/money';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import styles from './checkout.module.scss';
 
-type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+// ✅ components
+import AddressStep from '@/components/checkout/AddressStep';
+import OrderSummary from '@/components/checkout/OrderSummary';
+import PaymentStep from '@/components/checkout/PaymentStep';
 
-interface Addr {
-  firstName: string;
-  lastName: string;
-  line1: string;
-  line2?: string;
-  city: string;
-  postcode: string;
-  country: string;
-  phoneE164?: string;
+import type { Addr, AddrTouched, Role, Step } from '@/components/checkout/types';
+import { useUkPostcodeLookup } from '@/components/checkout/useUkPostcodeLookup';
+
+interface PlaceOrderResponse {
+  ok?: boolean;
+  orderId?: string;
+  displayId?: string;
+  error?: string;
 }
-
-type Delivery = 'standard' | 'express';
-
-const DELIVERY_PRICE: Record<Delivery, number> = {
-  standard: 399,
-  express: 799
-};
 
 const LS_CONTACT_KEY = 'pf_checkout_contact';
 const LS_ADDR_KEY = 'pf_checkout_addr';
 
-function formatUKPostcode(raw: string): string {
-  const s = raw.trim().toUpperCase().replace(/\s+/g, '');
-  if (s.length < 5) return s;
-  const head = s.slice(0, -3);
-  const tail = s.slice(-3);
-  return `${head} ${tail}`;
+/* =========================
+   Phone helpers
+   ========================= */
+function digitsOnly(s: string) {
+  return s.replace(/[^\d]/g, '');
+}
+
+// Keep it loose for checkout UX: accept +44..., or digits; validate 6–15 digits.
+function normalizePhoneLoose(raw: string): string {
+  const t = raw.trim();
+  if (!t) return '';
+  const d = digitsOnly(t);
+  if (d.length < 6 || d.length > 15) return '';
+  return t.startsWith('+') ? t : d;
+}
+
+function normalizeTown(raw: string): string {
+  return raw.trim();
+}
+
+function postcodeValidForCountry(
+  country: string,
+  postcode: string,
+  formatUK: (s: string) => string
+) {
+  const cc = (country ?? '').trim().toUpperCase();
+  const pc = postcode.trim();
+  if (!pc) return false;
+
+  if (cc === 'GB') {
+    return formatUK(pc).length >= 6;
+  }
+
+  return pc.length >= 3;
+}
+
+// ✅ Royal Mail fallback merge: never overwrite typed values; ensure GB town + city never blank
+function mergeTownCity(args: {
+  country: string;
+  typedTown: string;
+  typedCity: string;
+  lookup?: { town?: string | null; city?: string | null } | null;
+}) {
+  const cc = (args.country ?? '').toUpperCase();
+  const typedTown = (args.typedTown ?? '').trim();
+  const typedCity = (args.typedCity ?? '').trim();
+
+  const lookupTown = (args.lookup?.town ?? '').trim();
+  const lookupCity = (args.lookup?.city ?? '').trim();
+
+  if (cc === 'GB') {
+    const town = typedTown || lookupTown;
+    const city = typedCity || lookupCity || town;
+    return { town, city };
+  }
+
+  const town = typedTown || lookupTown;
+  const city = typedCity || lookupCity || town;
+  return { town, city };
+}
+
+interface SavedAddress {
+  id: string;
+  label: string;
+  isDefault: boolean;
+  kind: 'SHIPPING' | 'BILLING' | 'BOTH';
+  firstName: string | null;
+  lastName: string | null;
+  line1: string;
+  line2: string | null;
+  town: string | null;
+  city: string;
+  postcode: string;
+  country: string;
+  phoneE164: string | null;
+}
+
+function addrToForm(a: SavedAddress): Addr {
+  return {
+    firstName: a.firstName ?? '',
+    lastName: a.lastName ?? '',
+    line1: a.line1 ?? '',
+    line2: a.line2 ?? '',
+    town: a.town ?? '',
+    city: a.city ?? '',
+    postcode: a.postcode ?? '',
+    country: (a.country ?? 'GB').toUpperCase(),
+    phoneE164: a.phoneE164 ?? ''
+  };
+}
+
+interface ShippingQuoteOk {
+  ok: true;
+  currency: string;
+  service: 'STANDARD' | 'EXPRESS';
+  zone: { id: string; name: string };
+  totals: { shippingPenceTotal: number };
+}
+interface ShippingQuoteErr {
+  ok: false;
+  error: string;
+}
+
+interface PromoSnapshot {
+  promotionId: string | null;
+  promotionCode: string | null;
+  promoName: string | null;
+  discountPence: number;
+  shippingDiscountPence: number;
 }
 
 export default function CheckoutClient({ email }: { email: string | null }) {
   const router = useRouter();
+
+  const sp = useSearchParams();
+  const searchParams = useMemo(() => sp ?? new URLSearchParams(), [sp]);
+
   const { data: session } = useSession();
   const cart = useCart();
   const { items, subtotal, clear, updateQty, remove } = cart;
 
-  // Hydration-safe mount flag
+  const { shipLookup, billLookup, lookupUKPostcode, reset, formatUKPostcode } =
+    useUkPostcodeLookup();
+
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // Admin role (show test buttons for HEAD/STAFF)
   const role = (session?.user as { role?: Role } | undefined)?.role;
   const isAdmin = mounted && (role === 'HEAD' || role === 'STAFF');
+  const isLoggedIn = !!session?.user;
 
-  // Cart helpers
   const incQty = (id: string) => {
     const line = items.find((l) => l.id === id);
     if (!line) return;
@@ -68,81 +170,169 @@ export default function CheckoutClient({ email }: { email: string | null }) {
   };
   const setQty = (id: string, qty: number) => updateQty(id, Math.max(1, qty));
 
-  // Guest contact email (if no session)
+  const sessionUserId = (session?.user as { id?: string } | null)?.id ?? null;
+  const sessionEmail = (session?.user as { email?: string } | null)?.email ?? null;
+
   const [contactEmail, setContactEmail] = useState(email ?? '');
   const needEmail = useMemo(() => !email, [email]);
 
-  // UX path
   const [mode, setMode] = useState<'guest' | 'login' | 'signup'>(needEmail ? 'guest' : 'guest');
 
-  // Addresses
+  const stepParam = (searchParams.get('step') ?? 'address') as Step;
+  const [step, setStep] = useState<Step>(stepParam === 'payment' ? 'payment' : 'address');
+
+  useEffect(() => {
+    const s = (searchParams.get('step') ?? 'address') as Step;
+    setStep(s === 'payment' ? 'payment' : 'address');
+  }, [searchParams]);
+
+  const goStep = (next: Step) => {
+    const params = new URLSearchParams(Array.from(searchParams.entries()));
+    params.set('step', next);
+    router.replace(`/checkout?${params.toString()}`);
+  };
+
   const [shipping, setShipping] = useState<Addr>({
     firstName: '',
     lastName: '',
     line1: '',
     line2: '',
+    town: '',
     city: '',
     postcode: '',
-    country: 'GB'
+    country: 'GB',
+    phoneE164: ''
   });
+
   const [billingSame, setBillingSame] = useState(true);
+
   const [billing, setBilling] = useState<Addr>({
     firstName: '',
     lastName: '',
     line1: '',
     line2: '',
+    town: '',
     city: '',
     postcode: '',
-    country: 'GB'
+    country: 'GB',
+    phoneE164: ''
   });
 
-  // Delivery / totals
-  const [delivery, setDelivery] = useState<Delivery>('standard');
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [selectedShipId, setSelectedShipId] = useState<string>('');
+  const [selectedBillId, setSelectedBillId] = useState<string>('');
+
+  const [saveToAccount, setSaveToAccount] = useState(false);
+  const [saveLabel, setSaveLabel] = useState('');
+
   const [placing, setPlacing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Promo (UI only)
+  const [shippingPence, setShippingPence] = useState<number>(0);
+  const [shippingLabel, setShippingLabel] = useState<string>('');
+  const [shippingErr, setShippingErr] = useState<string | null>(null);
+  const shippingReqSeq = useRef(0);
+
   const [promo, setPromo] = useState('');
-  const promoAppliedRef = useRef<string | null>(null);
+  const [promoSnap, setPromoSnap] = useState<PromoSnapshot>({
+    promotionId: null,
+    promotionCode: null,
+    promoName: null,
+    discountPence: 0,
+    shippingDiscountPence: 0
+  });
 
-  // Totals — stay stable until mounted to avoid hydration mismatch
+  // If cart changes, promo snapshot may no longer be valid.
+  // Keep UI safe by clearing the snapshot (user can re-apply).
+  const promoCartKey = useMemo(() => {
+    return items
+      .map((i) => `${i.productId ?? ''}:${i.id}:${i.quantity}:${Math.trunc(i.unitPrice)}`)
+      .join('|');
+  }, [items]);
+
+  useEffect(() => {
+    setPromoSnap({
+      promotionId: null,
+      promotionCode: null,
+      promoName: null,
+      discountPence: 0,
+      shippingDiscountPence: 0
+    });
+  }, [promoCartKey]);
+
   const liveSubtotal = mounted ? subtotal() : 0;
-  const shippingCost = DELIVERY_PRICE[delivery];
-  const discount = 0;
   const tax = 0;
-  const grand = liveSubtotal + shippingCost - discount + tax;
 
-  // Validation
+  const promoDiscountTotal = Math.max(
+    0,
+    Math.trunc(promoSnap.discountPence) + Math.trunc(promoSnap.shippingDiscountPence)
+  );
+
+  // Show promo effect in the UI grand total.
+  const grand = liveSubtotal + shippingPence - promoDiscountTotal + tax;
+
+  const [touchedShipping, setTouchedShipping] = useState<AddrTouched>({});
+  const [touchedBilling, setTouchedBilling] = useState<AddrTouched>({});
+  const [touchedEmail, setTouchedEmail] = useState(false);
+
+  const markTouchedShipping = (k: keyof Addr) => setTouchedShipping((t) => ({ ...t, [k]: true }));
+  const markTouchedBilling = (k: keyof Addr) => setTouchedBilling((t) => ({ ...t, [k]: true }));
+
+  const touchCourierRequired = () => {
+    (
+      ['firstName', 'lastName', 'line1', 'postcode', 'country', 'phoneE164', 'town'] as const
+    ).forEach((k) => markTouchedShipping(k));
+
+    if (!billingSame) {
+      (
+        ['firstName', 'lastName', 'line1', 'postcode', 'country', 'phoneE164', 'town'] as const
+      ).forEach((k) => markTouchedBilling(k));
+    }
+
+    if (needEmail) setTouchedEmail(true);
+  };
+
   const emailValid = useMemo(() => {
     if (!needEmail) return true;
     const trimmed = contactEmail.trim();
     return /^\S+@\S+\.\S+$/.test(trimmed) && trimmed.length <= 254;
   }, [needEmail, contactEmail]);
 
-  const addressValid = (a: Addr) =>
-    !!a.firstName.trim() &&
-    !!a.lastName.trim() &&
-    !!a.line1.trim() &&
-    !!a.city.trim() &&
-    !!a.postcode.trim() &&
-    !!a.country.trim();
+  const addressValid = (a: Addr) => {
+    const cc = (a.country ?? '').trim().toUpperCase();
+    const phoneOk = !!normalizePhoneLoose(a.phoneE164 ?? '');
+    const townOk = cc !== 'GB' ? true : !!(a.town ?? '').trim();
+    const pcOk = postcodeValidForCountry(cc, a.postcode, formatUKPostcode);
+
+    return (
+      !!a.firstName.trim() &&
+      !!a.lastName.trim() &&
+      !!a.line1.trim() &&
+      pcOk &&
+      !!cc &&
+      phoneOk &&
+      townOk
+    );
+  };
 
   const formValid =
     (mounted ? items.length > 0 : true) &&
     emailValid &&
     addressValid(shipping) &&
-    (billingSame || addressValid(billing));
+    (billingSame || addressValid(billing)) &&
+    !shippingErr;
 
-  // Prefill from localStorage (guests only)
   useEffect(() => {
     if (email) return;
     try {
       const contactRaw = localStorage.getItem(LS_CONTACT_KEY);
       const addrRaw = localStorage.getItem(LS_ADDR_KEY);
+
       if (contactRaw) {
         const { contactEmail: savedEmail } = JSON.parse(contactRaw) as { contactEmail?: string };
         if (savedEmail) setContactEmail(savedEmail);
       }
+
       if (addrRaw) {
         const parsed = JSON.parse(addrRaw) as {
           shipping?: Addr;
@@ -158,7 +348,6 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     }
   }, [email]);
 
-  // Save to localStorage
   const lsSaveTimer = useRef<number | null>(null);
   const scheduleSave = () => {
     if (lsSaveTimer.current) window.clearTimeout(lsSaveTimer.current);
@@ -175,10 +364,214 @@ export default function CheckoutClient({ email }: { email: string | null }) {
   };
   useEffect(scheduleSave, [contactEmail, shipping, billing, billingSame, email]);
 
-  // ---------------------------
-  // Helpers for server payloads
-  // ---------------------------
+  useEffect(() => {
+    if (!session?.user) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch('/api/account/addresses', { cache: 'no-store' });
+        const json = (await res.json()) as { ok: boolean; addresses: SavedAddress[] };
+
+        if (!res.ok || !json.ok) return;
+
+        const list = json.addresses ?? [];
+        if (cancelled) return;
+
+        setSavedAddresses(list);
+
+        const defShip =
+          list.find((a) => a.isDefault && (a.kind === 'SHIPPING' || a.kind === 'BOTH')) ??
+          list.find((a) => a.kind === 'SHIPPING' || a.kind === 'BOTH');
+
+        const defBill =
+          list.find((a) => a.isDefault && (a.kind === 'BILLING' || a.kind === 'BOTH')) ??
+          list.find((a) => a.kind === 'BILLING' || a.kind === 'BOTH');
+
+        if (defShip) {
+          setSelectedShipId(defShip.id);
+          setShipping((s) => ({ ...s, ...addrToForm(defShip) }));
+        }
+
+        if (defBill && defBill.id !== defShip?.id) {
+          setSelectedBillId(defBill.id);
+          setBillingSame(false);
+          setBilling((b) => ({ ...b, ...addrToForm(defBill) }));
+        }
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user]);
+
+  const shippingPostcodeInvalid =
+    !!touchedShipping.postcode &&
+    !!shipping.postcode.trim() &&
+    !postcodeValidForCountry(shipping.country, shipping.postcode, formatUKPostcode);
+
+  const billingPostcodeInvalid =
+    !!touchedBilling.postcode &&
+    !!billing.postcode.trim() &&
+    !postcodeValidForCountry(billing.country, billing.postcode, formatUKPostcode);
+
+  const emailInvalid = needEmail && touchedEmail && !!contactEmail && !emailValid;
+
+  const step1Valid =
+    (mounted ? items.length > 0 : true) &&
+    emailValid &&
+    addressValid(shipping) &&
+    (billingSame || addressValid(billing)) &&
+    !shippingErr;
+
+  const onShippingPostcodeBlur = (postcode: string, country: string) => {
+    const cc = (country ?? '').toUpperCase();
+
+    setShipping((s) => ({
+      ...s,
+      postcode: cc === 'GB' ? formatUKPostcode(s.postcode) : s.postcode.trim()
+    }));
+
+    if (cc !== 'GB') {
+      reset('shipping');
+      return;
+    }
+
+    void lookupUKPostcode(postcode, 'shipping', (patch) => {
+      setShipping((s) => {
+        const merged = mergeTownCity({
+          country: s.country,
+          typedTown: s.town ?? '',
+          typedCity: s.city ?? '',
+          lookup: patch
+        });
+        return { ...s, ...merged };
+      });
+    });
+  };
+
+  const onBillingPostcodeBlur = (postcode: string, country: string) => {
+    const cc = (country ?? '').toUpperCase();
+
+    setBilling((b) => ({
+      ...b,
+      postcode: cc === 'GB' ? formatUKPostcode(b.postcode) : b.postcode.trim()
+    }));
+
+    if (cc !== 'GB') {
+      reset('billing');
+      return;
+    }
+
+    void lookupUKPostcode(postcode, 'billing', (patch) => {
+      setBilling((b) => {
+        const merged = mergeTownCity({
+          country: b.country,
+          typedTown: b.town ?? '',
+          typedCity: b.city ?? '',
+          lookup: patch
+        });
+        return { ...b, ...merged };
+      });
+    });
+  };
+
+  function packAddress(a: Addr) {
+    const cc = a.country.toUpperCase();
+    const town = normalizeTown(a.town ?? '');
+
+    const cityTyped = (a.city ?? '').trim();
+    const city = cityTyped || town;
+
+    return {
+      firstName: a.firstName,
+      lastName: a.lastName,
+      line1: a.line1,
+      line2: a.line2 ?? '',
+      city,
+      town: town || '',
+      postcode: cc === 'GB' ? formatUKPostcode(a.postcode) : a.postcode.trim(),
+      country: cc,
+      phoneE164: normalizePhoneLoose(a.phoneE164 ?? '')
+    };
+  }
+
+  // ✅ STANDARD ONLY shipping quote
+  useEffect(() => {
+    if (!mounted) return;
+
+    const country = (shipping.country ?? '').trim().toUpperCase();
+    const postcode = (shipping.postcode ?? '').trim();
+
+    if (!country || !postcode || items.length === 0) {
+      setShippingPence(0);
+      setShippingLabel('');
+      setShippingErr(null);
+      return;
+    }
+
+    const seq = ++shippingReqSeq.current;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        setShippingErr(null);
+
+        const res = await fetch('/api/shipping/quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            country,
+            postcode,
+            currency: 'GBP',
+            service: 'STANDARD',
+            items: items.map((it: CartLine) => ({
+              productId: it.productId ?? null,
+              quantity: it.quantity,
+              unitPricePence: Math.trunc(it.unitPrice)
+            }))
+          })
+        });
+
+        const json = (await res.json()) as ShippingQuoteOk | ShippingQuoteErr;
+
+        if (seq !== shippingReqSeq.current) return;
+
+        if (!res.ok || !json.ok) {
+          setShippingPence(0);
+          setShippingLabel('');
+          setShippingErr((json as ShippingQuoteErr).error ?? 'Shipping unavailable.');
+          return;
+        }
+
+        setShippingPence(json.totals.shippingPenceTotal);
+        setShippingLabel(json.zone?.name ?? '');
+        setShippingErr(null);
+      } catch (e) {
+        if (seq !== shippingReqSeq.current) return;
+        setShippingPence(0);
+        setShippingLabel('');
+        setShippingErr(e instanceof Error ? e.message : 'Shipping unavailable.');
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [mounted, shipping.country, shipping.postcode, items, formatUKPostcode]);
+
   function makeOrderBody() {
+    const ship = packAddress(shipping);
+    const bill = billingSame ? undefined : packAddress(billing);
+
+    const emailForOrder = needEmail ? contactEmail.trim() : (email ?? '');
+
+    const promoPayload =
+      promoSnap.promotionId && promoSnap.promotionCode
+        ? { promotionId: promoSnap.promotionId, promotionCode: promoSnap.promotionCode }
+        : {};
+
     return {
       items: (mounted ? items : []).map((i: CartLine) => ({
         id: i.id,
@@ -189,66 +582,90 @@ export default function CheckoutClient({ email }: { email: string | null }) {
         imageUrl: i.imageUrl ?? i.image ?? undefined,
         productId: i.productId ?? undefined
       })),
-      shippingAddress: shipping,
+      shippingAddress: ship,
       billingSameAsShipping: billingSame,
-      billingAddress: billingSame ? undefined : billing,
+      billingAddress: bill,
       totals: {
         subtotal: liveSubtotal,
-        shipping: shippingCost,
-        discount,
-        tax,
+        shipping: shippingPence,
+        discount: promoDiscountTotal,
+        tax: 0,
         grandTotal: grand
       },
       currency: 'GBP',
-      contactEmail: needEmail ? contactEmail.trim() : email
+      contactEmail: emailForOrder,
+      saveAddress: isLoggedIn ? saveToAccount : false,
+      saveAddressLabel: isLoggedIn && saveToAccount ? saveLabel.trim() : '',
+      saveAddressKind: 'SHIPPING' as const,
+      ...promoPayload
     };
   }
 
-  // ---------------------------
-  // Stripe Checkout helper
-  // ---------------------------
-  async function payWithStripe(orderId: string) {
-    const lines = (mounted ? items : []).map((it: CartLine) => ({
-      name: it.name,
-      unit_amount: Math.trunc(it.unitPrice), // pence
-      quantity: it.quantity
-    }));
+  async function maybeSaveAddressToAccount() {
+    if (!isLoggedIn) return;
+    if (!saveToAccount) return;
 
+    const label = saveLabel.trim();
+    if (!label) return;
+
+    const payload = {
+      label,
+      kind: billingSame ? 'SHIPPING' : 'BOTH',
+      isDefault: false,
+      address: packAddress(shipping),
+      billing: billingSame ? undefined : packAddress(billing)
+    };
+
+    try {
+      await fetch('/api/account/addresses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  async function payWithStripe(orderId: string) {
     const res = await fetch('/api/stripe/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderId, lines })
+      body: JSON.stringify({ orderId })
     });
-    const j = await res.json();
 
-    if (!res.ok || !j?.url) {
-      throw new Error(j?.error ?? 'Stripe init failed');
-    }
-    window.location.href = j.url as string;
+    const j = (await res.json()) as { ok?: boolean; url?: string; error?: string };
+    if (!res.ok || !j?.url) throw new Error(j?.error ?? 'Stripe init failed');
+
+    window.location.href = j.url;
   }
 
-  // ---------------------------
-  // Actions
-  // ---------------------------
-
-  // 1) Normal "Place order" (no Stripe)
   async function placeOrder() {
     setErr(null);
+
+    touchCourierRequired();
     if (!formValid) {
-      setErr('Please complete the required fields.');
+      setErr(shippingErr ?? 'Please complete all required delivery details.');
       return;
     }
+
     setPlacing(true);
     try {
+      await maybeSaveAddressToAccount();
+
       const res = await fetch('/api/checkout/place-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(makeOrderBody())
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? 'Could not place order.');
+      const json = (await res.json()) as PlaceOrderResponse;
+
+      if (!res.ok || !json.orderId) throw new Error(json?.error ?? 'Could not place order.');
+
       clear();
-      router.replace(`/order-confirmation/${json.orderId}`);
+      router.replace(
+        `/order-confirmation/${json.orderId}?d=${encodeURIComponent(json.displayId ?? '')}`
+      );
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not place order.');
     } finally {
@@ -256,29 +673,28 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     }
   }
 
-  // 2) Create order, then redirect to Stripe Checkout (test)
   async function placeOrderAndPayWithStripe() {
     setErr(null);
+
+    touchCourierRequired();
     if (!formValid) {
-      setErr('Please complete the required fields.');
+      setErr(shippingErr ?? 'Please complete all required delivery details.');
       return;
     }
 
     setPlacing(true);
     try {
-      // 1) Create order
+      await maybeSaveAddressToAccount();
+
       const res = await fetch('/api/checkout/place-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(makeOrderBody())
       });
-      const json = await res.json();
+      const json = (await res.json()) as { orderId?: string; displayId?: string; error?: string };
       if (!res.ok || !json?.orderId) throw new Error(json?.error ?? 'Could not place order.');
 
-      // 2) Clear cart locally before redirect (optional)
       clear();
-
-      // 3) Open Stripe Checkout
       await payWithStripe(json.orderId);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not start Stripe Checkout.');
@@ -287,27 +703,32 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     }
   }
 
-  // 3) Admin-only test order (bypasses Stripe; writes paid test order)
   async function placeTestOrder() {
     setErr(null);
+
+    touchCourierRequired();
     if (!formValid) {
-      setErr('Please complete the required fields.');
+      setErr(shippingErr ?? 'Please complete all required delivery details.');
       return;
     }
+
     setPlacing(true);
     try {
+      await maybeSaveAddressToAccount();
+
       const res = await fetch('/api/checkout/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...makeOrderBody(),
-          notes: 'Placed from checkout test button'
-        })
+        body: JSON.stringify({ ...makeOrderBody(), notes: 'Placed from checkout test button' })
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? 'Could not place test order.');
+      const json = (await res.json()) as PlaceOrderResponse;
+
+      if (!res.ok || !json.orderId) throw new Error(json?.error ?? 'Could not place test order.');
+
       clear();
-      router.replace(`/order-confirmation/${json.orderId}`);
+      router.replace(
+        `/order-confirmation/${json.orderId}?d=${encodeURIComponent(json.displayId ?? '')}`
+      );
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not place test order.');
     } finally {
@@ -315,9 +736,41 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     }
   }
 
-  const applyPromo = () => {
-    promoAppliedRef.current = promo.trim().toUpperCase() || null;
+  const onSelectSavedShipping = (id: string) => {
+    setSelectedShipId(id);
+    const addr = savedAddresses.find((a) => a.id === id);
+    if (!addr) return;
+
+    setShipping((s) => ({ ...s, ...addrToForm(addr) }));
+
+    if (addr.kind === 'BOTH' || addr.kind === 'BILLING') {
+      setSelectedBillId(id);
+      setBillingSame(false);
+      setBilling((b) => ({ ...b, ...addrToForm(addr) }));
+    }
   };
+
+  const onSelectSavedBilling = (id: string) => {
+    setSelectedBillId(id);
+    const addr = savedAddresses.find((a) => a.id === id);
+    if (!addr) return;
+
+    setBillingSame(false);
+    setBilling((b) => ({ ...b, ...addrToForm(addr) }));
+  };
+
+  // Use guest email when session email missing
+  const emailForPromo = needEmail ? contactEmail.trim() : (email ?? sessionEmail ?? '');
+
+  // Right now we only do STANDARD + best-effort DRY/FROZEN later. Keep DRY.
+  const shippingKind: 'DRY' | 'FROZEN' | 'MIXED' = 'DRY';
+
+  // ✅ This drives auto re-check when shipping changes (only if promo is already applied)
+  const promoRecheckKey = useMemo(() => {
+    const c = (shipping.country ?? '').trim().toUpperCase();
+    const p = (shipping.postcode ?? '').trim().toUpperCase();
+    return [c, p, String(Math.trunc(shippingPence ?? 0)), shippingKind, 'GBP'].join('|');
+  }, [shipping.country, shipping.postcode, shippingPence, shippingKind]);
 
   return (
     <main className={styles.shell}>
@@ -328,7 +781,33 @@ export default function CheckoutClient({ email }: { email: string | null }) {
         </Link>
       </div>
 
-      {!email && (
+      <div className={styles.stepTabs} role="tablist" aria-label="Checkout steps">
+        <button
+          type="button"
+          className={`${styles.stepTab} ${step === 'address' ? styles.stepActive : ''}`}
+          onClick={() => goStep('address')}
+          aria-selected={step === 'address'}
+        >
+          1. Address
+        </button>
+        <button
+          type="button"
+          className={`${styles.stepTab} ${step === 'payment' ? styles.stepActive : ''}`}
+          onClick={() => {
+            touchCourierRequired();
+            if (step1Valid) goStep('payment');
+            else
+              setErr(
+                shippingErr ?? 'Please complete all required delivery details before continuing.'
+              );
+          }}
+          aria-selected={step === 'payment'}
+        >
+          2. Payment
+        </button>
+      </div>
+
+      {!email && step === 'address' && (
         <section className={styles.modes} aria-label="Choose how to check out">
           <button
             className={`${styles.modeBtn} ${mode === 'guest' ? styles.modeActive : ''}`}
@@ -338,6 +817,7 @@ export default function CheckoutClient({ email }: { email: string | null }) {
             <span className={styles.modeTitle}>Continue as guest</span>
             <span className={styles.modeSub}>No account required</span>
           </button>
+
           <Link
             href="/?modal=login&callbackUrl=/checkout"
             className={`${styles.modeBtn} ${mode === 'login' ? styles.modeActive : ''}`}
@@ -346,6 +826,7 @@ export default function CheckoutClient({ email }: { email: string | null }) {
             <span className={styles.modeTitle}>Log in</span>
             <span className={styles.modeSub}>Use your Prince Foods account</span>
           </Link>
+
           <Link
             href="/?modal=signup&callbackUrl=/checkout"
             className={`${styles.modeBtn} ${mode === 'signup' ? styles.modeActive : ''}`}
@@ -358,324 +839,107 @@ export default function CheckoutClient({ email }: { email: string | null }) {
       )}
 
       <div className={styles.grid}>
-        <section className={styles.form} aria-label="Shipping and billing">
-          {needEmail && (
-            <>
-              <h3 className={styles.h3}>Contact email</h3>
-              <Field
-                label="Email"
-                value={contactEmail}
-                type="email"
-                onChange={setContactEmail}
-                invalid={needEmail && !!contactEmail && !emailValid}
-                hint={needEmail ? 'We’ll send your receipt and updates to this email.' : undefined}
-              />
-            </>
+        <section className={styles.form} aria-label="Checkout details">
+          {step === 'address' && (
+            <AddressStep
+              needEmail={needEmail}
+              contactEmail={contactEmail}
+              setContactEmail={setContactEmail}
+              touchedEmail={touchedEmail}
+              setTouchedEmail={setTouchedEmail}
+              emailInvalid={emailInvalid}
+              shipping={shipping}
+              setShipping={setShipping}
+              billingSame={billingSame}
+              setBillingSame={(v) => {
+                setBillingSame(v);
+                if (v) reset('billing');
+              }}
+              billing={billing}
+              setBilling={setBilling}
+              touchedShipping={touchedShipping}
+              markTouchedShipping={markTouchedShipping}
+              touchedBilling={touchedBilling}
+              markTouchedBilling={markTouchedBilling}
+              shippingPostcodeInvalid={shippingPostcodeInvalid}
+              billingPostcodeInvalid={billingPostcodeInvalid}
+              shipLookup={shipLookup}
+              billLookup={billLookup}
+              onShippingPostcodeBlur={onShippingPostcodeBlur}
+              onBillingPostcodeBlur={onBillingPostcodeBlur}
+              onContinue={() => {
+                setErr(null);
+                touchCourierRequired();
+                if (!step1Valid) {
+                  setErr(shippingErr ?? 'Please complete all required delivery details.');
+                  return;
+                }
+                goStep('payment');
+              }}
+              step1Valid={step1Valid}
+              err={err}
+              isLoggedIn={isLoggedIn}
+              savedAddresses={savedAddresses}
+              selectedShipId={selectedShipId}
+              onSelectSavedShipping={onSelectSavedShipping}
+              selectedBillId={selectedBillId}
+              onSelectSavedBilling={onSelectSavedBilling}
+              saveToAccount={saveToAccount}
+              setSaveToAccount={setSaveToAccount}
+              saveLabel={saveLabel}
+              setSaveLabel={setSaveLabel}
+            />
           )}
 
-          <h3 className={styles.h3}>Shipping address</h3>
-          <div className={styles.row2}>
-            <Field
-              label="First name"
-              value={shipping.firstName}
-              onChange={(v) => setShipping((s) => ({ ...s, firstName: v }))}
+          {step === 'payment' && (
+            <PaymentStep
+              delivery={'standard'}
+              setDelivery={() => undefined}
+              placing={placing}
+              formValid={formValid}
+              mounted={mounted}
+              err={err ?? (shippingErr ? `Shipping: ${shippingErr}` : null)}
+              onEditAddress={() => goStep('address')}
+              onPlaceOrder={placeOrder}
+              isAdmin={isAdmin}
+              onPayWithStripe={placeOrderAndPayWithStripe}
+              onPlaceTestOrder={placeTestOrder}
             />
-            <Field
-              label="Last name"
-              value={shipping.lastName}
-              onChange={(v) => setShipping((s) => ({ ...s, lastName: v }))}
-            />
-          </div>
-          <Field
-            label="Address line 1"
-            value={shipping.line1}
-            onChange={(v) => setShipping((s) => ({ ...s, line1: v }))}
-          />
-          <Field
-            label="Address line 2"
-            value={shipping.line2 ?? ''}
-            onChange={(v) => setShipping((s) => ({ ...s, line2: v }))}
-          />
-          <div className={styles.row3}>
-            <Field
-              label="City"
-              value={shipping.city}
-              onChange={(v) => setShipping((s) => ({ ...s, city: v }))}
-            />
-            <Field
-              label="Postcode"
-              value={shipping.postcode}
-              onChange={(v) => setShipping((s) => ({ ...s, postcode: v }))}
-              onBlur={() => setShipping((s) => ({ ...s, postcode: formatUKPostcode(s.postcode) }))}
-            />
-            <Field
-              label="Country"
-              value={shipping.country}
-              onChange={(v) => setShipping((s) => ({ ...s, country: v.toUpperCase() }))}
-            />
-          </div>
-
-          {/* Delivery Method */}
-          <div className={styles.deliveryWrap} role="group" aria-label="Delivery method">
-            <span className={styles.deliveryLabel}>Delivery</span>
-            <div className={styles.deliveryOptions}>
-              <label className={styles.radio}>
-                <input
-                  type="radio"
-                  name="delivery"
-                  value="standard"
-                  checked={delivery === 'standard'}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    if (e.target.checked) setDelivery('standard');
-                  }}
-                />
-                <span>Standard (2–4 days) — {penceToGBP(DELIVERY_PRICE.standard)}</span>
-              </label>
-
-              <label className={styles.radio}>
-                <input
-                  type="radio"
-                  name="delivery"
-                  value="express"
-                  checked={delivery === 'express'}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    if (e.target.checked) setDelivery('express');
-                  }}
-                />
-                <span>Express (Next day) — {penceToGBP(DELIVERY_PRICE.express)}</span>
-              </label>
-            </div>
-          </div>
-
-          <div className={styles.chk}>
-            <input
-              id="same"
-              type="checkbox"
-              checked={billingSame}
-              onChange={(e) => setBillingSame(e.target.checked)}
-            />
-            <label htmlFor="same">Billing address same as shipping</label>
-          </div>
-
-          {!billingSame && (
-            <>
-              <h3 className={styles.h3}>Billing address</h3>
-              <div className={styles.row2}>
-                <Field
-                  label="First name"
-                  value={billing.firstName}
-                  onChange={(v) => setBilling((s) => ({ ...s, firstName: v }))}
-                />
-                <Field
-                  label="Last name"
-                  value={billing.lastName}
-                  onChange={(v) => setBilling((s) => ({ ...s, lastName: v }))}
-                />
-              </div>
-              <Field
-                label="Address line 1"
-                value={billing.line1}
-                onChange={(v) => setBilling((s) => ({ ...s, line1: v }))}
-              />
-              <Field
-                label="Address line 2"
-                value={billing.line2 ?? ''}
-                onChange={(v) => setBilling((s) => ({ ...s, line2: v }))}
-              />
-              <div className={styles.row3}>
-                <Field
-                  label="City"
-                  value={billing.city}
-                  onChange={(v) => setBilling((s) => ({ ...s, city: v }))}
-                />
-                <Field
-                  label="Postcode"
-                  value={billing.postcode}
-                  onChange={(v) => setBilling((s) => ({ ...s, postcode: v }))}
-                  onBlur={() =>
-                    setBilling((s) => ({ ...s, postcode: formatUKPostcode(s.postcode) }))
-                  }
-                />
-                <Field
-                  label="Country"
-                  value={billing.country}
-                  onChange={(v) => setBilling((s) => ({ ...s, country: v.toUpperCase() }))}
-                />
-              </div>
-            </>
-          )}
-
-          {err && (
-            <p className={styles.err} role="alert" aria-live="polite">
-              {err}
-            </p>
           )}
         </section>
 
-        <aside className={styles.summary} aria-label="Order summary">
-          <h3 className={styles.h3}>Summary</h3>
-
-          <ul className={styles.items}>
-            {!mounted && <li className={styles.muted}>Loading cart…</li>}
-            {mounted && items.length === 0 && <li className={styles.muted}>Your cart is empty.</li>}
-            {mounted &&
-              items.map((it) => (
-                <li key={it.id} className={styles.itemRow}>
-                  <div className={styles.itemLeft}>
-                    <div className={styles.thumbWrap} aria-hidden>
-                      <img
-                        src={it.imageUrl ?? it.image ?? '/assets/prince-foods-logo.png'}
-                        alt=""
-                        className={styles.thumb}
-                      />
-                    </div>
-                    <div className={styles.itemMeta}>
-                      <span className={styles.itemName} title={it.name}>
-                        {it.name}
-                      </span>
-                      <div className={styles.qtyControls} aria-label="Quantity controls">
-                        <button
-                          type="button"
-                          onClick={() => (it.quantity > 1 ? decQty(it.id) : remove(it.id))}
-                          className={styles.qtyBtn}
-                          aria-label="Decrease quantity"
-                        >
-                          −
-                        </button>
-                        <input
-                          className={styles.qtyInput}
-                          inputMode="numeric"
-                          value={it.quantity}
-                          onChange={(e) => {
-                            const v = Math.max(1, parseInt(e.target.value || '1', 10));
-                            setQty(it.id, v);
-                          }}
-                          aria-label="Quantity"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => incQty(it.id)}
-                          className={styles.qtyBtn}
-                          aria-label="Increase quantity"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className={styles.itemPrice}>{penceToGBP(it.unitPrice * it.quantity)}</div>
-                </li>
-              ))}
-          </ul>
-
-          <div className={styles.promoRow}>
-            <input
-              className={styles.promoInput}
-              placeholder="Promo code"
-              value={promo}
-              onChange={(e) => setPromo(e.target.value)}
-            />
-            <button
-              type="button"
-              className={styles.promoBtn}
-              onClick={applyPromo}
-              title="Coming soon"
-            >
-              Apply
-            </button>
-          </div>
-          <p className={styles.promoHint}>Promos will be applied at payment step soon.</p>
-
-          <div className={styles.row}>
-            <span>Subtotal</span>
-            <span>{penceToGBP(liveSubtotal)}</span>
-          </div>
-          <div className={styles.row}>
-            <span>Shipping</span>
-            <span>{penceToGBP(shippingCost)}</span>
-          </div>
-          <div className={styles.total}>
-            <span>Total</span>
-            <strong>{penceToGBP(grand)}</strong>
-          </div>
-
-          {/* Normal place order */}
-          <button
-            className={styles.place}
-            disabled={placing || (mounted ? !formValid : true)}
-            onClick={placeOrder}
-            aria-disabled={placing || (mounted ? !formValid : true)}
-          >
-            {placing ? 'Placing…' : 'Place order'}
-          </button>
-          <p className={styles.muted}>
-            You’ll be charged on the next step when a real PSP is connected.
-          </p>
-
-          {/* Admin-only: Stripe test checkout */}
-          {isAdmin && (
-            <button
-              type="button"
-              className={styles.testBtn}
-              onClick={placeOrderAndPayWithStripe}
-              disabled={placing || (mounted ? !formValid : true)}
-              aria-disabled={placing || (mounted ? !formValid : true)}
-              title="Creates the order, then redirects to Stripe Checkout (test)."
-            >
-              Pay with Stripe (test)
-            </button>
-          )}
-
-          {/* Admin-only: bypass Stripe and write a captured payment */}
-          {isAdmin && (
-            <button
-              type="button"
-              className={styles.testBtn}
-              onClick={placeTestOrder}
-              disabled={placing || !formValid}
-              aria-disabled={placing || !formValid}
-              title="Admin-only: writes a paid test order directly."
-              style={{ marginTop: 8 }}
-            >
-              Place Test Order (admin only)
-            </button>
-          )}
-        </aside>
+        <OrderSummary
+          mounted={mounted}
+          items={items}
+          liveSubtotal={liveSubtotal}
+          shippingCost={shippingPence}
+          grand={grand}
+          onDecQty={decQty}
+          onIncQty={incQty}
+          onSetQty={setQty}
+          onRemove={remove}
+          promo={promo}
+          setPromo={setPromo}
+          userId={sessionUserId}
+          email={emailForPromo}
+          currency="GBP"
+          shippingKind={shippingKind}
+          recheckKey={promoRecheckKey}
+          onPromoApplied={(v) => {
+            setPromoSnap({
+              promotionId: v.promotionId ?? null,
+              promotionCode: v.promotionCode ?? null,
+              promoName: v.promoName ?? null,
+              discountPence: Math.max(0, Math.trunc(v.discountPence ?? 0)),
+              shippingDiscountPence: Math.max(0, Math.trunc(v.shippingDiscountPence ?? 0))
+            });
+          }}
+        />
       </div>
-    </main>
-  );
-}
 
-function Field({
-  label,
-  value,
-  onChange,
-  type = 'text',
-  invalid = false,
-  hint,
-  onBlur
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-  invalid?: boolean;
-  hint?: string;
-  onBlur?: () => void;
-}) {
-  const id = useMemo(() => `f_${label.toLowerCase().replace(/\s+/g, '_')}`, [label]);
-  return (
-    <label className={styles.field} htmlFor={id}>
-      <span className={styles.fieldLabel}>{label}</span>
-      <input
-        id={id}
-        value={value}
-        type={type}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
-        aria-invalid={invalid || undefined}
-      />
-      {hint && <span className={styles.hint}>{hint}</span>}
-    </label>
+      <p className={styles.muted} style={{ marginTop: 12 }}>
+        Shipping: {shippingLabel ? shippingLabel : '—'} • Total shown includes delivery.
+      </p>
+    </main>
   );
 }

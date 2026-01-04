@@ -1,0 +1,33 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #111827;
+
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+
+  cursor: pointer;
+
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    transform 0.02s ease;
+}
+
+.btn:hover {
+  background: #f9fafb;
+  border-color: rgba(178, 30, 43, 0.18);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}

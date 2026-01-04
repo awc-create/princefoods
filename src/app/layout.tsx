@@ -6,6 +6,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import ClientShell from './ClientShell';
 import ModalLayer from './ModalLayer';
+import MountedEffects from './mounted-effects';
 import Providers from './providers';
 
 export const metadata: Metadata = {
@@ -26,20 +27,22 @@ export default function RootLayout({
   modal: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" suppressHydrationWarning>
+      {/* ✅ suppress hydration warnings from extensions (Grammarly, etc.) */}
+      <body className="no-transitions" suppressHydrationWarning>
         <Providers>
           <div className="page-wrapper">
-            {/* Guard everything that might use useSearchParams (Navbar, etc.) */}
             <Suspense fallback={<div style={{ height: 64 }} />}>
               <ClientShell modal={modal}>{children}</ClientShell>
             </Suspense>
 
-            {/* Guard ModalLayer too if it reads ?from or other params */}
             <Suspense fallback={null}>
               <ModalLayer />
             </Suspense>
           </div>
+
+          {/* Runs only on client, after hydration */}
+          <MountedEffects />
         </Providers>
       </body>
     </html>

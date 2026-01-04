@@ -1,0 +1,596 @@
+// src/app/admin/promotions/promotions.module.scss
+.page {
+  padding: 18px 18px 28px;
+}
+
+.topRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.h1 {
+  margin: 0;
+  font-size: 1.65rem;
+  font-weight: 950;
+  letter-spacing: -0.02em;
+}
+
+.count {
+  font-weight: 900;
+  font-size: 1.1rem;
+  color: #667085;
+  margin-left: 8px;
+}
+
+.sub {
+  margin: 6px 0 0;
+  color: #667085;
+  font-weight: 650;
+}
+
+.topActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.primaryBtn,
+.secondaryBtn {
+  height: 40px;
+  border-radius: 999px;
+  padding: 0 14px;
+  font-weight: 850;
+  border: 1px solid rgba(17, 24, 39, 0.16);
+  cursor: pointer;
+}
+
+.primaryBtn {
+  background: #2f5bea;
+  color: white;
+  border-color: rgba(47, 91, 234, 0.35);
+}
+
+.primaryBtn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.secondaryBtn {
+  background: white;
+  color: #101828;
+}
+
+.bannerError {
+  background: #fef2f2;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #991b1b;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-weight: 750;
+  margin-bottom: 12px;
+}
+
+.card {
+  background: white;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 16px 50px rgba(2, 6, 23, 0.06);
+  overflow: hidden;
+}
+
+.filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.08);
+  background: #f8fafc;
+}
+
+.searchWrap {
+  flex: 1;
+}
+
+.search {
+  width: 100%;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 24, 39, 0.16);
+  padding: 0 14px;
+  font-weight: 700;
+  outline: none;
+  background: white;
+}
+
+.select {
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 24, 39, 0.16);
+  padding: 0 14px;
+  font-weight: 750;
+  outline: none;
+  background: white;
+}
+
+.tableWrap {
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 920px;
+}
+
+.table thead th {
+  text-align: left;
+  font-size: 0.9rem;
+  padding: 12px 14px;
+  background: rgba(47, 91, 234, 0.12);
+  color: #0f172a;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.08);
+  font-weight: 900;
+}
+
+.table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.07);
+  vertical-align: top;
+}
+
+.mutedCell {
+  color: #667085;
+  font-weight: 700;
+}
+
+.nameCell {
+  min-width: 220px;
+}
+
+.nameMain {
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.nameSub {
+  color: #667085;
+  font-weight: 650;
+  margin-top: 2px;
+  font-size: 0.9rem;
+}
+
+.cellMain {
+  font-weight: 850;
+  color: #0f172a;
+}
+
+.cellSub {
+  color: #667085;
+  font-weight: 650;
+  margin-top: 2px;
+  font-size: 0.9rem;
+}
+
+.codeCell {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  font-weight: 900;
+}
+
+.pill {
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 0.8rem;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+}
+
+.pillActive {
+  background: rgba(34, 197, 94, 0.12);
+  color: #166534;
+  border-color: rgba(34, 197, 94, 0.22);
+}
+.pillPaused {
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+  border-color: rgba(245, 158, 11, 0.22);
+}
+.pillExpired {
+  background: rgba(148, 163, 184, 0.2);
+  color: #334155;
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+/* =========================
+   Modal
+   ========================= */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: rgba(15, 23, 42, 0.42);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.modal {
+  width: min(920px, 100%);
+  max-height: min(82vh, 720px); /* ✅ smaller container */
+  background: white;
+  border-radius: 20px;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  box-shadow: 0 30px 120px rgba(2, 6, 23, 0.25);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto 1fr auto; /* ✅ body scroll */
+}
+
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 14px;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.08);
+}
+
+.modalTitle {
+  font-weight: 950;
+  font-size: 1.3rem;
+  color: #0f172a;
+}
+
+.modalSub {
+  margin-top: 3px;
+  color: #667085;
+  font-weight: 650;
+}
+
+.iconBtn {
+  height: 38px;
+  width: 38px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.modalBody {
+  padding: 14px;
+  overflow: auto; /* ✅ scroll */
+}
+
+.modalFooter {
+  padding: 12px 14px;
+  border-top: 1px solid rgba(17, 24, 39, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  background: #f8fafc;
+}
+
+/* Promo type cards */
+.kindRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 820px) {
+  .kindRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kindCard {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 16px;
+  border: 2px solid rgba(17, 24, 39, 0.1);
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.kindActive {
+  border-color: rgba(47, 91, 234, 0.8);
+  box-shadow: 0 0 0 4px rgba(47, 91, 234, 0.12);
+  background: rgba(47, 91, 234, 0.06);
+}
+
+.kindIcon {
+  height: 44px;
+  width: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: white;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  font-weight: 950;
+}
+
+.kindTitle {
+  font-weight: 950;
+  color: #0f172a;
+}
+.kindSub {
+  color: #667085;
+  font-weight: 650;
+}
+
+/* Form layout */
+.formGrid {
+  display: grid;
+  gap: 16px;
+}
+
+.split2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .split2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.field {
+  display: grid;
+  gap: 10px;
+}
+
+.label {
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.hint {
+  color: #667085;
+  font-weight: 650;
+}
+
+.pillInput {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.pillIcon {
+  height: 52px;
+  width: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 24, 39, 0.18);
+  background: #f8fafc;
+  font-weight: 950;
+}
+
+.input {
+  height: 52px;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 24, 39, 0.18);
+  padding: 0 16px;
+  font-weight: 750;
+  outline: none;
+  background: white;
+}
+
+.checkRow {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 12px;
+  align-items: start;
+  font-weight: 750;
+  color: #0f172a;
+}
+
+.checkInline {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+  font-weight: 750;
+  color: #0f172a;
+}
+
+.inlineError {
+  margin-top: 14px;
+  background: #fef2f2;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #991b1b;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-weight: 800;
+}
+
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin: 8px 0 14px;
+}
+
+.tabBtn {
+  height: 40px;
+  border-radius: 999px;
+  padding: 0 14px;
+  font-weight: 900;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  background: white;
+  cursor: pointer;
+}
+
+.tabActive {
+  background: rgba(47, 91, 234, 0.1);
+  border-color: rgba(47, 91, 234, 0.35);
+}
+
+.actionsCell {
+  white-space: nowrap;
+}
+
+.rowBtn,
+.rowBtnDanger {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-weight: 850;
+  border: 1px solid rgba(17, 24, 39, 0.16);
+  background: #fff;
+  cursor: pointer;
+  margin-right: 8px;
+}
+
+.rowBtnDanger {
+  color: #991b1b;
+  background: #fff5f5;
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+/* Usage */
+.usageRow {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin: 8px 0 12px;
+}
+
+@media (max-width: 980px) {
+  .usageRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.usageCard {
+  background: white;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 18px;
+  padding: 12px 14px;
+  box-shadow: 0 16px 50px rgba(2, 6, 23, 0.06);
+}
+
+.usageKpi {
+  font-size: 1.5rem;
+  font-weight: 950;
+  color: #0f172a;
+}
+
+.usageLabel {
+  margin-top: 4px;
+  color: #667085;
+  font-weight: 750;
+}
+
+/* =========================
+   Target picker UI
+   ========================= */
+
+.cardInset {
+  background: #ffffff;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 18px;
+  padding: 12px;
+}
+
+.pickerBlock {
+  display: grid;
+  gap: 10px;
+}
+
+.pickerTitleRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  background: #f8fafc;
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.chipText {
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.chipMeta {
+  color: #667085;
+  font-weight: 750;
+  font-size: 0.85rem;
+}
+
+.chipX {
+  opacity: 0.7;
+  font-weight: 950;
+}
+
+.pickerSearchRow {
+  display: flex;
+  gap: 10px;
+}
+
+.pickerList {
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.pickerItem {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 0;
+  background: #fff;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.06);
+}
+
+.pickerItem:hover {
+  background: rgba(47, 91, 234, 0.06);
+}
+
+.pickerItemMain {
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.pickerItemSub {
+  margin-top: 2px;
+  color: #667085;
+  font-weight: 650;
+  font-size: 0.9rem;
+}
+
+.pickerEmpty {
+  padding: 12px;
+  color: #667085;
+  font-weight: 700;
+}

@@ -1,12 +1,13 @@
-// src/app/ClientShell.tsx
 'use client';
 
-import PrinceChat from '@/components/chat/PrinceChat';
+import { usePathname } from 'next/navigation';
+import React from 'react';
+
+import CrispChat from '@/components/chat/CrispChat';
+import CrispTriggers from '@/components/chat/CrispTriggers';
 import CartDrawer from '@/components/ecommerce/basket/CartDrawer';
 import Footer from '@/components/footer/Footer';
 import Navbar from '@/components/navbar/Navbar';
-import { usePathname } from 'next/navigation';
-import React from 'react';
 
 export default function ClientShell({
   children,
@@ -23,8 +24,16 @@ export default function ClientShell({
       <Navbar />
       <main>{children}</main>
       {modal}
-      {!isAdmin && <PrinceChat />}
+
+      {/* Crisp web widget (hide in admin) */}
+      {!isAdmin && (
+        <>
+          <CrispChat />
+          <CrispTriggers />
+        </>
+      )}
       <Footer />
+
       {/* Basket drawer lives globally */}
       <CartDrawer />
     </>

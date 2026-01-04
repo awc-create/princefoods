@@ -33,11 +33,23 @@ export async function POST(req: NextRequest) {
       }
     }));
 
+    // ✅ add shipping line item
+    if (order.shippingTotal > 0) {
+      line_items.push({
+        quantity: 1,
+        price_data: {
+          currency: order.currency.toLowerCase(),
+          unit_amount: order.shippingTotal,
+          product_data: { name: 'Shipping' }
+        }
+      });
+    }
+
     const base = process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, '') ?? 'http://localhost:3000';
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      client_reference_id: order.id, // 👈 critical
+      client_reference_id: order.id,
       customer_email: order.contactEmail,
       success_url: `${base}/checkout/success?o=${order.displayId}`,
       cancel_url: `${base}/checkout?cancel=1`,
@@ -54,7 +66,6 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // Save the session id so webhook can also match via paymentRef
     await prisma.order.update({
       where: { id: order.id },
       data: { paymentRef: session.id, paymentProvider: 'stripe' }

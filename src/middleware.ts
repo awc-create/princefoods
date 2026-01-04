@@ -23,6 +23,14 @@ function getHost(req: NextRequest) {
   return req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? req.nextUrl.hostname;
 }
 
+function redirectToLogin(req: NextRequest, callbackUrl: string) {
+  const url = req.nextUrl.clone();
+  url.pathname = '/login';
+  url.search = '';
+  url.searchParams.set('callbackUrl', callbackUrl);
+  return NextResponse.redirect(url);
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const host = getHost(req);
@@ -46,7 +54,9 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // --- Public host rules ---
+  // ============================
+  // ✅ Public host rules
+  // ============================
   if (PUBLIC_HOSTS.has(host)) {
     // Block accidental /admin on public host
     if (pathname === '/admin' || pathname.startsWith('/admin/')) {
@@ -55,28 +65,40 @@ export async function middleware(req: NextRequest) {
       url.search = '';
       return NextResponse.redirect(url);
     }
+
+    // ✅ LOCK /account/* (user-only)
+    if (pathname === '/account' || pathname.startsWith('/account/')) {
+      const token = (await getToken({ req, secret: process.env.NEXTAUTH_SECRET })) as Token;
+
+      if (!token) {
+        const cbTarget = `${pathname}${search || ''}` || '/account';
+        return redirectToLogin(req, cbTarget);
+      }
+    }
+
     return NextResponse.next();
   }
 
-  // --- Admin host rules ---
+  // ============================
+  // ✅ Admin host rules
+  // ============================
   if (ADMIN_HOSTS.has(host)) {
     // 1) Make bare admin root land on your admin app
     if (pathname === '/' || pathname === '') {
       const url = req.nextUrl.clone();
       url.pathname = ADMIN_ROOT_INTERNAL;
       url.search = '';
-      // Use redirect so the browser location shows /admin (or your chosen path)
       return NextResponse.redirect(url);
     }
 
-    // 2) If you want /admin to always normalize to the internal root, redirect it
+    // 2) Normalize /admin to internal root if needed
     if (ADMIN_ROOT_INTERNAL !== '/admin' && (pathname === '/admin' || pathname === '/admin/')) {
       const url = req.nextUrl.clone();
       url.pathname = ADMIN_ROOT_INTERNAL;
       return NextResponse.redirect(url);
     }
 
-    // 3) Gate the admin area (wherever it actually is)
+    // 3) Gate the admin area (HEAD/STAFF only)
     if (
       pathname === ADMIN_ROOT_INTERNAL ||
       pathname.startsWith(
@@ -90,25 +112,33 @@ export async function middleware(req: NextRequest) {
       if (!authorised) {
         const url = req.nextUrl.clone();
         url.pathname = '/admin/login';
-        // Never point callback to /admin/login itself
+        url.search = '';
+
         const cbTarget = isLoginPath(pathname)
           ? ADMIN_ROOT_INTERNAL
           : `${pathname}${search || ''}` || ADMIN_ROOT_INTERNAL;
+
         url.searchParams.set('callbackUrl', cbTarget);
         return NextResponse.redirect(url);
       }
     }
+
     return NextResponse.next();
   }
 
   // --- Anything else (localhost/preview/etc.) ---
+  // ✅ Optional: also protect /account in preview envs
+  if (pathname === '/account' || pathname.startsWith('/account/')) {
+    const token = (await getToken({ req, secret: process.env.NEXTAUTH_SECRET })) as Token;
+    if (!token) {
+      const cbTarget = `${pathname}${search || ''}` || '/account';
+      return redirectToLogin(req, cbTarget);
+    }
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    // run on everything that is NOT one of:
-    // _next, api/*, assets/*, public/*, favicon/robots/sitemap, and files with extensions
-    '/((?!_next/|api/|assets/|public/|favicon.ico|robots.txt|sitemap.xml|.*\\..*).*)'
-  ]
+  matcher: ['/((?!_next/|api/|assets/|public/|favicon.ico|robots.txt|sitemap.xml|.*\\..*).*)']
 };

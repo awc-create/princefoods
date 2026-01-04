@@ -3,7 +3,6 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { prisma } from '@/lib/prisma';
-import type { OrderStatus, PaymentStatus } from '@prisma/client';
 import { getToken } from 'next-auth/jwt';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -24,10 +23,11 @@ interface AddrIn {
   lastName?: string | null;
   line1: string;
   line2?: string | null;
-  city: string;
+  city?: string | null; // ✅ align: optional
+  town?: string | null; // ✅ align: Post Town (required for GB)
   postcode: string;
   country: string;
-  phoneE164?: string | null;
+  phoneE164?: string | null; // ✅ align: required for courier
 }
 
 interface PlaceOrderBody {
@@ -49,20 +49,38 @@ function bad(msg: string, code = 400) {
   return NextResponse.json({ ok: false, error: msg }, { status: code });
 }
 
-const isAddr = (a: unknown): a is AddrIn =>
-  !!a &&
-  typeof a === 'object' &&
-  typeof (a as AddrIn).line1 === 'string' &&
-  typeof (a as AddrIn).city === 'string' &&
-  typeof (a as AddrIn).postcode === 'string' &&
-  typeof (a as AddrIn).country === 'string';
-
 const isLine = (l: unknown): l is LineIn =>
   !!l &&
   typeof l === 'object' &&
   typeof (l as LineIn).name === 'string' &&
   Number.isFinite((l as LineIn).unitPrice) &&
   Number.isFinite((l as LineIn).quantity);
+
+const isAddr = (a: unknown): a is AddrIn =>
+  !!a &&
+  typeof a === 'object' &&
+  typeof (a as AddrIn).line1 === 'string' &&
+  typeof (a as AddrIn).postcode === 'string' &&
+  typeof (a as AddrIn).country === 'string';
+
+function nonEmpty(v: unknown): v is string {
+  return typeof v === 'string' && v.trim().length > 0;
+}
+
+function requireCourierFields(addr: AddrIn, label: 'shipping' | 'billing') {
+  if (!nonEmpty(addr.firstName)) return `${label}: firstName is required.`;
+  if (!nonEmpty(addr.lastName)) return `${label}: lastName is required.`;
+  if (!nonEmpty(addr.line1)) return `${label}: line1 is required.`;
+  if (!nonEmpty(addr.postcode)) return `${label}: postcode is required.`;
+  if (!nonEmpty(addr.country)) return `${label}: country is required.`;
+  if (!nonEmpty(addr.phoneE164)) return `${label}: phoneE164 is required.`;
+
+  const cc = addr.country.trim().toUpperCase();
+  if (cc === 'GB' && !nonEmpty(addr.town))
+    return `${label}: town (Post Town) is required for UK addresses.`;
+
+  return null;
+}
 
 // Short, human-friendly order code (avoids 0/O and 1/I)
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -72,13 +90,21 @@ function makeDisplayId(len = 8) {
   return s;
 }
 
+function isUniqueDisplayIdCollision(err: unknown) {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { code?: string }).code === 'P2002' &&
+    Array.isArray((err as { meta?: { target?: string[] } }).meta?.target) &&
+    (err as { meta?: { target?: string[] } }).meta!.target!.includes('displayId')
+  );
+}
+
 export async function POST(req: NextRequest) {
   // ---------- 1) AuthZ: HEAD/STAFF only ----------
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
   const role = (token?.role ?? 'VIEWER') as Role;
-  if (!token || (role !== 'HEAD' && role !== 'STAFF')) {
-    return bad('FORBIDDEN', 403);
-  }
+  if (!token || (role !== 'HEAD' && role !== 'STAFF')) return bad('FORBIDDEN', 403);
 
   // ---------- 2) Parse & validate body ----------
   let raw: unknown;
@@ -92,16 +118,25 @@ export async function POST(req: NextRequest) {
 
   const items = Array.isArray(body.items) ? body.items.filter(isLine) : [];
   const contactEmail = (body.contactEmail ?? '').trim();
+
   const shipping = body.shippingAddress;
-  const billingSame = Boolean(body.billingSameAsShipping);
+  const billingSame = body.billingSameAsShipping ?? true;
   const billing = (billingSame ? shipping : body.billingAddress) ?? null;
+
   const currency = (body.currency ?? 'GBP').toUpperCase();
   const notes = body.notes ?? null;
 
   if (!items.length) return bad('NO_ITEMS');
   if (!contactEmail) return bad('NO_EMAIL');
   if (!isAddr(shipping)) return bad('INVALID_SHIPPING');
-  if (!isAddr(billing)) return bad('INVALID_BILLING');
+  if (!billing || !isAddr(billing)) return bad('INVALID_BILLING');
+
+  // ✅ courier-required fields (aligned to UI rules)
+  const shipErr = requireCourierFields(shipping, 'shipping');
+  if (shipErr) return bad(shipErr);
+
+  const billErr = requireCourierFields(billing, 'billing');
+  if (billErr) return bad(billErr);
 
   // ---------- 3) Recompute totals on server ----------
   const subtotal = items.reduce((sum, it) => {
@@ -125,11 +160,7 @@ export async function POST(req: NextRequest) {
 
   // ---------- 4) Create order + lines + addresses + test payment ----------
   try {
-    // The model requires displayId (unique) — create with collision retries.
-    let created: {
-      id: string;
-      displayId: string;
-    } | null = null;
+    let created: { id: string; displayId: string } | null = null;
     let lastErr: unknown;
 
     for (let attempt = 1; attempt <= 5; attempt++) {
@@ -138,11 +169,14 @@ export async function POST(req: NextRequest) {
 
         created = await prisma.order.create({
           data: {
-            displayId, // ✅ REQUIRED by schema
+            displayId,
             contactEmail,
             currency,
-            status: 'PAID' as OrderStatus, // simulate paid order
-            paymentStatus: 'CAPTURED' as PaymentStatus,
+
+            // ✅ enums as strings (Prisma accepts these)
+            status: 'PAID',
+            paymentStatus: 'CAPTURED',
+
             subtotal,
             shippingTotal,
             discountTotal,
@@ -150,15 +184,17 @@ export async function POST(req: NextRequest) {
             grandTotal,
             notes,
 
+            // ✅ align: store town + phone for both addresses
             shippingAddress: {
               create: {
                 firstName: shipping.firstName ?? null,
                 lastName: shipping.lastName ?? null,
                 line1: shipping.line1,
                 line2: shipping.line2 ?? null,
-                city: shipping.city,
+                city: shipping.city ?? '',
+                town: shipping.town ?? null,
                 postcode: shipping.postcode,
-                country: shipping.country,
+                country: shipping.country.toUpperCase(),
                 phoneE164: shipping.phoneE164 ?? null,
                 kind: 'SHIPPING'
               }
@@ -169,9 +205,10 @@ export async function POST(req: NextRequest) {
                 lastName: billing.lastName ?? null,
                 line1: billing.line1,
                 line2: billing.line2 ?? null,
-                city: billing.city,
+                city: billing.city ?? '',
+                town: billing.town ?? null,
                 postcode: billing.postcode,
-                country: billing.country,
+                country: billing.country.toUpperCase(),
                 phoneE164: billing.phoneE164 ?? null,
                 kind: 'BILLING'
               }
@@ -189,27 +226,16 @@ export async function POST(req: NextRequest) {
               }))
             },
 
-            // Mark clearly as a test provider so the UI can tag it.
             paymentProvider: 'test',
             paymentIntentId: null
           },
           select: { id: true, displayId: true }
         });
 
-        break; // success
+        break;
       } catch (err) {
         lastErr = err;
-        // Retry on unique collision of displayId
-        if (
-          typeof err === 'object' &&
-          err !== null &&
-          // Prisma P2002 (unique constraint failed)
-          (err as { code?: string }).code === 'P2002' &&
-          Array.isArray((err as { meta?: { target?: string[] } }).meta?.target) &&
-          (err as { meta?: { target?: string[] } }).meta!.target!.includes('displayId')
-        ) {
-          continue;
-        }
+        if (isUniqueDisplayIdCollision(err)) continue;
         throw err;
       }
     }
@@ -224,7 +250,10 @@ export async function POST(req: NextRequest) {
         chargeId: `test_${created.id}_ch`,
         amountPence: grandTotal,
         currency,
+
+        // ✅ enums as strings
         status: 'CAPTURED',
+
         idempotencyKey: `test-${created.id}`
       }
     });
@@ -237,6 +266,7 @@ export async function POST(req: NextRequest) {
     const message =
       (err as { message?: string })?.message ?? (typeof err === 'string' ? err : 'Unknown error');
     console.error('TEST ORDER CREATE FAILED:', message);
+
     if (process.env.NODE_ENV !== 'production') {
       return NextResponse.json({ ok: false, error: 'DB_ERROR', detail: message }, { status: 500 });
     }

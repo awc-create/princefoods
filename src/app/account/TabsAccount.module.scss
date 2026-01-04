@@ -4,8 +4,9 @@
   place-items: start center;
   background: #fafafa;
   padding: clamp(16px, 2vw, 28px);
-  color: #1f2937; // gray-800
+  color: #111827;
 }
+
 .shell {
   width: 100%;
   max-width: 1200px;
@@ -33,13 +34,14 @@
   border: 2px solid #e5e7eb;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
+
 .avatar {
   width: 56px;
   height: 56px;
   border-radius: 999px;
   display: grid;
   place-items: center;
-  font-weight: 800;
+  font-weight: 900;
   color: var(--pf-red);
   background: #fff;
   border: 2px solid var(--pf-red);
@@ -48,12 +50,13 @@
 .title {
   margin: 0;
   font-size: clamp(1.6rem, 2.2vw, 2.1rem);
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  font-weight: 900;
+  letter-spacing: -0.02em;
 }
+
 .sub {
   margin: 2px 0 0;
-  color: #6b7280; // gray-500
+  color: #6b7280;
   font-size: clamp(0.92rem, 1.3vw, 1rem);
 }
 
@@ -77,76 +80,127 @@
   border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
-  font-weight: 700;
-  color: #1f2937;
+  font-weight: 800;
+  color: #111827;
   white-space: nowrap;
   transition:
     background 0.12s ease,
     border-color 0.12s ease,
     color 0.12s ease;
 }
+
 .tab:hover {
   background: #f8fafc;
   border-color: #e5e7eb;
 }
+
 .active {
   background: #fff;
   color: #b21e2b;
   border-color: #b21e2b;
 }
 
-/* Panels & cards */
+/* Panels */
 .panel {
   margin-top: 14px;
 }
+
+/* Cards grid */
 .cards {
   display: grid;
   gap: 14px;
-  grid-template-columns: repeat(12, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: stretch;
 }
-@media (max-width: 1100px) {
+
+@media (max-width: 520px) {
   .cards {
-    grid-template-columns: repeat(8, 1fr);
-  }
-}
-@media (max-width: 720px) {
-  .cards {
-    grid-template-columns: repeat(1, 1fr);
+    grid-template-columns: 1fr;
   }
 }
 
+/* Card base */
 .card {
-  grid-column: span 4;
   background: #fff;
   border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  border-radius: 16px;
   padding: 16px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 12px 30px rgba(17, 24, 39, 0.04);
   transition:
-    border-color 0.12s ease,
-    box-shadow 0.12s ease,
-    transform 0.12s ease;
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
+
 .card:hover {
   transform: translateY(-1px);
-  border-color: #d1d5db;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  border-color: rgba(178, 30, 43, 0.18);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.08),
+    0 18px 40px rgba(17, 24, 39, 0.08);
 }
+
 .cardTitle {
   margin: 0 0 6px;
   font-size: 1.1rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  font-weight: 900;
+  letter-spacing: -0.02em;
 }
+
 .muted {
   color: #6b7280;
+}
+
+/* Wide card */
+.fullRow {
+  grid-column: 1 / -1;
+}
+
+/* Clickable card (button wrapper) */
+.cardBtn {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.cardBtnInner {
+  height: 100%;
+}
+
+/* Card header row */
+.cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chev {
+  font-weight: 900;
+  opacity: 0.55;
+  transform: translateX(0);
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.card:hover .chev {
+  transform: translateX(2px);
+  opacity: 0.75;
 }
 
 /* Section headings */
 .h2 {
   margin: 0 0 10px;
   font-size: 1.15rem;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 /* Forms */
@@ -155,6 +209,7 @@
   gap: 6px;
   margin-bottom: 10px;
 }
+
 .formRow input {
   height: 42px;
   border-radius: 12px;
@@ -166,6 +221,7 @@
     border-color 0.12s ease,
     box-shadow 0.12s ease;
 }
+
 .formRow input:focus {
   outline: none;
   border-color: #b21e2b;
@@ -179,43 +235,66 @@
   flex-wrap: wrap;
 }
 
-/* Simple key/value rows */
+/* Key/value rows */
 .kv {
   display: flex;
   justify-content: space-between;
   padding: 8px 0;
   border-top: 1px dashed #e5e7eb;
 }
+
 .kv:first-of-type {
   border-top: 0;
 }
+
+/* Buttons row */
 .rowBtns {
   display: flex;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 10px;
+  margin-top: 10px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
-/* Buttons */
+/* ✅ Button reset + alignment */
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
   height: 42px;
   border-radius: 12px;
   padding: 0 14px;
-  font-weight: 750;
+
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+
   cursor: pointer;
   transition:
     filter 0.12s ease,
-    transform 0.02s ease;
+    transform 0.02s ease,
+    opacity 0.12s ease;
 }
+
 .btn:active {
   transform: translateY(1px);
 }
 
+/* Small button variant for card CTAs */
+.btnSm {
+  height: 40px;
+  padding: 0 16px;
+}
+
+/* Variants */
 .btnPrimary {
   background: #b21e2b;
   color: #fff;
   border: 1px solid #b21e2b;
 }
+
 .btnPrimary:hover {
   filter: brightness(0.96);
 }
@@ -227,10 +306,11 @@
 }
 
 .btnGhost {
-  background: transparent;
+  background: #fff;
   color: #111827;
   border: 1px solid #e5e7eb;
 }
+
 .btnGhost:hover {
   background: #f9fafb;
 }
@@ -241,76 +321,20 @@
   color: #374151;
 }
 
-.orderUl {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 12px;
+.btnDisabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
-.orderCard {
-  display: grid;
-  gap: 6px;
-  padding: 14px;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  background: #fff;
-  text-decoration: none;
-  color: inherit;
-}
-.orderCard:hover {
-  background: #f9fafb;
-}
-
-.orderTop {
-  display: flex;
-  justify-content: space-between;
+/* Optional message styles (if you already had them elsewhere) */
+.error {
+  color: #b91c1c;
   font-weight: 700;
-}
-.orderId {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: #374151;
-}
-.orderDate {
-  color: #6b7280;
+  margin: 8px 0 0;
 }
 
-.orderMid {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.badge {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: #fee2e2; /* light red */
-  color: #991b1b; /* dark red */
+.ok {
+  color: #166534;
   font-weight: 700;
-  font-size: 12px;
-  text-transform: capitalize;
-}
-.badgeMuted {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: #f3f4f6;
-  color: #374151;
-  font-weight: 700;
-  font-size: 12px;
-  text-transform: capitalize;
-}
-.total {
-  margin-left: auto;
-  font-weight: 900;
-}
-
-.orderItems {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  color: #6b7280;
-}
-.itemDot::before {
-  content: '• ';
-  color: #d1d5db;
+  margin: 8px 0 0;
 }

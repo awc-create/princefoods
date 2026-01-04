@@ -1,7 +1,6 @@
-// src/app/admin/settings/page.tsx
 'use client';
 
-import { Clock, Lock, Pencil, Save, Trash2, User, Users, X } from 'lucide-react';
+import { Clock, Lock, Package, Pencil, Save, Trash2, User, Users, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import styles from './Settings.module.scss';
@@ -15,7 +14,7 @@ interface StaffUser {
   role: Role;
 }
 
-type TabKey = 'account' | 'password' | 'staff' | 'orders';
+type TabKey = 'account' | 'password' | 'staff' | 'orders' | 'shipping';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('account');
@@ -75,6 +74,14 @@ export default function SettingsPage() {
             >
               <Clock size={16} /> Order Settings
             </button>
+
+            <button
+              className={activeTab === 'shipping' ? styles.active + ' active' : ''}
+              onClick={() => setActiveTab('shipping')}
+              title="APC Warehouse / Pickup"
+            >
+              <Package size={16} /> Shipping (APC)
+            </button>
           </>
         )}
       </div>
@@ -84,6 +91,7 @@ export default function SettingsPage() {
         {activeTab === 'password' && <ChangePassword />}
         {activeTab === 'staff' && canSeeHeadTabs && <StaffPermissions />}
         {activeTab === 'orders' && canSeeHeadTabs && <OrdersSettings />}
+        {activeTab === 'shipping' && canSeeHeadTabs && <ShippingSettings />}
       </div>
     </div>
   );
@@ -247,7 +255,7 @@ function OrdersSettings() {
       const res = await fetch('/api/admin/settings/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cancelReversalMinutes: n }) // ✅ correct key
+        body: JSON.stringify({ cancelReversalMinutes: n })
       });
       const data = await res.json();
       if (!res.ok || data?.ok === false) throw new Error(data?.error ?? 'Save failed');
@@ -287,7 +295,7 @@ function OrdersSettings() {
       )}
 
       <div className={styles.formGrid}>
-        {/* LEFT: number input */}
+        {/* LEFT */}
         <div className={styles.fieldset}>
           <div className={styles.fieldRow}>
             <label htmlFor="reversalMinutes" className={styles.label}>
@@ -346,7 +354,7 @@ function OrdersSettings() {
           </div>
         </div>
 
-        {/* RIGHT: presets + preview */}
+        {/* RIGHT */}
         <div className={styles.fieldset}>
           <div className={styles.labelRow}>
             <span className={styles.label}>Quick presets</span>
@@ -382,6 +390,186 @@ function OrdersSettings() {
           {toast}
         </div>
       )}
+    </form>
+  );
+}
+
+/* ---------- Shipping (APC) Settings (HEAD only) ---------- */
+interface ShipForm {
+  companyName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  address1: string;
+  address2?: string;
+  city: string;
+  postcode: string;
+  countryCode: string;
+}
+
+function ShippingSettings() {
+  const [form, setForm] = useState<ShipForm>({
+    companyName: '',
+    contactName: '',
+    email: '',
+    phone: '',
+    address1: '',
+    address2: '',
+    city: '',
+    postcode: '',
+    countryCode: 'GB'
+  });
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/settings/shipping');
+        const data = await res.json();
+        if (res.ok && data?.data) setForm(data.data as ShipForm);
+        else throw new Error(data?.error ?? 'Failed to load');
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    setToast('');
+    try {
+      const res = await fetch('/api/admin/settings/shipping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form)
+      });
+      const data = await res.json();
+      if (!res.ok || data?.ok === false) throw new Error(data?.error ?? 'Save failed');
+      setToast('✅ Shipping (APC) settings saved.');
+      setTimeout(() => setToast(''), 3500);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <p className={styles.muted}>Loading shipping settings…</p>;
+
+  return (
+    <form onSubmit={save} className={styles.card}>
+      <div className={styles.cardHeader}>
+        <div>
+          <h2 className={styles.cardTitle}>APC Warehouse (Pickup)</h2>
+          <p className={styles.cardSub}>
+            Used by default when creating APC labels. You can still override it at label time.
+          </p>
+        </div>
+        <button type="submit" disabled={saving} className={styles.primary}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+
+      {error && (
+        <div
+          className={styles.toast}
+          style={{ background: '#fff1f1', color: '#991b1b', borderColor: '#fecaca' }}
+        >
+          ❌ {error}
+        </div>
+      )}
+      {toast && <div className={styles.toast}>{toast}</div>}
+
+      <div className={styles.grid}>
+        <label>
+          Company Name
+          <input
+            value={form.companyName}
+            onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+            required
+          />
+        </label>
+
+        <label>
+          Contact Name
+          <input
+            value={form.contactName}
+            onChange={(e) => setForm({ ...form, contactName: e.target.value })}
+            required
+          />
+        </label>
+
+        <label>
+          Pickup Phone
+          <input
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            required
+          />
+        </label>
+
+        <label>
+          Contact Email
+          <input
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+          />
+        </label>
+
+        <label>
+          Address Line 1
+          <input
+            value={form.address1}
+            onChange={(e) => setForm({ ...form, address1: e.target.value })}
+            required
+          />
+        </label>
+
+        <label>
+          Address Line 2
+          <input
+            value={form.address2}
+            onChange={(e) => setForm({ ...form, address2: e.target.value })}
+          />
+        </label>
+
+        <label>
+          City
+          <input
+            value={form.city}
+            onChange={(e) => setForm({ ...form, city: e.target.value })}
+            required
+          />
+        </label>
+
+        <label>
+          Postcode
+          <input
+            value={form.postcode}
+            onChange={(e) => setForm({ ...form, postcode: e.target.value })}
+            required
+          />
+        </label>
+
+        <label>
+          Country Code
+          <input
+            value={form.countryCode}
+            maxLength={2}
+            onChange={(e) => setForm({ ...form, countryCode: e.target.value.toUpperCase() })}
+            required
+          />
+        </label>
+      </div>
     </form>
   );
 }

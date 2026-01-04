@@ -1,3 +1,5 @@
+// prisma/schema.prisma
+
 // ---------- Prisma Client ----------
 generator client {
   provider = "prisma-client-js"
@@ -12,27 +14,49 @@ datasource db {
 
 /**
  * =========================
+ * SETTINGS
+ * =========================
+ */
+model AppSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ShippingTemp {
+  DRY
+  FROZEN
+}
+
+/**
+ * =========================
  * PRODUCTS + CATEGORIES
  * =========================
  */
 model Product {
-  id                   String  @id @default(cuid())
-  fieldType            String
-  name                 String
-  description          String?
-  productImageUrl      String?
-  collection           String?
-  sku                  String? @unique
-  ribbon               String?
-  price                Float?
-  surcharge            Float?
-  visible              Boolean @default(true)
-  discountMode         String?
-  discountValue        Float?
-  inventory            String?
-  weight               Float?
-  shippingWeightGrams  Int?
-  cost                 Float?
+  id              String  @id @default(cuid())
+  fieldType       String
+  name            String
+  description     String?
+  productImageUrl String?
+  collection      String?
+  sku             String? @unique
+  ribbon          String?
+  price           Float?
+  surcharge       Float?
+  visible         Boolean @default(true)
+  discountMode    String?
+  discountValue   Float?
+  inventory       String?
+  weight          Float?
+
+  // ✅ shipping
+  shippingWeightGrams Int?
+  shippingTemp        ShippingTemp @default(DRY)
+
+  cost Float?
 
   // --------- Analytics counters ----------
   views        Int @default(0) // page impressions
@@ -40,38 +64,76 @@ model Product {
   unitsSold    Int @default(0) // total quantity sold
   revenuePence Int @default(0) // accumulated revenue in pence
 
-  productOptionName1        String?
-  productOptionType1        String?
-  productOptionDescription1 String?
-  productOptionName2        String?
-  productOptionType2        String?
-  productOptionDescription2 String?
-  productOptionName3        String?
-  productOptionType3        String?
-  productOptionDescription3 String?
-  productOptionName4        String?
-  productOptionType4        String?
-  productOptionDescription4 String?
-  productOptionName5        String?
-  productOptionType5        String?
-  productOptionDescription5 String?
-  productOptionName6        String?
-  productOptionType6        String?
-  productOptionDescription6 String?
+  // --------- Options ----------
+  productOptionName1         String?
+  productOptionType1         String?
+  productOptionDescription1  String?
+  productOptionName2         String?
+  productOptionType2         String?
+  productOptionDescription2  String?
+  productOptionName3         String?
+  productOptionType3         String?
+  productOptionDescription3  String?
+  productOptionName4         String?
+  productOptionType4         String?
+  productOptionDescription4  String?
+  productOptionName5         String?
+  productOptionType5         String?
+  productOptionDescription5  String?
+  productOptionName6         String?
+  productOptionType6         String?
+  productOptionDescription6  String?
+  productOptionName7         String?
+  productOptionType7         String?
+  productOptionDescription7  String?
+  productOptionName8         String?
+  productOptionType8         String?
+  productOptionDescription8  String?
+  productOptionName9         String?
+  productOptionType9         String?
+  productOptionDescription9  String?
+  productOptionName10        String?
+  productOptionType10        String?
+  productOptionDescription10 String?
+  productOptionName11        String?
+  productOptionType11        String?
+  productOptionDescription11 String?
+  productOptionName12        String?
+  productOptionType12        String?
+  productOptionDescription12 String?
+  productOptionName13        String?
+  productOptionType13        String?
+  productOptionDescription13 String?
+  productOptionName14        String?
+  productOptionType14        String?
+  productOptionDescription14 String?
+  productOptionName15        String?
+  productOptionType15        String?
+  productOptionDescription15 String?
 
-  additionalInfoTitle1       String?
-  additionalInfoDescription1 String?
-  additionalInfoTitle2       String?
-  additionalInfoDescription2 String?
-  additionalInfoTitle3       String?
-  additionalInfoDescription3 String?
-  additionalInfoTitle4       String?
-  additionalInfoDescription4 String?
-  additionalInfoTitle5       String?
-  additionalInfoDescription5 String?
-  additionalInfoTitle6       String?
-  additionalInfoDescription6 String?
+  // --------- Additional info ----------
+  additionalInfoTitle1        String?
+  additionalInfoDescription1  String?
+  additionalInfoTitle2        String?
+  additionalInfoDescription2  String?
+  additionalInfoTitle3        String?
+  additionalInfoDescription3  String?
+  additionalInfoTitle4        String?
+  additionalInfoDescription4  String?
+  additionalInfoTitle5        String?
+  additionalInfoDescription5  String?
+  additionalInfoTitle6        String?
+  additionalInfoDescription6  String?
+  additionalInfoTitle7        String?
+  additionalInfoDescription7  String?
+  additionalInfoTitle8        String?
+  additionalInfoDescription8  String?
+  additionalInfoTitle9        String?
+  additionalInfoDescription9  String?
+  additionalInfoTitle10       String?
+  additionalInfoDescription10 String?
 
+  // --------- Custom text fields ----------
   customTextField1     String?
   customTextCharLimit1 Int?
   customTextMandatory1 Boolean?
@@ -81,11 +143,13 @@ model Product {
 
   brand     String?
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   // --------- Relations ----------
-  categoryId String?
-  category   Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  dailyStats ProductDailyStat[]
+  categoryId       String?
+  category         Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  dailyStats       ProductDailyStat[]
+  PromotionProduct PromotionProduct[]
 
   @@index([categoryId])
   @@index([views])
@@ -93,6 +157,7 @@ model Product {
   @@index([unitsSold])
   @@index([revenuePence])
   @@index([shippingWeightGrams])
+  @@index([shippingTemp])
   @@index([sku])
 }
 
@@ -109,7 +174,8 @@ model Category {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-  products Product[]
+  products          Product[]
+  PromotionCategory PromotionCategory[]
 }
 
 /**
@@ -167,13 +233,11 @@ model User {
 
   emailVerified DateTime?
 
-  // Stripe integration
   stripeCustomerId String? @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Restriction / Erasure
   deletedAt       DateTime?
   deletionReason  String?
   restrictedAt    DateTime?
@@ -181,19 +245,18 @@ model User {
   anonymizedAt    DateTime?
   isAnonymized    Boolean   @default(false)
 
-  // OAuth / sessions
-  accounts Account[]
-  sessions Session[]
-
-  // OTP / tokens
+  accounts       Account[]
+  sessions       Session[]
   passwordTokens PasswordToken[]
+  audits         UserAudit[]
 
-  // Audit
-  audits UserAudit[]
+  orders      Order[]
+  addresses   Address[]
+  addressBook AddressBook[]
 
-  // Orders & Addresses
-  orders    Order[]
-  addresses Address[]
+  // ✅ Promotions (opposite relations)
+  promotionsLocked     Promotion[]           @relation("PromotionLockedToUser")
+  promotionRedemptions PromotionRedemption[]
 
   @@index([email])
   @@index([deletedAt])
@@ -428,6 +491,7 @@ model Address {
   line1     String
   line2     String?
   city      String
+  town      String?
   postcode  String
   country   String
   phoneE164 String?
@@ -440,6 +504,123 @@ model Address {
   billingFor  Order[] @relation("BillingAddress")
 }
 
+/**
+ * Saved, named addresses for a logged-in user (e.g. "Bob's house").
+ * Separate from Address snapshots used by Orders.
+ */
+model AddressBook {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  label     String
+  isDefault Boolean     @default(false)
+  kind      AddressKind @default(SHIPPING)
+
+  firstName String?
+  lastName  String?
+  line1     String
+  line2     String?
+  town      String?
+  city      String
+  postcode  String
+  country   String
+  phoneE164 String?
+
+  // ✅ Make it per-user unique (not global)
+  idempotencyKey String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, label])
+  // ✅ add this
+  @@unique([userId, idempotencyKey])
+  @@index([userId])
+  @@index([userId, isDefault])
+}
+
+enum AddressKind {
+  SHIPPING
+  BILLING
+  BOTH
+}
+
+enum PromotionType {
+  CODE // customer enters code
+  GIFT // “gift card” style (still a promo, but typically issued to someone)
+}
+
+enum PromotionStatus {
+  ACTIVE
+  PAUSED
+  EXPIRED
+}
+
+enum PromotionDiscountType {
+  PERCENT // e.g. 10% off
+  AMOUNT // e.g. £5 off
+  PRODUCT_100 // 100% off matched products
+}
+
+enum PromotionTargetType {
+  SITE_WIDE
+  CATEGORIES
+  PRODUCTS
+}
+
+enum PromoAttemptOutcome {
+  // Evaluate endpoint outcomes (user typed a code and clicked Apply)
+  EVAL_OK
+  EVAL_ERR
+
+  // Place-order outcomes
+  ORDER_APPLIED
+  ORDER_NOT_APPLIED
+  ORDER_REJECTED
+
+  // Payment captured (used)
+  ORDER_USED
+}
+
+model PromotionAttempt {
+  id String @id @default(cuid())
+
+  checkoutId String?
+
+  code        String
+  promotionId String?
+  promotion   Promotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+
+  userId String?
+  email  String?
+
+  orderId String?
+  order   Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  outcome   PromoAttemptOutcome
+  errorCode String?
+
+  currency              String @default("GBP")
+  subtotalPence         Int?
+  shippingPence         Int?
+  discountPence         Int @default(0)
+  shippingDiscountPence Int @default(0)
+
+  // ✅ optional “used” timestamp (nice for admin thread)
+  usedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([code])
+  @@index([promotionId])
+  @@index([userId])
+  @@index([email])
+  @@index([orderId])
+  @@index([createdAt])
+  @@index([checkoutId, createdAt])
+}
+
 model Order {
   id        String   @id @default(cuid())
   displayId String   @unique
@@ -447,7 +628,7 @@ model Order {
   updatedAt DateTime @updatedAt
 
   userId String?
-  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   contactEmail String
 
@@ -475,46 +656,53 @@ model Order {
 
   notes String?
 
-  // ---------- Admin lifecycle (yours) ----------
   archivedAt     DateTime?
   canceledAt     DateTime?
   canceledReason String?
-  refundTotal    Int        @default(0) // summary/rollup you already use
+  refundTotal    Int      @default(0)
   notesAdmin     String?
   editableUntil  DateTime?
 
-  // ---------- Cancellation reversal window (new) ----------
   cancellationRequestedAt DateTime?
-  /// When staff can still reverse cancellation (we’ll set to now()+24h in code)
   cancelReversibleUntil   DateTime?
   cancelReversedAt        DateTime?
   cancelReversalReason    String?
 
-  // ---------- Refund lifecycle (new) ----------
-  /// Mark that a refund should happen after the reversal window
-  refundQueuedAt          DateTime?
-  /// When the refund was actually executed (Stripe or local)
-  refundExecutedAt        DateTime?
-  refundAmountPence       Int?
-  refundId                String?
+  refundQueuedAt    DateTime?
+  refundExecutedAt  DateTime?
+  refundAmountPence Int?
+  refundId          String?
 
-  // Relations
   items      OrderItem[]
   payments   Payment[]
   activities OrderActivity[]
   orderTags  OrderTag[]
   shipments  Shipment[]
+  returnCase ReturnCase?
+
+  promotionId String?
+  promotion   Promotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+
+  promotionCode       String?
+  promotionRedemption PromotionRedemption?
+
+  shippingZoneId  String?
+  shippingRateId  String?
+  shippingService ShippingService?
+  shippingTemp    ShippingTemp?
+
+  promoAttempts PromotionAttempt[]
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([paymentIntentId])
   @@index([contactEmail, createdAt])
-
-  // Helpful for dashboards/cron
   @@index([cancellationRequestedAt])
   @@index([cancelReversibleUntil])
   @@index([refundQueuedAt])
   @@index([refundExecutedAt])
+  @@index([promotionId, createdAt])
+  @@index([promotionCode])
 }
 
 model OrderItem {
@@ -557,6 +745,25 @@ enum ActivityType {
   REFUNDED
   CANCELLED
   NOTE
+
+  // Shipping
+  SHIPMENT_CREATED
+  LABEL_PURCHASED
+  SHIPMENT_SHIPPED
+  SHIPMENT_CANCELLED
+  SHIPMENT_DELIVERED
+
+  // Returns lifecycle
+  RETURN_OPENED
+  RETURN_RECEIVED
+  RETURN_RESHIP_CREATED
+  RETURN_DECIDED_REFUND
+  RETURN_DECIDED_STORE_CREDIT
+  RETURN_CLOSED
+
+  // Tags
+  TAG_ADDED
+  TAG_REMOVED
 }
 
 model Tag {
@@ -578,6 +785,183 @@ model OrderTag {
   assignedAt DateTime @default(now())
 
   @@id([orderId, tagId])
+}
+
+model Promotion {
+  id String @id @default(cuid())
+
+  // Client controls
+  name   String
+  code   String          @unique
+  type   PromotionType   @default(CODE)
+  status PromotionStatus @default(ACTIVE)
+
+  startsAt DateTime?
+  endsAt   DateTime?
+
+  // Eligibility controls
+  lockedToUserId String?
+  lockedToUser   User?   @relation("PromotionLockedToUser", fields: [lockedToUserId], references: [id], onDelete: SetNull)
+
+  lockedToEmail String?
+
+  // Usage controls
+  maxUsesTotal   Int?
+  maxUsesPerUser Int?
+
+  // Discount controls
+  discountType   PromotionDiscountType
+  percentOff     Int?
+  amountOffPence Int?
+
+  // Shipping discount controls (0..100)
+  applyShippingDiscount    Boolean @default(false)
+  shippingPercentOffDry    Int?
+  shippingPercentOffFrozen Int?
+
+  // Targeting (site-wide / categories / products)
+  targetType PromotionTargetType @default(SITE_WIDE)
+
+  // Join tables
+  categories PromotionCategory[]
+  products   PromotionProduct[]
+
+  // Redemptions
+  redemptions PromotionRedemption[]
+
+  // ✅ Opposite of Order.promotion
+  orders Order[]
+
+  // ✅ Opposite of PromotionAttempt.promotion
+  promoAttempts PromotionAttempt[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, startsAt, endsAt])
+  @@index([lockedToUserId])
+  @@index([lockedToEmail])
+}
+
+model PromotionCategory {
+  promotionId String
+  categoryId  String
+
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  category  Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, categoryId])
+  @@index([categoryId])
+}
+
+model PromotionProduct {
+  promotionId String
+  productId   String
+
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, productId])
+  @@index([productId])
+}
+
+model PromotionRedemption {
+  id String @id @default(cuid())
+
+  promotionId String
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  emailUsed String?
+
+  discountPence         Int @default(0)
+  shippingDiscountPence Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([promotionId, createdAt])
+  @@index([userId, createdAt])
+  @@index([emailUsed, createdAt])
+}
+
+enum ShippingService {
+  STANDARD
+  EXPRESS
+}
+
+model ShippingZone {
+  id       String  @id @default(cuid())
+  name     String
+  isActive Boolean @default(true)
+  priority Int     @default(0) // higher = wins if multiple match
+  notes    String?
+
+  rules ShippingZoneRule[]
+  rates ShippingRate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, priority])
+}
+
+model ShippingZoneRule {
+  id     String       @id @default(cuid())
+  zoneId String
+  zone   ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  countryCode String // "GB", "IE", etc.
+
+  // Matching options (use what you prefer; regex is most flexible)
+  postcodeRegex  String? // e.g. "^(BT)" for Northern Ireland
+  postcodePrefix String? // optional simpler matching, e.g. "BT"
+
+  // If you want exclude rules later, add `isExclude Boolean @default(false)`
+
+  createdAt DateTime @default(now())
+
+  @@index([countryCode])
+  @@index([zoneId])
+}
+
+model ShippingRate {
+  id     String       @id @default(cuid())
+  zoneId String
+  zone   ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  temp     ShippingTemp
+  service  ShippingService @default(STANDARD)
+  currency String          @default("GBP")
+
+  // Free shipping threshold (optional)
+  freeOverPence Int?
+
+  tiers ShippingRateTier[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([zoneId, temp, service])
+  @@index([temp, service])
+}
+
+model ShippingRateTier {
+  id     String       @id @default(cuid())
+  rateId String
+  rate   ShippingRate @relation(fields: [rateId], references: [id], onDelete: Cascade)
+
+  // weight in grams (exclusive min, inclusive max)
+  minGramsExclusive Int  @default(0)
+  maxGramsInclusive Int? // null = "and up"
+
+  pricePence Int
+
+  @@index([rateId, minGramsExclusive])
 }
 
 /**
@@ -653,29 +1037,130 @@ model AboutSettings {
 
 /**
  * =========================
- * SHIPPING / FULFILLMENT
+ * RETURNS / FAILED DELIVERIES (v2)
  * =========================
  */
+
+enum ReturnCaseStatus {
+  OPEN
+  RECEIVED
+  RESOLVED
+}
+
+enum DeliveryIssueType {
+  DELIVERY_FAILED
+  RETURN_TO_DEPOT
+  RETURN_TO_SENDER
+  LOST
+  DAMAGED
+  UNKNOWN
+}
+
+enum ReturnResolution {
+  RESHIP
+  REFUND
+  STORE_CREDIT
+  CUSTOMER_COLLECT
+  NO_ACTION
+}
+
+model ReturnCase {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // Optional link to the shipment that triggered the return signal
+  shipmentId String?
+  shipment   Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+
+  status    ReturnCaseStatus  @default(OPEN)
+  issueType DeliveryIssueType @default(UNKNOWN)
+
+  detectedAt  DateTime  @default(now())
+  lastEventAt DateTime?
+
+  receivedAt DateTime? // ✅ ADD THIS
+
+  resolution     ReturnResolution?
+  resolutionNote String?
+  resolvedAt     DateTime?
+
+  // Evidence payload (tracking excerpts, carrier response meta, etc.)
+  meta Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orderId])
+  @@index([status, detectedAt])
+  @@index([issueType, detectedAt])
+  @@index([shipmentId])
+}
+
+/**
+ * =========================
+ * SHIPPING / FULFILLMENT
+ * =========================
+ * Merged model: keeps your original fields + APC specifics.
+ * Supports multiple shipments per order (remove @unique on orderId).
+ */
 model Shipment {
-  id             String   @id @default(cuid())
-  orderId        String
-  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id String @id @default(cuid())
 
-  carrier        String
-  service        String?
-  trackingNumber String?
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // Carrier basics
+  carrier     String  @default("APC")
+  service     String? // display text if desired
+  serviceCode String? // optional now to allow migration; can be made required later
+
+  // Tracking / identifiers
+  waybill        String? // APC CarrierWaybill
+  trackingNumber String? // platform-agnostic; for APC equals waybill
   trackingUrl    String?
-  labelUrl       String?
 
-  weightGrams    Int?
-  costPence      Int?
+  // Label storage
+  labelUrl    String? // e.g., S3 URL
+  labelMime   String? // "application/pdf" | "application/zpl" | "image/png"
+  labelBase64 String? // ok for small labels; prefer object storage
 
-  status         String   @default("purchased") // purchased|shipped|in_transit|delivered
-  shippedAt      DateTime?
+  // Finance / weights
+  weightGrams Int?
+  costPence   Int?
+  costTotal   Decimal? @db.Decimal(10, 2)
+  currency    String?  @default("GBP")
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  // ---- Lifecycle timestamps (NEW) ----
+  labelReadyAt DateTime?
+  dispatchedAt DateTime?
+  voidedAt     DateTime?
+
+  // Raw tracking payload
+  trackingEvents Json?
+
+  // Lifecycle
+  status    String    @default("PENDING") // PENDING|BOOKED|LABEL_READY|DISPATCHED|VOIDED|CANCELLED|DELIVERED
+  shippedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  trackingEmailSentAt DateTime?
+  idempotencyKey      String?   @unique
+
+  // ---- Reship chain ----
+  reshipOfShipmentId String?
+  reshipOfShipment   Shipment?  @relation("ShipmentReshipChain", fields: [reshipOfShipmentId], references: [id], onDelete: SetNull)
+  reships            Shipment[] @relation("ShipmentReshipChain")
+
+  // ---- Return case links ----
+  returnCases ReturnCase[]
 
   @@index([orderId])
-  @@index([carrier, trackingNumber])
+  @@index([carrier, serviceCode])
+  @@index([waybill])
+  @@index([trackingNumber])
+  @@index([reshipOfShipmentId])
 }

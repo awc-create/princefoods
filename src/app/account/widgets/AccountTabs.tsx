@@ -1,3 +1,4 @@
+// src/app/account/widgets/AccountTabs.tsx
 'use client';
 
 import { signOut } from 'next-auth/react';

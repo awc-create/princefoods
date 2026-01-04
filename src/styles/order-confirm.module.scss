@@ -1,4 +1,4 @@
-/* confirm.module.scss */
+/* src/styles/order-confirm.module.scss */
 
 .shell {
   max-width: 880px;
@@ -65,6 +65,7 @@
 .kv:last-of-type {
   border-bottom: 0;
 }
+
 .kvTotal {
   align-items: baseline;
   font-size: 1.05rem;
@@ -79,17 +80,57 @@
   margin: 14px 0 16px;
 }
 
+/* ✅ ACTION ROW (adds spacing + alignment) */
+.rowBtns {
+  display: flex;
+  align-items: center;
+  gap: 14px; /* ✅ space between button + My account */
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+/* ✅ PRIMARY BUTTON (perfect vertical centering) */
 .btn {
-  display: inline-block;
+  display: inline-flex; /* ✅ was inline-block */
+  align-items: center; /* ✅ vertical center */
+  justify-content: center; /* ✅ horizontal center */
   height: 44px;
+
   border-radius: 12px;
-  padding: 0 16px;
+  padding: 0 18px;
+
   background: #b21e2b;
   color: #fff;
   border: 1px solid #b21e2b;
-  font-weight: 800;
+
+  font-weight: 850;
   text-decoration: none;
+  line-height: 1; /* ✅ prevents baseline weirdness */
+  white-space: nowrap;
 }
+
 .btn:hover {
   filter: brightness(0.98);
+}
+
+/* ✅ SECONDARY LINK (gives it nicer presence + consistent alignment) */
+.btnAlt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+
+  padding: 0 12px;
+  border-radius: 12px;
+
+  color: #b21e2b;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+
+  font-weight: 850;
+  line-height: 1;
+}
+
+.btnAlt:hover {
+  filter: brightness(0.95);
 }

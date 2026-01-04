@@ -9,35 +9,36 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const session = await getServerSession(authOptions);
   const email = session?.user?.email;
-  if (!email) return NextResponse.json({ orders: [] });
+
+  if (!email) {
+    return NextResponse.json({ ok: false, error: 'Unauthenticated', orders: [] }, { status: 401 });
+  }
 
   const user = await prisma.user.findUnique({
     where: { email },
     select: { id: true }
   });
-  if (!user) return NextResponse.json({ orders: [] });
+
+  if (!user) {
+    return NextResponse.json({ ok: false, error: 'Unauthenticated', orders: [] }, { status: 401 });
+  }
 
   const orders = await prisma.order.findMany({
     where: { userId: user.id },
     orderBy: { createdAt: 'desc' },
     select: {
       id: true,
-      displayId: true, // 👈 expose short number
+      displayId: true,
       status: true,
       paymentStatus: true,
       grandTotal: true,
       createdAt: true,
-      totalWeightGrams: true, // 👈 expose weight
+      totalWeightGrams: true,
       items: {
-        select: {
-          id: true,
-          name: true,
-          quantity: true,
-          imageUrl: true
-        }
+        select: { id: true, name: true, quantity: true, imageUrl: true }
       }
     }
   });
 
-  return NextResponse.json({ orders });
+  return NextResponse.json({ ok: true, orders }, { status: 200 });
 }

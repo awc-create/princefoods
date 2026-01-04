@@ -1,6 +1,8 @@
 // src/app/admin/orders/[id]/page.tsx
+import ApcShipmentCard from '@/components/admin/orders/ApcShipmentCard';
+import BuyApcLabelButton from '@/components/admin/orders/BuyApcLabelButton';
+import ReturnActionsCard from '@/components/admin/orders/ReturnActionsCard';
 import { prisma } from '@/lib/prisma';
-import type { Address } from '@prisma/client';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -11,6 +13,130 @@ import EditEmailInline from './EditEmailInline';
 import MoreActions from './MoreActions';
 import TagEditor from './TagEditor';
 import UndoCancelButton from './UndoCancelButton';
+
+/**
+ * ✅ Why the local types?
+ * Your TS error: "@prisma/client has no exported member 'Address'"
+ * means your generated Prisma Client types are out of sync (or generated differently).
+ * To unblock you cleanly (and remove all implicit any errors), we type the shapes we use here.
+ */
+
+interface AddressSnapshot {
+  firstName: string | null;
+  lastName: string | null;
+  line1: string;
+  line2: string | null;
+  city: string;
+  town: string | null;
+  postcode: string;
+  country: string;
+  phoneE164: string | null;
+}
+
+type OrderStatus = 'DRAFT' | 'PLACED' | 'PAID' | 'FULFILLED' | 'CANCELLED' | 'REFUNDED';
+type PaymentStatus =
+  | 'PENDING'
+  | 'AUTHORIZED'
+  | 'CAPTURED'
+  | 'PARTIAL_REFUND'
+  | 'REFUNDED'
+  | 'FAILED';
+
+interface OrderItemRow {
+  id: string;
+  name: string;
+  sku: string | null;
+  imageUrl: string | null;
+  unitPrice: number;
+  quantity: number;
+  lineTotal: number;
+  unitWeightGrams: number | null;
+}
+
+interface PaymentRow {
+  id: string;
+  provider: string | null;
+  intentId: string | null;
+  chargeId: string | null;
+  refundId: string | null;
+  amountPence: number;
+  currency: string | null;
+  status: PaymentStatus;
+  idempotencyKey: string | null;
+  createdAt: Date | string;
+}
+
+interface UserRow {
+  id: string;
+  name: string | null;
+}
+
+interface ActivityRow {
+  id: string;
+  orderId: string;
+  type: string;
+  note: string | null;
+  createdAt: Date | string;
+}
+
+interface TagRow {
+  slug: string;
+  label: string;
+  color: string | null;
+}
+
+interface OrderTagRow {
+  tag: TagRow;
+}
+
+interface PromotionRow {
+  id: string;
+  code: string;
+  name: string | null;
+  status: string;
+}
+
+interface OrderWithRels {
+  id: string;
+  displayId: string | null;
+  createdAt: Date;
+  archivedAt: Date | null;
+
+  user: UserRow | null;
+  contactEmail: string;
+
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+
+  currency: string | null;
+  subtotal: number;
+  shippingTotal: number;
+  discountTotal: number;
+  taxTotal: number;
+  grandTotal: number;
+
+  totalWeightGrams: number | null;
+
+  shippingAddress: AddressSnapshot | null;
+  billingAddress: AddressSnapshot | null;
+
+  paymentProvider: string | null;
+  paymentIntentId: string | null;
+
+  notes: string | null;
+
+  refundTotal: number | null;
+
+  editableUntil: Date | null;
+  cancelReversibleUntil: Date | null;
+
+  // ✅ promo fields on Order
+  promotionCode: string | null;
+  promotion: PromotionRow | null;
+
+  payments: PaymentRow[];
+  items: OrderItemRow[];
+}
 
 function formatMoney(pence: number, currency = 'GBP') {
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format((pence ?? 0) / 100);
@@ -50,7 +176,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const { id } = await params;
   if (!id) notFound();
 
-  const [order, activities, orderTagRows] = await Promise.all([
+  const [orderRaw, activitiesRaw, orderTagRowsRaw] = await Promise.all([
     prisma.order.findUnique({
       where: { id },
       include: {
@@ -58,7 +184,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         items: true,
         payments: true,
         shippingAddress: true,
-        billingAddress: true
+        billingAddress: true,
+        // ✅ include promo info (select only needed fields)
+        promotion: { select: { id: true, code: true, name: true, status: true } }
       }
     }),
     prisma.orderActivity.findMany({
@@ -72,10 +200,15 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     })
   ]);
 
+  // Cast to the local shapes we use (avoids implicit any + avoids @prisma/client Address import)
+  const order = (orderRaw as unknown as OrderWithRels | null) ?? null;
+  const activities = (activitiesRaw as unknown as ActivityRow[]) ?? [];
+  const orderTagRows = (orderTagRowsRaw as unknown as OrderTagRow[]) ?? [];
+
   if (!order) notFound();
 
-  const currency = order.currency || 'GBP';
-  const tags = orderTagRows.map((r) => r.tag);
+  const currency = order.currency ?? 'GBP';
+  const tags = orderTagRows.map((r: OrderTagRow) => r.tag);
 
   const statusTone =
     order.status === 'FULFILLED'
@@ -99,29 +232,38 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   const isTestOrder =
     order.paymentProvider === 'stripe_test' ||
-    order.payments.some((p) => (p.idempotencyKey ?? '').includes('test'));
+    order.payments.some((p: PaymentRow) => (p.idempotencyKey ?? '').includes('test'));
 
-  const itemsWeightGrams = order.items.reduce(
-    (sum, it) => sum + (it.unitWeightGrams ?? 0) * it.quantity,
-    0
-  );
+  const itemsWeightGrams = order.items.reduce((sum: number, it: OrderItemRow) => {
+    return sum + (it.unitWeightGrams ?? 0) * it.quantity;
+  }, 0);
+
   const totalWeightGrams = order.totalWeightGrams ?? itemsWeightGrams;
 
   const hasStripeCapture = order.payments.some(
-    (p) => p.status === 'CAPTURED' && (p.provider ?? '').includes('stripe')
+    (p: PaymentRow) => p.status === 'CAPTURED' && (p.provider ?? '').includes('stripe')
   );
-  const refundableRemainingPence = Math.max(0, (order.grandTotal ?? 0) - (order.refundTotal ?? 0));
+
+  const refundableRemainingPence = Math.max(
+    0,
+    (order.grandTotal ?? 0) - ((order.refundTotal ?? 0) as number)
+  );
 
   // Reversal window banner (prefer new field, fallback to legacy)
   const now = new Date();
   const reversibleUntilRaw = order.cancelReversibleUntil ?? order.editableUntil;
   const reversibleUntil = reversibleUntilRaw ? new Date(reversibleUntilRaw) : null;
-  const isReversible = !!reversibleUntil && reversibleUntil.getTime() > now.getTime();
+  const isReversible = Boolean(reversibleUntil && reversibleUntil.getTime() > now.getTime());
   const minutesLeft = isReversible
-    ? Math.max(0, Math.round((reversibleUntil.getTime() - now.getTime()) / 60000))
+    ? Math.max(0, Math.round((reversibleUntil!.getTime() - now.getTime()) / 60000))
     : 0;
 
-  const isArchived = !!order.archivedAt;
+  const isArchived = Boolean(order.archivedAt);
+
+  // ✅ promo label (handles promotion or just promotionCode fallback)
+  const promoLabel = order.promotion
+    ? `${order.promotion.code}${order.promotion.name ? ` — ${order.promotion.name}` : ''}`
+    : (order.promotionCode ?? null);
 
   return (
     <div style={{ padding: 24, display: 'grid', gap: 14 }}>
@@ -136,13 +278,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       </header>
 
       <div style={{ color: '#888' }}>
-        Placed {order.createdAt.toLocaleString('en-GB')}
+        Placed {new Date(order.createdAt).toLocaleString('en-GB')}
         {order.user ? (
           <>
             {' '}
             • Customer:{' '}
             <Link href={`/admin/customers/${order.user.id}`}>
-              {order.user.name || order.contactEmail}
+              {order.user.name ?? order.contactEmail}
             </Link>
           </>
         ) : (
@@ -215,6 +357,28 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             order.status !== 'REFUNDED'
           }
         />
+        <BuyApcLabelButton
+          orderId={order.id}
+          weightGrams={totalWeightGrams || undefined}
+          deliveryPreview={
+            order.shippingAddress
+              ? {
+                  name:
+                    [order.shippingAddress.firstName ?? '', order.shippingAddress.lastName ?? '']
+                      .filter(Boolean)
+                      .join(' ')
+                      .trim() || 'Customer',
+                  phone: order.shippingAddress.phoneE164 ?? null,
+                  email: order.contactEmail ?? null,
+                  address1: order.shippingAddress.line1 ?? '',
+                  address2: order.shippingAddress.line2 ?? '',
+                  city: order.shippingAddress.city ?? '',
+                  postcode: order.shippingAddress.postcode ?? '',
+                  countryCode: (order.shippingAddress.country ?? 'GB').toUpperCase()
+                }
+              : null
+          }
+        />
       </div>
 
       {/* Main layout */}
@@ -238,6 +402,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             )}
             <Card label="Grand total" value={formatMoney(order.grandTotal, currency)} />
             <Card label="Total weight" value={formatKg(totalWeightGrams)} />
+
+            {/* ✅ Promotion shown only if present */}
+            {promoLabel && <Card label="Promotion" value={promoLabel} />}
           </section>
 
           <section>
@@ -255,7 +422,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   </tr>
                 </thead>
                 <tbody>
-                  {order.items.map((it) => {
+                  {order.items.map((it: OrderItemRow) => {
                     const lineG = (it.unitWeightGrams ?? 0) * it.quantity;
                     return (
                       <tr key={it.id} style={{ borderTop: '1px solid #222' }}>
@@ -306,7 +473,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               <div style={{ color: '#888' }}>No payments yet.</div>
             ) : (
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {order.payments.map((p) => (
+                {order.payments.map((p: PaymentRow) => (
                   <li key={p.id} style={{ padding: '10px 0', borderBottom: '1px solid #222' }}>
                     <div
                       style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
@@ -322,7 +489,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                       >
                         {p.status}
                       </Badge>
-                      <strong>{formatMoney(p.amountPence, p.currency || currency)}</strong>
+                      <strong>{formatMoney(p.amountPence, p.currency ?? currency)}</strong>
                       <span style={{ color: '#888' }}>
                         {new Date(p.createdAt).toLocaleString('en-GB')}
                       </span>
@@ -343,7 +510,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
             <ActivityList
               orderId={order.id}
-              initial={activities.map((a) => ({
+              initial={activities.map((a: ActivityRow) => ({
                 id: a.id,
                 orderId: a.orderId,
                 type: a.type,
@@ -357,22 +524,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           </section>
         </div>
 
-        {/* Right sidebar — compact spacing fix */}
-        <aside
-          style={{
-            display: 'grid',
-            gap: 2
-          }}
-        >
+        {/* Right sidebar */}
+        <aside style={{ display: 'grid', gap: 10 }}>
           <style>
             {`
-      aside section {
-        margin: 0 !important;
-      }
-      aside h2, aside h3 {
-        margin: 0 0 4px 0 !important;
-      }
-    `}
+              aside section { margin: 0 !important; }
+              aside h2, aside h3 { margin: 0 0 4px 0 !important; }
+            `}
           </style>
 
           {/* Customer */}
@@ -388,19 +546,17 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               }}
             >
               {order.user ? (
-                <>
-                  <div style={{ display: 'grid', gap: 2 }}>
-                    <strong style={{ lineHeight: 1.2 }}>{order.user.name || 'Customer'}</strong>
-                    <div style={{ color: '#666', fontSize: 13 }}>
-                      <Link
-                        href={`/admin/customers/${order.user.id}`}
-                        style={{ color: '#007bff', textDecoration: 'none' }}
-                      >
-                        Open customer page →
-                      </Link>
-                    </div>
+                <div style={{ display: 'grid', gap: 2 }}>
+                  <strong style={{ lineHeight: 1.2 }}>{order.user.name ?? 'Customer'}</strong>
+                  <div style={{ color: '#666', fontSize: 13 }}>
+                    <Link
+                      href={`/admin/customers/${order.user.id}`}
+                      style={{ color: '#007bff', textDecoration: 'none' }}
+                    >
+                      Open customer page →
+                    </Link>
                   </div>
-                </>
+                </div>
               ) : (
                 <div style={{ color: '#666' }}>Guest order</div>
               )}
@@ -443,6 +599,16 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </div>
           </section>
 
+          {/* Shipments */}
+          <section>
+            <ApcShipmentCard orderId={order.id} />
+          </section>
+
+          {/* ✅ Returns / failed delivery workflow */}
+          <section>
+            <ReturnActionsCard orderId={order.id} />
+          </section>
+
           {/* Addresses */}
           <section>
             <h2>Addresses</h2>
@@ -457,7 +623,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <h3>Tags</h3>
             <TagEditor
               orderId={order.id}
-              initial={tags.map((t) => ({
+              initial={tags.map((t: TagRow) => ({
                 slug: t.slug,
                 label: t.label,
                 color: t.color ?? undefined
@@ -479,7 +645,7 @@ function Card({ label, value }: { label: string; value: string }) {
   );
 }
 
-function AddrCard({ title, addr }: { title: string; addr: Address | null }) {
+function AddrCard({ title, addr }: { title: string; addr: AddressSnapshot | null }) {
   if (!addr) {
     return (
       <div style={{ border: '1px solid #222', borderRadius: 10, padding: 10 }}>

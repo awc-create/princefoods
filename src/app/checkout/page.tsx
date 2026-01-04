@@ -1,3 +1,4 @@
+// src/app/checkout/page.tsx (server component)
 import { authOptions } from '@/lib/auth-options';
 import { getServerSession } from 'next-auth';
 import CheckoutClient from './CheckoutClient';

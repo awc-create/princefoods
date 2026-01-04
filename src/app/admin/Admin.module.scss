@@ -253,3 +253,169 @@
     top: 0;
   }
 }
+
+/* --- Dashboard header (optional tidy) --- */
+.dashboardHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+/* --- Stats grid stays the same --- */
+.dashboardStats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+@media (max-width: 1100px) {
+  .dashboardStats {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboardStats {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Status bar under stats --- */
+.systemRow {
+  margin-top: 14px;
+}
+
+.systemItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  padding: 12px 14px;
+  border-radius: 14px;
+
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+}
+
+.systemMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.systemTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.systemLabel {
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.systemTitle {
+  font-size: 0.95rem;
+  font-weight: 900;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.systemBottom {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.systemBrand {
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.systemHint {
+  margin-left: auto;
+  color: #6b7280;
+  font-weight: 650;
+  max-width: 55ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* IMPORTANT: avoid clashing with your existing .pill styles */
+.systemPill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 750;
+  background: rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  color: rgba(15, 23, 42, 0.8);
+}
+
+/* Status dot */
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  position: relative;
+}
+
+.dot::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 999px;
+  opacity: 0;
+}
+
+.dotUp {
+  background: #16a34a;
+}
+.dotUp::after {
+  border: 2px solid rgba(22, 163, 74, 0.35);
+  opacity: 1;
+  animation: pulse 1.6s ease-out infinite;
+}
+
+.dotWarn {
+  background: #f59e0b;
+}
+.dotWarn::after {
+  border: 2px solid rgba(245, 158, 11, 0.35);
+  opacity: 1;
+  animation: pulse 1.6s ease-out infinite;
+}
+
+.dotDown {
+  background: #ef4444;
+}
+.dotDown::after {
+  border: 2px solid rgba(239, 68, 68, 0.35);
+  opacity: 1;
+  animation: pulse 1.6s ease-out infinite;
+}
+
+.dotIdle {
+  background: #9ca3af;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+}

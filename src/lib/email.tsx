@@ -1,3 +1,5 @@
+// src/lib/email.tsx
+import ApcLabelReadyEmail from '@/emails/ApcLabelReadyEmail';
 import ChatSLAEmail from '@/emails/ChatSLAEmail';
 import TrackingEmail from '@/emails/TrackingEmail';
 import WelcomeEmail from '@/emails/WelcomeEmail';
@@ -7,11 +9,11 @@ import { getResendOrThrow } from './resend';
 const FROM = process.env.EMAIL_FROM ?? 'Prince Foods <support@prince-foods.com>';
 const DEFAULT_TO = process.env.SUPPORT_EMAIL ?? 'support@prince-foods.com';
 
-// Single source of truth for public site URL + brand assets
-const SITE_BASE =
+const SITE_BASE_RAW =
   process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://www.prince-foods.com';
+const SITE_BASE = SITE_BASE_RAW.replace(/\/$/, '');
 
-const LOGO_URL = `${SITE_BASE.replace(/\/$/, '')}/assets/logo/logo-full.png`;
+const LOGO_URL = `${SITE_BASE}/assets/logo/logo-full.png`;
 
 export interface CategoryTeaser {
   title: string;
@@ -42,7 +44,7 @@ export async function sendSlaEmailTemplate(params: {
       minutesOverdue={params.minutesOverdue}
       brand={{
         primary: '#D62828',
-        logoUrl: LOGO_URL, // ← consistent absolute logo
+        logoUrl: LOGO_URL,
         supportEmail: DEFAULT_TO
       }}
     />
@@ -66,8 +68,7 @@ export async function sendSlaEmailTemplate(params: {
 
 /** Welcome Email */
 export async function sendWelcomeEmail(params: { to: string; name?: string }) {
-  const siteUrl = SITE_BASE;
-  const html = await renderAsync(<WelcomeEmail name={params.name} siteUrl={siteUrl} />);
+  const html = await renderAsync(<WelcomeEmail name={params.name} siteUrl={SITE_BASE} />);
 
   const resend = getResendOrThrow();
   const { data, error } = await resend.emails.send({
@@ -93,12 +94,10 @@ export async function sendWelcomeVerifyEmail(params: {
   categories?: CategoryTeaser[];
   bestSellers?: ProductTeaser[];
 }) {
-  const siteUrl = SITE_BASE;
-
   const html = await renderAsync(
     <WelcomeEmail
       name={params.name}
-      siteUrl={siteUrl}
+      siteUrl={SITE_BASE}
       verificationCode={params.code}
       verifyUrl={params.verifyUrl}
       expiresInMinutes={params.expiresInMinutes ?? 15}
@@ -121,15 +120,15 @@ export async function sendWelcomeVerifyEmail(params: {
   return { id: data?.id ?? null };
 }
 
-/** Shipment / tracking email (styled + product thumbnails) */
+/** Shipment / tracking email */
 export async function sendTrackingEmail(params: {
   to: string;
   orderId: string;
   displayId?: string | null;
   carrier: string;
   trackingNumber: string;
-  trackingUrl?: string; // optional
-  products?: ProductTeaser[]; // optional product teasers
+  trackingUrl?: string;
+  products?: ProductTeaser[];
 }) {
   const { to, orderId, displayId, carrier, trackingNumber, trackingUrl, products = [] } = params;
 
@@ -142,7 +141,7 @@ export async function sendTrackingEmail(params: {
       trackingUrl={trackingUrl}
       products={products}
       brand={{
-        logoUrl: LOGO_URL, // ← consistent absolute logo
+        logoUrl: LOGO_URL,
         primary: '#D62828',
         supportEmail: DEFAULT_TO,
         siteUrl: SITE_BASE
@@ -160,6 +159,45 @@ export async function sendTrackingEmail(params: {
     tags: [
       { name: 'orderId', value: orderId },
       { name: 'kind', value: 'tracking' }
+    ]
+  });
+
+  if (error) throw error;
+  return { id: data?.id ?? null };
+}
+
+/** APC label ready email (admin notification) */
+export async function sendApcLabelReadyEmail(params: {
+  to: string | string[];
+  orderId: string;
+  displayId?: string | null;
+  waybill: string;
+  productCode?: string | null;
+  trackingUrl?: string | null;
+}) {
+  const recipients = Array.isArray(params.to) ? params.to : [params.to];
+
+  const html = await renderAsync(
+    <ApcLabelReadyEmail
+      siteUrl={SITE_BASE}
+      orderId={params.orderId}
+      displayId={params.displayId}
+      waybill={params.waybill}
+      productCode={params.productCode ?? null}
+      trackingUrl={params.trackingUrl ?? null}
+    />
+  );
+
+  const resend = getResendOrThrow();
+  const { data, error } = await resend.emails.send({
+    from: FROM,
+    to: recipients,
+    subject: `APC label ready • ${params.displayId ?? params.orderId}`,
+    html,
+    replyTo: process.env.REPLY_TO ?? DEFAULT_TO,
+    tags: [
+      { name: 'category', value: 'apc-label-ready' },
+      { name: 'orderId', value: params.orderId }
     ]
   });
 

@@ -1,4 +1,6 @@
+// src/app/api/admin/orders/[id]/labels/purchase/route.ts
 import { createAdminNotification } from '@/lib/notify';
+import { Activity } from '@/lib/order-activity';
 import { prisma } from '@/lib/prisma';
 import { getParams } from '@/lib/route-ctx';
 import type { NextRequest } from 'next/server';
@@ -32,17 +34,18 @@ export async function POST(_req: NextRequest, _ctx: unknown) {
         trackingNumber,
         trackingUrl,
         labelUrl,
-        status: 'purchased'
+        status: 'LABEL_READY'
       }
     });
 
-    await prisma.orderActivity.create({
-      data: {
-        orderId: order.id,
-        type: 'FULFILLED',
-        note: 'Label purchased',
-        meta: { shipmentId: shipment.id }
-      }
+    // ✅ Activity: label purchased
+    await Activity.labelPurchased(order.id, {
+      carrier: 'Royal Mail',
+      service: 'RM48',
+      trackingNumber,
+      trackingUrl,
+      shipmentId: shipment.id,
+      labelUrl
     });
 
     await createAdminNotification({
@@ -55,12 +58,20 @@ export async function POST(_req: NextRequest, _ctx: unknown) {
     return NextResponse.json({ ok: true, shipment });
   } catch (err) {
     console.error('Label purchase failed', err);
+
     await createAdminNotification({
       kind: 'label_failed',
       title: `Label purchase failed for order ${orderId}`,
-      body: String(err),
+      body: err instanceof Error ? err.message : String(err),
       link: `/admin/orders/${orderId}`
     });
+
+    // ✅ Activity: note (not "shipment cancelled")
+    await Activity.labelFailed(orderId, {
+      reason: 'LABEL_PURCHASE_FAILED',
+      error: err instanceof Error ? err.message : String(err)
+    });
+
     return NextResponse.json({ ok: false, error: 'LABEL_PURCHASE_FAILED' }, { status: 500 });
   }
 }

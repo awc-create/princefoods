@@ -196,6 +196,7 @@ export default function MoreActions({
           <div style={menu} role="menu" aria-label="Print menu">
             <div style={{ padding: 8 }}>
               <div style={groupTitle}>Print</div>
+
               <a
                 href={`/api/admin/orders/${orderId}/print-order`}
                 target="_blank"
@@ -206,6 +207,7 @@ export default function MoreActions({
               >
                 📦 Order (picker)
               </a>
+
               <a
                 href={`/api/admin/orders/${orderId}/invoice`}
                 target="_blank"
@@ -216,6 +218,7 @@ export default function MoreActions({
               >
                 🧾 Invoice / receipt
               </a>
+
               <a
                 href={`/api/admin/orders/${orderId}/packing-slip?v=plain`}
                 target="_blank"
@@ -225,6 +228,7 @@ export default function MoreActions({
               >
                 🧾 Packing slip
               </a>
+
               <a
                 href={`/api/admin/orders/${orderId}/packing-slip?v=weights`}
                 target="_blank"
@@ -233,6 +237,22 @@ export default function MoreActions({
                 role="menuitem"
               >
                 🧾 Packing slip (weights)
+              </a>
+
+              {divider}
+
+              <div style={groupTitle}>Shipping</div>
+
+              {/* ✅ NEW: Shipping label (latest) */}
+              <a
+                href={`/api/admin/orders/${orderId}/labels/latest`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={item}
+                role="menuitem"
+                title="Downloads the most recent shipment label for this order"
+              >
+                🏷️ Shipping label (latest)
               </a>
             </div>
           </div>
@@ -271,10 +291,7 @@ export default function MoreActions({
 
               <div style={groupTitle}>Shipping</div>
               <div style={{ padding: 6 }}>
-                <ShipDialog
-                  orderId={orderId}
-                  contactEmail={contactEmail ?? null} // ← add this
-                />
+                <ShipDialog orderId={orderId} contactEmail={contactEmail ?? null} />
               </div>
 
               {divider}
@@ -289,6 +306,7 @@ export default function MoreActions({
               >
                 ❌ Cancel & refund
               </button>
+
               <button
                 onClick={onArchive}
                 disabled={busy !== null}
@@ -298,6 +316,7 @@ export default function MoreActions({
               >
                 {busy === 'archive' ? 'Archiving…' : '🗄️ Archive'}
               </button>
+
               <button
                 onClick={onUnarchive}
                 disabled={busy !== null}
