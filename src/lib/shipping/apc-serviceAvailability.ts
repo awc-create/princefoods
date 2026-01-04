@@ -49,7 +49,8 @@ export async function getApcServices(params: {
           NumberOfPieces: '1',
           Items: {
             Item: {
-              Type: params.type || 'ALL',
+              // ✅ eslint: prefer ?? over ||
+              Type: params.type ?? 'ALL',
               Weight: String(params.weightKg),
               Length: String(params.lengthCm ?? 0),
               Width: String(params.widthCm ?? 0),
@@ -68,5 +69,5 @@ export async function getApcServices(params: {
   });
 
   const svc = res.ServiceAvailability?.Services?.Service;
-  return asArray(svc).filter((s) => !!s?.ProductCode);
+  return asArray(svc).filter((s) => Boolean(s?.ProductCode));
 }

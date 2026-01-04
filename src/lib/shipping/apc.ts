@@ -1,24 +1,10 @@
 // src/lib/shipping/apc.ts
+import { apcFetchText, ApcNotConfiguredError } from '@/lib/shipping/apc-client';
 
 export type ApcMime = 'application/pdf' | 'image/png' | 'application/zpl';
 
 /* ------------------------------------------------------------------ */
-/* ENV                                                                 */
-/* ------------------------------------------------------------------ */
-
-const APC_ENV = (process.env.APC_ENV ?? 'training').toLowerCase(); // training | live
-const APC_BASE_URL = APC_ENV === 'live' ? process.env.APC_LIVE_BASE : process.env.APC_TRAINING_BASE;
-
-const APC_USERNAME = process.env.APC_USERNAME ?? '';
-const APC_PASSWORD = process.env.APC_PASSWORD ?? '';
-const APC_TIMEOUT_MS = Number(process.env.APC_TIMEOUT_MS ?? 25_000);
-
-if (!APC_BASE_URL) throw new Error('Missing APC base URL (APC_TRAINING_BASE / APC_LIVE_BASE).');
-if (!APC_USERNAME) throw new Error('Missing APC_USERNAME.');
-if (!APC_PASSWORD) throw new Error('Missing APC_PASSWORD.');
-
-/* ------------------------------------------------------------------ */
-/* SMALL SAFE HELPERS (NO any)                                         */
+/* SMALL SAFE HELPERS                                                  */
 /* ------------------------------------------------------------------ */
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -36,6 +22,17 @@ function getStr(o: unknown, k: string): string | null {
   const r = asRecord(o);
   const v = r[k];
   return typeof v === 'string' ? v : null;
+}
+
+/** Minimal XML tag extraction */
+function xmlGetFirst(xml: string, tag: string): string | null {
+  const re = new RegExp(`<${tag}(?:\\s+[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i');
+  const m = xml.match(re);
+  return m?.[1]?.trim() ?? null;
+}
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 /* ------------------------------------------------------------------ */
@@ -168,109 +165,44 @@ export interface ApcOrderGetResult {
 }
 
 /* ------------------------------------------------------------------ */
-/* AUTH + HTTP                                                         */
-/* ------------------------------------------------------------------ */
-
-/**
- * APC expects:
- *   remote-user: Basic <base64(email:password)>
- * NOT Authorization.
- */
-function remoteUserHeaderValue(username: string, password: string) {
-  const token = Buffer.from(`${username}:${password}`, 'utf8').toString('base64');
-  return `Basic ${token}`;
-}
-
-function buildHeaders(extra?: Record<string, string>) {
-  return {
-    Accept: 'application/json, text/xml, application/xml, */*',
-    'Content-Type': 'application/json',
-    'remote-user': remoteUserHeaderValue(APC_USERNAME, APC_PASSWORD),
-    ...extra
-  };
-}
-
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-function withTimeout(signal?: AbortSignal) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), APC_TIMEOUT_MS);
-
-  if (signal) {
-    if (signal.aborted) controller.abort();
-    else signal.addEventListener('abort', () => controller.abort(), { once: true });
-  }
-
-  return { signal: controller.signal, clear: () => clearTimeout(timeout) };
-}
-
-/** Minimal XML tag extraction */
-function xmlGetFirst(xml: string, tag: string): string | null {
-  const re = new RegExp(`<${tag}(?:\\s+[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i');
-  const m = xml.match(re);
-  return m?.[1]?.trim() ?? null;
-}
-
-/* ------------------------------------------------------------------ */
-/* CORE CALLS                                                          */
+/* CORE CALLS (LAZY CONFIG VIA apc-client)                              */
 /* ------------------------------------------------------------------ */
 
 export async function apcServiceAvailability(
   payload: ApcServiceAvailabilityRequest,
   signal?: AbortSignal
 ) {
-  const { signal: s, clear } = withTimeout(signal);
+  const r = await apcFetchText('/ServiceAvailability.json', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    signal
+  });
+
+  if (!r.ok) throw new ApcHttpError(r.status, r.text);
+
   try {
-    const res = await fetch(`${APC_BASE_URL}/ServiceAvailability.json`, {
-      method: 'POST',
-      headers: buildHeaders(),
-      body: JSON.stringify(payload),
-      signal: s,
-      cache: 'no-store'
-    });
-
-    const raw = await res.text();
-    if (!res.ok) throw new ApcHttpError(res.status, raw);
-
-    try {
-      return JSON.parse(raw) as unknown;
-    } catch {
-      return { raw } as unknown;
-    }
-  } finally {
-    clear();
+    return JSON.parse(r.text) as unknown;
+  } catch {
+    return { raw: r.text } as unknown;
   }
 }
 
 export async function apcCreateOrder(payload: ApcCreateOrderPayload, signal?: AbortSignal) {
-  const { signal: s, clear } = withTimeout(signal);
+  const r = await apcFetchText('/Orders.json', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    signal
+  });
+
+  if (!r.ok) throw new ApcHttpError(r.status, r.text);
+
   try {
-    const res = await fetch(`${APC_BASE_URL}/Orders.json`, {
-      method: 'POST',
-      headers: buildHeaders(),
-      body: JSON.stringify(payload),
-      signal: s,
-      cache: 'no-store'
-    });
-
-    const raw = await res.text();
-    if (!res.ok) throw new ApcHttpError(res.status, raw);
-
-    try {
-      return JSON.parse(raw) as unknown;
-    } catch {
-      return { raw } as unknown;
-    }
-  } finally {
-    clear();
+    return JSON.parse(r.text) as unknown;
+  } catch {
+    return { raw: r.text } as unknown;
   }
 }
 
-/**
- * Get order (and label) by identifier.
- */
 export async function apcGetOrderByWaybill(
   waybill: string,
   signal?: AbortSignal,
@@ -281,47 +213,35 @@ export async function apcGetOrderByWaybill(
     labels?: boolean;
   }
 ): Promise<ApcOrderGetResult> {
-  const { signal: s, clear } = withTimeout(signal);
-  try {
-    const labelFormat = opts?.labelFormat ?? 'PDF';
-    const markPrinted = opts?.markPrinted ?? true;
-    const searchType = opts?.searchType ?? 'CarrierWaybill';
-    const labels = opts?.labels ?? true;
+  const labelFormat = opts?.labelFormat ?? 'PDF';
+  const markPrinted = opts?.markPrinted ?? true;
+  const searchType = opts?.searchType ?? 'CarrierWaybill';
+  const labels = opts?.labels ?? true;
 
-    const qs = new URLSearchParams({
-      labelformat: labelFormat,
-      markprinted: String(markPrinted),
-      searchtype: searchType,
-      labels: String(labels)
-    });
+  const qs = new URLSearchParams({
+    labelformat: labelFormat,
+    markprinted: String(markPrinted),
+    searchtype: searchType,
+    labels: String(labels)
+  });
 
-    const res = await fetch(
-      `${APC_BASE_URL}/Orders/${encodeURIComponent(waybill)}.json?${qs.toString()}`,
-      {
-        method: 'GET',
-        headers: buildHeaders({ Accept: 'application/json, text/xml, application/xml, */*' }),
-        signal: s,
-        cache: 'no-store'
-      }
-    );
+  const path = `/Orders/${encodeURIComponent(waybill)}.json?${qs.toString()}`;
+  const r = await apcFetchText(path, { method: 'GET', signal });
 
-    const contentType = res.headers.get('content-type') ?? '';
-    const raw = await res.text();
+  if (!r.ok) throw new ApcHttpError(r.status, r.text);
 
-    if (!res.ok) throw new ApcHttpError(res.status, raw);
+  const contentType = r.contentType;
+  const raw = r.text;
 
-    if (contentType.includes('application/json') || raw.trim().startsWith('{')) {
-      try {
-        return { contentType, raw, json: JSON.parse(raw) as unknown };
-      } catch {
-        return { contentType, raw };
-      }
+  if (contentType.includes('application/json') || raw.trim().startsWith('{')) {
+    try {
+      return { contentType, raw, json: JSON.parse(raw) as unknown };
+    } catch {
+      return { contentType, raw };
     }
-
-    return { contentType, raw, xml: raw };
-  } finally {
-    clear();
   }
+
+  return { contentType, raw, xml: raw };
 }
 
 /* ------------------------------------------------------------------ */
@@ -350,10 +270,6 @@ export function apcExtractWaybillFromCreateResponse(resp: unknown): string | nul
   return null;
 }
 
-/**
- * Labels in JSON responses are typically nested like:
- * ShipmentDetails.Items.Item.Label.{Format,Content}
- */
 export function apcExtractLabel(
   result: ApcOrderGetResult
 ): { mime: ApcMime; base64: string } | null {
@@ -417,10 +333,6 @@ export function apcExtractLabel(
   return null;
 }
 
-/**
- * Try to extract CollectionDate (DD/MM/YYYY) from APC order response.
- * Used only for "abortIfFutureCollectionDate" behaviour.
- */
 export function apcExtractCollectionDate(result: ApcOrderGetResult): string | null {
   if (result.json) {
     const j = asRecord(result.json);
@@ -446,15 +358,14 @@ export function apcExtractCollectionDate(result: ApcOrderGetResult): string | nu
 }
 
 function parseApcDdMmYyyy(s: string): Date | null {
-  // Expected: DD/MM/YYYY
   const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s.trim());
   if (!m) return null;
   const dd = Number(m[1]);
   const mm = Number(m[2]);
   const yyyy = Number(m[3]);
   if (!Number.isFinite(dd) || !Number.isFinite(mm) || !Number.isFinite(yyyy)) return null;
+
   const d = new Date(Date.UTC(yyyy, mm - 1, dd, 0, 0, 0, 0));
-  // basic sanity
   if (d.getUTCFullYear() !== yyyy || d.getUTCMonth() !== mm - 1 || d.getUTCDate() !== dd)
     return null;
   return d;
@@ -473,7 +384,7 @@ function isFutureApcCollectionDate(ddmmyyyy: string): boolean {
 }
 
 /* ------------------------------------------------------------------ */
-/* PUBLIC API (used by your routes)                                    */
+/* PUBLIC API                                                          */
 /* ------------------------------------------------------------------ */
 
 export async function getServiceAvailability(args: {
@@ -548,12 +459,6 @@ export interface ApcGetLabelWithPollingOptions {
   attempts?: number;
   initialDelayMs?: number;
   labelFormat?: 'PDF' | 'PNG' | 'ZPL';
-
-  /**
-   * Restored option:
-   * When true, if APC reports a CollectionDate in the future, we abort polling early.
-   * (Prevents hammering APC for labels that cannot exist yet.)
-   */
   abortIfFutureCollectionDate?: boolean;
 }
 
@@ -580,11 +485,9 @@ export async function getLabelWithPolling(
       labels: true
     });
 
-    // ✅ Restored behaviour: abort early if future collection date (when enabled)
     if (abortIfFutureCollectionDate) {
       const cd = apcExtractCollectionDate(result);
       if (cd && isFutureApcCollectionDate(cd)) {
-        // treat as "pending" rather than hard error
         throw new ApcLabelPendingError(waybill, i + 1);
       }
     }
@@ -614,4 +517,14 @@ export const apcGetLabelWithPolling = async (
 
 export function base64ToUint8Array(base64: string): Uint8Array {
   return Uint8Array.from(Buffer.from(base64, 'base64'));
+}
+
+/**
+ * Helper you can reuse in routes:
+ * if APC isn't configured, throw a known error type.
+ */
+export function throwIfApcNotConfigured(e: unknown): never {
+  // normalize the not-configured case
+  if (e instanceof ApcNotConfiguredError) throw e;
+  throw e instanceof Error ? e : new Error('APC error');
 }

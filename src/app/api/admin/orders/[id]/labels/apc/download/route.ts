@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { apcGetLabelWithPolling, ApcLabelPendingError } from '@/lib/shipping/apc';
+import { ApcNotConfiguredError } from '@/lib/shipping/apc-client';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -28,8 +29,8 @@ export async function GET(_req: Request, ctx: RouteContext) {
     }
 
     // Use saved label if present
-    let mime = shipment.labelMime as string | null;
-    let base64 = shipment.labelBase64 as string | null;
+    let mime = (shipment.labelMime as string | null) ?? null;
+    let base64 = (shipment.labelBase64 as string | null) ?? null;
 
     // Otherwise poll APC
     if (!mime || !base64) {
@@ -54,6 +55,15 @@ export async function GET(_req: Request, ctx: RouteContext) {
             { status: 202 }
           );
         }
+
+        // ✅ If APC env not set in this environment, return 503 not 500
+        if (e instanceof ApcNotConfiguredError) {
+          return NextResponse.json(
+            { ok: false, status: 'APC_NOT_CONFIGURED', message: e.message },
+            { status: 503 }
+          );
+        }
+
         throw e;
       }
     }
@@ -84,6 +94,14 @@ export async function GET(_req: Request, ctx: RouteContext) {
       }
     });
   } catch (err) {
+    // ✅ also catch not-configured here (covers any other callsites)
+    if (err instanceof ApcNotConfiguredError) {
+      return NextResponse.json(
+        { ok: false, status: 'APC_NOT_CONFIGURED', message: err.message },
+        { status: 503 }
+      );
+    }
+
     const message = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({ ok: false, status: 'ERROR', message }, { status: 500 });
   }
