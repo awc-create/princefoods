@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import styles from './promotions.module.scss';
+import styles from './Promotions.module.scss';
 
 interface PromoRedemptionRow {
   id: string;
