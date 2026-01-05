@@ -5,8 +5,48 @@
   - A unique constraint covering the columns `[stripeCustomerId]` on the table `User` will be added. If there are existing duplicate values, this will fail.
 
 */
+
 -- AlterTable
 ALTER TABLE "public"."User" ADD COLUMN     "stripeCustomerId" TEXT;
+
+-- ------------------------------------------------------------------
+-- ✅ DATA CLEANUP (PREVENT UNIQUE INDEX FAILURES)
+-- ------------------------------------------------------------------
+
+-- 1) Fix duplicate Product.sku values (keep oldest row, suffix the rest)
+WITH d AS (
+  SELECT
+    id,
+    sku,
+    ROW_NUMBER() OVER (PARTITION BY sku ORDER BY "createdAt" ASC) AS rn
+  FROM "public"."Product"
+  WHERE sku IS NOT NULL AND sku <> ''
+)
+UPDATE "public"."Product" p
+SET sku = p.sku || '-' || p.id
+FROM d
+WHERE p.id = d.id
+  AND d.rn > 1;
+
+-- 2) Fix duplicate User.stripeCustomerId values (keep oldest row, suffix the rest)
+-- (If your User table doesn't have createdAt, switch ORDER BY to id.)
+WITH u AS (
+  SELECT
+    id,
+    "stripeCustomerId",
+    ROW_NUMBER() OVER (PARTITION BY "stripeCustomerId" ORDER BY "createdAt" ASC) AS rn
+  FROM "public"."User"
+  WHERE "stripeCustomerId" IS NOT NULL AND "stripeCustomerId" <> ''
+)
+UPDATE "public"."User" x
+SET "stripeCustomerId" = x."stripeCustomerId" || '-' || x.id
+FROM u
+WHERE x.id = u.id
+  AND u.rn > 1;
+
+-- ------------------------------------------------------------------
+-- ORIGINAL MIGRATION CONTENT
+-- ------------------------------------------------------------------
 
 -- CreateTable
 CREATE TABLE "public"."Payment" (
