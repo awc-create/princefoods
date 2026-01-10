@@ -1,4 +1,4 @@
-// src/app/admin/customers/%5Bid%5D/page.tsx
+// src/app/admin/customers/%5Bid%5D/page.tsx.
 'use client';
 
 import CustomerPromotions from '@/components/admin/customer/promotions/promotions';
