@@ -47,11 +47,15 @@ ARG NEXT_PUBLIC_ADMIN_URL
 ARG SITE_URL
 ARG USE_DB
 
-# Make them available at build time
+# ✅ ADD: Crisp site id
+ARG NEXT_PUBLIC_CRISP_WEBSITE_ID
+
+# Make them available at build time (Next.js bakes NEXT_PUBLIC_* into client bundle)
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
     NEXT_PUBLIC_ADMIN_URL=$NEXT_PUBLIC_ADMIN_URL \
     SITE_URL=$SITE_URL \
-    USE_DB=$USE_DB
+    USE_DB=$USE_DB \
+    NEXT_PUBLIC_CRISP_WEBSITE_ID=$NEXT_PUBLIC_CRISP_WEBSITE_ID
 
 # Prisma generate again (idempotent) — ensures client matches schema in repo
 RUN npx prisma generate
@@ -91,7 +95,6 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 
 # (Optional) if you run prisma migrate deploy inside the container, you need prisma CLI.
-# Prefer NOT installing globally, but if your runtime deploy script execs prisma, keep this:
 RUN npm i -g prisma@6.15.0
 
 USER 1001
