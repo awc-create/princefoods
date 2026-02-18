@@ -9,6 +9,7 @@ type Role = 'HEAD' | 'STAFF' | 'VIEWER';
 interface SessionUser {
   role?: Role | null;
 }
+
 const hasRole = (u: unknown): u is SessionUser =>
   !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
 
@@ -26,10 +27,12 @@ export async function GET(req: Request) {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+
   const limitParam = searchParams.get('limit');
 
-  if (fields.length ?? limitParam) {
-    const limit = Math.min(parseInt(limitParam ?? '200', 10) ?? 200, 1000);
+  if (fields.length > 0 || limitParam) {
+    const limitRaw = parseInt(limitParam ?? '200', 10);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 1000) : 200;
 
     // Build a typed select
     const select: { id?: true; name?: true } = {};
@@ -45,6 +48,7 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' },
       take: limit
     });
+
     return NextResponse.json(items);
   }
 
@@ -53,16 +57,28 @@ export async function GET(req: Request) {
   const pageSize = 20;
   const search = (searchParams.get('search') ?? '').trim();
 
-  const where = search
-    ? {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' as const } },
-          { sku: { contains: search, mode: 'insensitive' as const } },
-          { brand: { contains: search, mode: 'insensitive' as const } },
-          { collection: { contains: search, mode: 'insensitive' as const } }
-        ]
-      }
-    : undefined;
+  // ✅ collections filter (comma-separated exact matches)
+  const collectionsParam = (searchParams.get('collections') ?? '').trim();
+  const collections = collectionsParam
+    ? collectionsParam
+        .split(',')
+        .map((s) => decodeURIComponent(s).trim())
+        .filter(Boolean)
+    : [];
+
+  const where = {
+    ...(search
+      ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' as const } },
+            { sku: { contains: search, mode: 'insensitive' as const } },
+            { brand: { contains: search, mode: 'insensitive' as const } },
+            { collection: { contains: search, mode: 'insensitive' as const } }
+          ]
+        }
+      : {}),
+    ...(collections.length ? { collection: { in: collections } } : {})
+  };
 
   const [totalMatches, items] = await Promise.all([
     prisma.product.count({ where }),

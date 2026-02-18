@@ -1,3 +1,4 @@
+// src/components/admin/promotions/PromoAttemptsTable.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';

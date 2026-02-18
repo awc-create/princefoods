@@ -1,3 +1,4 @@
+// src/components/shop/CategorySidebar.tsx
 'use client';
 
 import RangeSlider from '@/components/slider/RangeSlider';
@@ -25,33 +26,38 @@ export default function CategorySidebar({
 }: {
   selected: string | null;
   onSelect: (slug: string | null) => void;
-
-  /** Absolute price bounds from the server (in GBP, whole pounds preferred) */
   priceBounds: { min: number; max: number } | null;
-
-  /** Currently applied filter (controlled by parent) */
   currentPrice: { min: number | null; max: number | null };
-
-  /** Report changes to parent */
   onPriceChange: (min: number | null, max: number | null) => void;
 }) {
   const [cats, setCats] = useState<Parent[]>([]);
   const [openParent, setOpenParent] = useState<string | null>(null);
+
+  // ✅ local slider state (dragging does NOT trigger fetch)
+  const [draftPrice, setDraftPrice] = useState<{ min: number | null; max: number | null }>({
+    min: null,
+    max: null
+  });
 
   // Fetch category tree
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const res = await fetch('/api/shop/categories', { cache: 'no-store' });
-      const data = await res.json().catch(() => ({ categories: [] }));
-      if (!cancelled) setCats(Array.isArray(data.categories) ? data.categories : []);
+      const data = (await res.json().catch(() => ({ categories: [] }))) as {
+        categories?: unknown;
+      };
+      if (cancelled) return;
+
+      setCats(Array.isArray(data.categories) ? (data.categories as Parent[]) : []);
     })();
+
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Expand the correct parent when selection changes
+  // Expand correct parent
   useEffect(() => {
     if (!selected) {
       setOpenParent(null);
@@ -66,21 +72,32 @@ export default function CategorySidebar({
     if (parentOfChild) setOpenParent(parentOfChild.slug);
   }, [selected, cats]);
 
-  // -------- Price slider plumbing --------
+  // bounds
   const minLimit = useMemo(() => (priceBounds ? Math.floor(priceBounds.min) : 0), [priceBounds]);
-  const maxLimit = useMemo(
-    () => (priceBounds ? Math.max(Math.ceil(priceBounds.max), Math.floor(priceBounds.min)) : 0),
-    [priceBounds]
-  );
+  const maxLimit = useMemo(() => {
+    if (!priceBounds) return 0;
+    const mn = Math.floor(priceBounds.min);
+    const mx = Math.ceil(priceBounds.max);
+    return Math.max(mx, mn);
+  }, [priceBounds]);
 
-  // What the slider shows (default to the absolute limits if filter is empty)
-  const minVal = currentPrice.min ?? minLimit;
-  const maxVal = currentPrice.max ?? maxLimit;
+  // sync draft when parent filter changes (or bounds change)
+  useEffect(() => {
+    setDraftPrice({
+      min: currentPrice.min,
+      max: currentPrice.max
+    });
+  }, [currentPrice.min, currentPrice.max, minLimit, maxLimit]);
+
+  const minVal = draftPrice.min ?? minLimit;
+  const maxVal = draftPrice.max ?? maxLimit;
 
   const currency = (n: number) =>
     new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n);
 
   const parentsOnly = useMemo(() => cats, [cats]);
+
+  const sliderDisabled = maxLimit <= minLimit;
 
   return (
     <aside className={styles.sidebar}>
@@ -156,7 +173,6 @@ export default function CategorySidebar({
         )}
       </nav>
 
-      {/* Price filter */}
       <div className={styles.priceBox}>
         <div className={styles.priceHeader}>
           <h4>Filter by price</h4>
@@ -165,27 +181,39 @@ export default function CategorySidebar({
           </span>
         </div>
 
-        <RangeSlider
-          aria-label="Price range"
-          min={minLimit}
-          max={maxLimit}
-          step={1}
-          value={{ min: minVal, max: maxVal }}
-          onChange={({ min, max }) => onPriceChange(min, max)}
-        />
+        <div
+          style={{
+            opacity: sliderDisabled ? 0.55 : 1,
+            pointerEvents: sliderDisabled ? 'none' : 'auto'
+          }}
+        >
+          <RangeSlider
+            aria-label="Price range"
+            min={minLimit}
+            max={maxLimit}
+            step={1}
+            value={{ min: minVal, max: maxVal }}
+            onChange={({ min, max }) => setDraftPrice({ min, max })}
+          />
+        </div>
 
         <div className={styles.priceBtns}>
           <button
             className={styles.primary}
             onClick={() => onPriceChange(minVal, maxVal)}
             title="Apply price filter"
+            disabled={sliderDisabled}
           >
             Apply
           </button>
           <button
             className={styles.ghost}
-            onClick={() => onPriceChange(null, null)}
+            onClick={() => {
+              setDraftPrice({ min: null, max: null });
+              onPriceChange(null, null);
+            }}
             title="Clear price filter"
+            disabled={sliderDisabled}
           >
             Clear
           </button>

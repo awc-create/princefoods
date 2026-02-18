@@ -1,4 +1,3 @@
-// src/app/api/admin/products/[id]/route.ts
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
@@ -13,8 +12,13 @@ interface SessionUserWithRole {
 const hasRole = (u: unknown): u is SessionUserWithRole =>
   !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
 
+function intOrNull(val: unknown): number | null {
+  if (val == null || String(val).trim() === '') return null;
+  const n = Math.trunc(Number(val));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 export async function GET(_req: Request, ctx: unknown) {
-  // ✅ cast locally to avoid validator error
   const { params } = ctx as { params: { id: string } };
 
   const session = await getServerSession(authOptions);
@@ -47,9 +51,22 @@ export async function PATCH(req: Request, ctx: unknown) {
     productImageUrl?: string | null;
     description?: string | null;
     visible?: boolean;
+
+    // ✅ new
+    caseQty?: number | null;
   };
 
-  const { name, sku, price, inventory, collection, productImageUrl, description, visible } = body;
+  const {
+    name,
+    sku,
+    price,
+    inventory,
+    collection,
+    productImageUrl,
+    description,
+    visible,
+    caseQty
+  } = body;
 
   const updated = await prisma.product.update({
     where: { id: params.id },
@@ -61,7 +78,8 @@ export async function PATCH(req: Request, ctx: unknown) {
       ...(collection !== undefined ? { collection } : {}),
       ...(productImageUrl !== undefined ? { productImageUrl } : {}),
       ...(description !== undefined ? { description } : {}),
-      ...(visible !== undefined ? { visible: !!visible } : {})
+      ...(visible !== undefined ? { visible: !!visible } : {}),
+      ...(caseQty !== undefined ? { caseQty: intOrNull(caseQty) } : {})
     },
     select: { id: true }
   });
@@ -84,7 +102,6 @@ export async function DELETE(_req: Request, ctx: unknown) {
     await prisma.product.delete({ where: { id: params.id } });
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
-    // Prisma P2025 = record not found on delete
     if ((e as { code?: string }).code === 'P2025') {
       return NextResponse.json({ message: 'Not found' }, { status: 404 });
     }

@@ -1,12 +1,21 @@
 .wrap {
-  position: relative;
-  height: 30px; /* vertical room for thumbs */
+  width: 100%;
 }
 
-/* Track */
+.trackHit {
+  position: relative;
+  height: 34px; /* easy to grab */
+  width: 100%;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none; /* IMPORTANT for mobile dragging */
+}
+
+/* base track */
 .track {
   position: absolute;
-  inset-inline: 0;
+  left: 0;
+  right: 0;
   top: 50%;
   height: 8px;
   transform: translateY(-50%);
@@ -14,7 +23,7 @@
   border-radius: 999px;
 }
 
-/* Selected range fill */
+/* selected fill */
 .fill {
   position: absolute;
   top: 50%;
@@ -25,46 +34,40 @@
   box-shadow: 0 0 0 1px rgba(108, 165, 28, 0.12) inset;
 }
 
-/* Two stacked native ranges -> two thumbs */
-.range {
+/* thumbs */
+.thumb {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  background: none;
-  pointer-events: none; /* only thumbs interactive */
-  appearance: none;
-}
-
-.range::-webkit-slider-thumb {
-  pointer-events: auto;
-  appearance: none;
+  top: 50%;
+  transform: translate(-50%, -50%);
   width: 18px;
   height: 18px;
-  border-radius: 50%;
+  border-radius: 999px;
   background: #fff;
   border: 2px solid var(--accent, #6ca51c);
   box-shadow: 0 0 0 2px rgba(108, 165, 28, 0.22);
-}
-.range::-moz-range-thumb {
-  pointer-events: auto;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #fff;
-  border: 2px solid var(--accent, #6ca51c);
-  box-shadow: 0 0 0 2px rgba(108, 165, 28, 0.22);
+  padding: 0;
+  cursor: grab;
+
+  /* bigger hit area */
+  outline: 12px solid transparent;
+  outline-offset: -12px;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 4px rgba(108, 165, 28, 0.28);
+  }
 }
 
-.range:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 4px rgba(108, 165, 28, 0.28);
-}
-.range:focus-visible::-moz-range-thumb {
-  box-shadow: 0 0 0 4px rgba(108, 165, 28, 0.28);
-}
-
-.left {
+.min {
   z-index: 2;
 }
-.right {
+.max {
   z-index: 3;
+}
+
+.active {
+  z-index: 5;
 }

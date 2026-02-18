@@ -1,7 +1,19 @@
 'use client';
 
 import { safeImageUrl } from '@/utils/safeImageUrl';
-import { Download, Eye, EyeOff, Megaphone, MoreVertical, Trash2, Upload } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  Download,
+  Eye,
+  EyeOff,
+  Filter,
+  Megaphone,
+  MoreVertical,
+  Trash2,
+  Upload,
+  X
+} from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -19,21 +31,33 @@ interface Row {
   createdAt: string;
 }
 
-function childCategory(full?: string | null) {
-  if (!full) return '—';
-  const parts = full
+interface CollectionItem {
+  value: string;
+  count: number;
+}
+
+function parseCollection(full?: string | null) {
+  const raw = (full ?? '').trim();
+  if (!raw) return { parent: 'Uncategorized', child: 'Uncategorized', full: '' };
+
+  const parts = raw
     .split(';')
     .map((s) => s.trim())
     .filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : '—';
+
+  const parent = parts[0] ?? 'Uncategorized';
+  const child = parts.length > 1 ? parts[parts.length - 1] : parent;
+  return { parent, child, full: raw };
 }
 
 export default function ProductsPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   // bulk select
@@ -45,24 +69,51 @@ export default function ProductsPage() {
   const [allMatchingSelected, setAllMatchingSelected] = useState(false);
   const [matchingCount, setMatchingCount] = useState<number | null>(null);
 
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  // collections filter
+  const [collections, setCollections] = useState<CollectionItem[]>([]);
+  const [collectionOpen, setCollectionOpen] = useState(false);
+  const [collectionQuery, setCollectionQuery] = useState('');
+  const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
 
-  // Load list
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const filterRef = useRef<HTMLDivElement | null>(null);
+
+  const collectionsParam = useMemo(() => {
+    if (!selectedCollections.length) return '';
+    return selectedCollections.map((v) => encodeURIComponent(v)).join(',');
+  }, [selectedCollections]);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/admin/products?search=${encodeURIComponent(q)}&page=${page}`);
-    const data = await res.json();
+    const url = `/api/admin/products?search=${encodeURIComponent(q)}&page=${page}${
+      collectionsParam ? `&collections=${collectionsParam}` : ''
+    }`;
+    const res = await fetch(url);
+    const data = await res.json().catch(() => ({}));
     setRows(data.items ?? []);
     setTotalPages(data.totalPages ?? 1);
     setLoading(false);
-  }, [q, page]);
+  }, [q, page, collectionsParam]);
+
+  const loadCollections = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/products/collections?search=${encodeURIComponent(q)}`, {
+        cache: 'no-store'
+      });
+      const data = (await res.json().catch(() => ({}))) as { items?: CollectionItem[] };
+      setCollections(Array.isArray(data.items) ? data.items : []);
+    } catch {
+      setCollections([]);
+    }
+  }, [q]);
 
   useEffect(() => {
     let ignore = false;
     (async () => {
       if (ignore) return;
-      await load();
-      // reset cross-page selection when query/page changes
+      await Promise.all([load(), loadCollections()]);
+
+      // reset cross-page selection when query/page/filters changes
       setAllMatchingSelected(false);
       setMatchingCount(null);
       setSelected({});
@@ -70,12 +121,13 @@ export default function ProductsPage() {
     return () => {
       ignore = true;
     };
-  }, [load]);
+  }, [load, loadCollections]);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
-      if (!menuRef.current) return;
-      if (!menuRef.current.contains(e.target as Node)) setOpenMenu(null);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpenMenu(null);
+      if (filterRef.current && !filterRef.current.contains(e.target as Node))
+        setCollectionOpen(false);
     };
     document.addEventListener('click', onDocClick);
     return () => document.removeEventListener('click', onDocClick);
@@ -108,11 +160,17 @@ export default function ProductsPage() {
 
   const ensureMatchingCount = useCallback(async () => {
     if (matchingCount != null) return matchingCount;
-    const res = await fetch(`/api/admin/products/count?search=${encodeURIComponent(q)}`);
-    const data = await res.json();
-    setMatchingCount(data.count ?? 0);
-    return data.count ?? 0;
-  }, [matchingCount, q]);
+
+    const url = `/api/admin/products/count?search=${encodeURIComponent(q)}${
+      collectionsParam ? `&collections=${collectionsParam}` : ''
+    }`;
+    const res = await fetch(url);
+    const data = await res.json().catch(() => ({}));
+    const c = typeof data.count === 'number' ? data.count : 0;
+
+    setMatchingCount(c);
+    return c;
+  }, [matchingCount, q, collectionsParam]);
 
   const selectAllMatching = useCallback(async () => {
     const count = await ensureMatchingCount();
@@ -148,19 +206,27 @@ export default function ProductsPage() {
     if (res.ok) setRows((rs) => rs.filter((r) => r.id !== id));
   }, []);
 
-  // Bulk actions
   const bulk = useCallback(
     async (action: 'hide' | 'show' | 'delete') => {
       if (allMatchingSelected) {
         if (action === 'delete') {
-          const ok = confirm(`Delete ALL products that match your search? This cannot be undone.`);
+          const ok = confirm(
+            `Delete ALL products that match your current filters? This cannot be undone.`
+          );
           if (!ok) return;
         }
+
         const res = await fetch('/api/admin/products/bulk', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action, allMatching: true, search: q })
+          body: JSON.stringify({
+            action,
+            allMatching: true,
+            search: q,
+            collections: selectedCollections
+          })
         });
+
         if (res.ok) {
           clearSelection();
           await load();
@@ -172,7 +238,7 @@ export default function ProductsPage() {
       }
 
       const ids = idsSelected();
-      if (ids.length === 0) return;
+      if (!ids.length) return;
 
       if (action === 'delete') {
         const ok = confirm(`Delete ${ids.length} product(s)? This cannot be undone.`);
@@ -184,6 +250,7 @@ export default function ProductsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, ids })
       });
+
       if (res.ok) {
         clearSelection();
         await load();
@@ -192,47 +259,74 @@ export default function ProductsPage() {
         alert(err.message ?? 'Bulk action failed');
       }
     },
-    [allMatchingSelected, q, clearSelection, load, idsSelected]
+    [allMatchingSelected, q, selectedCollections, clearSelection, load, idsSelected]
   );
 
   const exportSelected = useCallback(() => {
     const ids = idsSelected();
+
     const url =
       ids.length > 0
         ? `/api/admin/products/export?ids=${encodeURIComponent(ids.join(','))}`
-        : `/api/admin/products/export`;
+        : `/api/admin/products/export?search=${encodeURIComponent(q)}${
+            selectedCollections.length
+              ? `&collections=${encodeURIComponent(selectedCollections.join(','))}`
+              : ''
+          }`;
+
     const a = document.createElement('a');
     a.href = url;
     a.download = 'products.csv';
     document.body.appendChild(a);
     a.click();
     a.remove();
-  }, [idsSelected]);
+  }, [idsSelected, q, selectedCollections]);
 
-  const header = useMemo(() => {
-    return (
-      <div className={styles.toolbar}>
-        <input
-          placeholder="Search name, SKU, brand, collection…"
-          value={q}
-          onChange={(e) => {
-            setPage(1);
-            setQ(e.target.value);
-          }}
-        />
-        <div className={styles.spacer} />
-        <Link href="/admin/products/import" className={styles.secondaryBtn}>
-          <Upload size={16} style={{ marginRight: 6 }} /> Import
-        </Link>
-        <button onClick={exportSelected} className={styles.secondaryBtn}>
-          <Download size={16} style={{ marginRight: 6 }} /> Export
-        </button>
-        <Link href="/admin/products/create" className={styles.primaryBtn}>
-          + New product
-        </Link>
-      </div>
+  // Group collections by parent, show child label only
+  const groupedCollections = useMemo(() => {
+    const groups = new Map<string, { value: string; child: string; count: number }[]>();
+
+    const qq = collectionQuery.trim().toLowerCase();
+
+    const filtered = collections.filter((c) => {
+      const { parent, child } = parseCollection(c.value);
+      const text = `${parent} ${child} ${c.value}`.toLowerCase();
+      return !qq || text.includes(qq);
+    });
+
+    for (const c of filtered) {
+      const { parent, child } = parseCollection(c.value);
+      if (!groups.has(parent)) groups.set(parent, []);
+      groups.get(parent)!.push({ value: c.value, child, count: c.count });
+    }
+
+    return Array.from(groups.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([parent, items]) => ({
+        parent,
+        items: items.sort((x, y) => y.count - x.count || x.child.localeCompare(y.child))
+      }));
+  }, [collections, collectionQuery]);
+
+  const toggleCollection = useCallback((full: string) => {
+    setPage(1);
+    setSelectedCollections((prev) =>
+      prev.includes(full) ? prev.filter((x) => x !== full) : [...prev, full]
     );
-  }, [q, exportSelected]);
+  }, []);
+
+  const clearCollections = useCallback(() => {
+    setPage(1);
+    setSelectedCollections([]);
+    setCollectionQuery('');
+  }, []);
+
+  const selectedCollectionLabels = useMemo(() => {
+    return selectedCollections.map((full) => {
+      const { parent, child } = parseCollection(full);
+      return { full, parent, child };
+    });
+  }, [selectedCollections]);
 
   const pageSelectionBanner = useMemo(() => {
     if (!allOnPageSelected || allMatchingSelected) return null;
@@ -293,7 +387,126 @@ export default function ProductsPage() {
 
       {bulkBar}
       {pageSelectionBanner}
-      {header}
+
+      <div className={styles.toolbar}>
+        <input
+          placeholder="Search name, SKU, brand, collection…"
+          value={q}
+          onChange={(e) => {
+            setPage(1);
+            setQ(e.target.value);
+          }}
+        />
+
+        <div className={styles.filterWrap} ref={filterRef}>
+          <button
+            type="button"
+            className={styles.filterBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              setCollectionOpen((v) => !v);
+            }}
+            aria-expanded={collectionOpen}
+          >
+            <Filter size={16} />
+            Collections
+            {selectedCollections.length ? (
+              <span className={styles.filterCount}>{selectedCollections.length}</span>
+            ) : null}
+            <ChevronDown size={16} />
+          </button>
+
+          {collectionOpen && (
+            <div className={styles.filterMenu} onClick={(e) => e.stopPropagation()}>
+              <div className={styles.filterTop}>
+                <input
+                  placeholder="Filter collections…"
+                  value={collectionQuery}
+                  onChange={(e) => setCollectionQuery(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className={styles.clearMini}
+                  onClick={clearCollections}
+                  disabled={!selectedCollections.length && !collectionQuery}
+                >
+                  Clear
+                </button>
+              </div>
+
+              <div className={styles.filterBody}>
+                {groupedCollections.length === 0 ? (
+                  <div className={styles.filterEmpty}>No collections found</div>
+                ) : (
+                  groupedCollections.map((g) => (
+                    <div key={g.parent} className={styles.group}>
+                      <div className={styles.groupTitle}>{g.parent}</div>
+                      <div className={styles.groupItems}>
+                        {g.items.map((it) => {
+                          const on = selectedCollections.includes(it.value);
+                          return (
+                            <button
+                              key={it.value}
+                              type="button"
+                              className={`${styles.item} ${on ? styles.itemOn : ''}`}
+                              onClick={() => toggleCollection(it.value)}
+                              title={it.value}
+                            >
+                              <span className={styles.itemLeft}>
+                                <span className={styles.checkbox}>
+                                  {on ? <Check size={14} /> : null}
+                                </span>
+                                <span className={styles.itemLabel}>{it.child}</span>
+                              </span>
+                              <span className={styles.itemCount}>{it.count}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className={styles.spacer} />
+
+        <Link href="/admin/products/import" className={styles.secondaryBtn}>
+          <Upload size={16} style={{ marginRight: 6 }} /> Import
+        </Link>
+
+        <button onClick={exportSelected} className={styles.secondaryBtn}>
+          <Download size={16} style={{ marginRight: 6 }} /> Export
+        </button>
+
+        <Link href="/admin/products/create" className={styles.primaryBtn}>
+          + New product
+        </Link>
+      </div>
+
+      {selectedCollectionLabels.length ? (
+        <div className={styles.selectedChips}>
+          {selectedCollectionLabels.map((c) => (
+            <button
+              key={c.full}
+              type="button"
+              className={styles.chip}
+              onClick={() => toggleCollection(c.full)}
+              title={c.full}
+            >
+              <span className={styles.chipParent}>{c.parent}</span>
+              <span className={styles.chipSep}>→</span>
+              <span className={styles.chipChild}>{c.child}</span>
+              <X size={14} className={styles.chipX} />
+            </button>
+          ))}
+          <button type="button" className={styles.clearAll} onClick={clearCollections}>
+            Clear collections
+          </button>
+        </div>
+      ) : null}
 
       <div className={styles.tableWrap}>
         <table className={styles.table}>
@@ -302,16 +515,10 @@ export default function ProductsPage() {
               <th className={styles.colCheck}>
                 <input
                   type="checkbox"
-                  // show checked if either all on this page OR all-matching are selected
                   checked={allOnPageSelected || allMatchingSelected}
                   onChange={(e) => {
-                    if (e.target.checked) {
-                      // select this page; banner will appear offering “select all matching”
-                      toggleSelectPage(true);
-                    } else {
-                      // clear all selection modes
-                      clearSelection();
-                    }
+                    if (e.target.checked) toggleSelectPage(true);
+                    else clearSelection();
                   }}
                   aria-label="Select all on page"
                 />
@@ -325,6 +532,7 @@ export default function ProductsPage() {
               <th className={styles.colActions}></th>
             </tr>
           </thead>
+
           <tbody>
             {loading ? (
               <tr>
@@ -341,6 +549,8 @@ export default function ProductsPage() {
             ) : (
               rows.map((r) => {
                 const img = safeImageUrl(r.productImageUrl);
+                const { parent, child } = parseCollection(r.collection);
+
                 return (
                   <tr key={r.id} className={styles.row}>
                     <td className={styles.checkCell}>
@@ -351,6 +561,7 @@ export default function ProductsPage() {
                         aria-label={`Select ${r.name}`}
                       />
                     </td>
+
                     <td className={styles.picCell}>
                       <div className={styles.pic}>
                         {img ? (
@@ -366,6 +577,7 @@ export default function ProductsPage() {
                         )}
                       </div>
                     </td>
+
                     <td>
                       <div className={styles.nameCell}>
                         <Link href={`/admin/products/${r.id}`} className={styles.nameLink}>
@@ -374,10 +586,22 @@ export default function ProductsPage() {
                         {!r.visible && <span className={styles.badge}>Hidden</span>}
                       </div>
                     </td>
+
                     <td>{r.sku ?? '—'}</td>
                     <td>{r.price != null ? `£${r.price.toFixed(2)}` : '—'}</td>
                     <td>{r.inventory ?? '—'}</td>
-                    <td>{childCategory(r.collection)}</td>
+
+                    <td>
+                      {r.collection ? (
+                        <span className={styles.collectionBadge} title={r.collection}>
+                          <span className={styles.collectionParent}>{parent}</span>
+                          <span className={styles.collectionDot}>•</span>
+                          <span className={styles.collectionChild}>{child}</span>
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
 
                     <td className={styles.actionsCell}>
                       <div className={styles.hoverbar}>
@@ -388,6 +612,7 @@ export default function ProductsPage() {
                         >
                           <Megaphone size={16} />
                         </button>
+
                         {r.visible ? (
                           <button
                             className={styles.iconBtn}
@@ -405,6 +630,7 @@ export default function ProductsPage() {
                             <Eye size={16} />
                           </button>
                         )}
+
                         <div className={styles.menuWrap} ref={menuRef}>
                           <button
                             className={styles.iconBtn}
@@ -416,6 +642,7 @@ export default function ProductsPage() {
                           >
                             <MoreVertical size={16} />
                           </button>
+
                           {openMenu === r.id && (
                             <div className={styles.menu}>
                               <Link href={`/admin/products/${r.id}`}>Edit</Link>

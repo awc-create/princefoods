@@ -1,4 +1,5 @@
 // src/app/api/stripe/webhook/route.ts
+import { markOffersUsedByOrder } from '@/lib/offer-attempts';
 import { logActivity } from '@/lib/order-activity';
 import { prisma } from '@/lib/prisma';
 import { redeemPromotionForPaidOrder } from '@/lib/promotion-redemption';
@@ -168,8 +169,11 @@ async function markOrderCaptured(args: {
       }
     });
 
-    // ✅ move this here so first capture marks promo used
+    // ✅ first capture marks promo used
     await markPromotionUsedByOrder(orderId);
+
+    // ✅ first capture marks offers used
+    await markOffersUsedByOrder(orderId);
   } else if (finalIntentId && !order.paymentIntentId) {
     await prisma.order.update({
       where: { id: orderId },
@@ -177,6 +181,7 @@ async function markOrderCaptured(args: {
     });
 
     await markPromotionUsedByOrder(orderId);
+    await markOffersUsedByOrder(orderId);
   }
 
   // Payment idempotency
@@ -252,9 +257,8 @@ export async function POST(req: NextRequest) {
   try {
     const payload = await rawBody(req);
     const sig = req.headers.get('stripe-signature');
-    if (!sig) {
+    if (!sig)
       return NextResponse.json({ ok: false, error: 'Missing stripe-signature' }, { status: 400 });
-    }
 
     event = await stripe.webhooks.constructEventAsync(payload, sig, webhookSecret);
 
@@ -265,7 +269,7 @@ export async function POST(req: NextRequest) {
           source: 'stripe',
           type: event.type,
           eventId: event.id,
-          payload: asJson(event) // ✅ Json-safe
+          payload: asJson(event)
         }
       });
     } catch (e) {
@@ -273,9 +277,8 @@ export async function POST(req: NextRequest) {
 
       const existing = await prisma.webhookEvent.findUnique({
         where: { eventId: event.id },
-        select: { processedAt: true, success: true }
+        select: { processedAt: true }
       });
-
       if (existing?.processedAt) {
         return NextResponse.json({ received: true, idempotent: true });
       }

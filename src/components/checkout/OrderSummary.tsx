@@ -1,17 +1,16 @@
-// src/components/checkout/OrderSummary.tsx
 'use client';
 
-import styles from '@/app/checkout/checkout.module.scss';
 import type { CartLine } from '@/lib/cart-store';
 import { penceToGBP } from '@/lib/money';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import styles from './OrderSummary.module.scss';
 
 type ShippingKind = 'DRY' | 'FROZEN' | 'MIXED';
 
 interface EvalItem {
   productId?: string | null;
   sku?: string | null;
-  unitPrice: number; // pence
+  unitPrice: number;
   quantity: number;
 }
 
@@ -24,12 +23,55 @@ interface EvaluateOk {
   discountPence: number;
   shippingDiscountPence: number;
 }
-
 interface EvaluateErr {
   ok: false;
   error: string;
 }
 type EvaluateResp = EvaluateOk | EvaluateErr;
+
+interface LineDiscount {
+  productId?: string | null;
+  sku?: string | null;
+  name: string;
+  qty: number;
+  amountPence: number;
+  reason?: 'FREE' | 'DISCOUNT';
+}
+
+interface LineParticipant {
+  productId?: string | null;
+  sku?: string | null;
+  name: string;
+  qty: number;
+  role?: 'BUY' | 'GET' | 'ELIGIBLE' | 'FREE';
+}
+
+interface OfferCard {
+  offerId: string;
+  name: string;
+  kind: string;
+  discountPence: number;
+  meta?: {
+    lineDiscounts?: LineDiscount[];
+    lineParticipants?: LineParticipant[];
+    groups?: number;
+    freeCount?: number;
+    samePool?: boolean;
+  } | null;
+}
+
+interface OffersSnapshot {
+  discountPence: number;
+  applied: OfferCard[];
+  eligible?: OfferCard[];
+  autoAdd: {
+    reasonOfferId: string;
+    productId?: string | null;
+    sku?: string | null;
+    name: string;
+    qty: number;
+  }[];
+}
 
 function normCode(v: string) {
   return v.trim().toUpperCase().replace(/\s+/g, '');
@@ -62,6 +104,15 @@ function friendlyPromoError(code: string) {
   }
 }
 
+const normNameKey = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+const normSkuKey = (s: string) => s.trim().toUpperCase().replace(/\s+/g, ' ');
+
+function itemKeyOf(x: { productId?: string | null; sku?: string | null; name: string }) {
+  if (x.productId) return `pid:${x.productId}`;
+  if (x.sku) return `sku:${normSkuKey(x.sku)}`;
+  return `name:${normNameKey(x.name)}`;
+}
+
 export default function OrderSummary({
   mounted,
   items,
@@ -74,15 +125,16 @@ export default function OrderSummary({
   onRemove,
   promo,
   setPromo,
-
   userId,
   email,
   currency = 'GBP',
   shippingKind = 'DRY',
   onPromoApplied,
-
-  // ✅ NEW: changes when shipping/totals/address changes → we auto re-check if promo is applied
-  recheckKey
+  recheckKey,
+  offersSnap,
+  useOffers,
+  offerDiscountTotal,
+  promoDiscountTotal
 }: {
   mounted: boolean;
   items: CartLine[];
@@ -110,6 +162,11 @@ export default function OrderSummary({
   }) => void;
 
   recheckKey?: string;
+
+  offersSnap?: OffersSnapshot;
+  useOffers?: boolean;
+  offerDiscountTotal?: number;
+  promoDiscountTotal?: number;
 }) {
   const [promoState, setPromoState] = useState<
     | { status: 'idle' }
@@ -125,6 +182,25 @@ export default function OrderSummary({
     | { status: 'error'; message: string }
   >({ status: 'idle' });
 
+  const offers = useMemo<OffersSnapshot>(
+    () =>
+      offersSnap ?? {
+        discountPence: 0,
+        applied: [],
+        eligible: [],
+        autoAdd: []
+      },
+    [offersSnap]
+  );
+
+  const usingOffers = Boolean(useOffers);
+
+  const offersToShow = useMemo(() => {
+    if (usingOffers) return offers.applied;
+    const eligible = offers.eligible ?? [];
+    return eligible.length ? eligible : offers.applied;
+  }, [usingOffers, offers.applied, offers.eligible]);
+
   const itemDiscount = useMemo(() => {
     if (promoState.status !== 'applied') return 0;
     return Math.max(0, Math.trunc(promoState.discountPence));
@@ -135,10 +211,28 @@ export default function OrderSummary({
     return Math.max(0, Math.trunc(promoState.shippingDiscountPence));
   }, [promoState]);
 
-  const promoDiscountTotal = useMemo(
+  const localPromoDiscountTotal = useMemo(
     () => Math.max(0, itemDiscount + shipDiscount),
     [itemDiscount, shipDiscount]
   );
+
+  const promoTotalShown = Math.max(
+    0,
+    Math.trunc(promoDiscountTotal ?? localPromoDiscountTotal ?? 0)
+  );
+
+  const offersTotalComputed = useMemo(() => {
+    const backend = Math.max(0, Math.trunc(offers.discountPence ?? 0));
+    if (backend > 0) return backend;
+
+    return offers.applied.reduce(
+      (sum, a) => sum + Math.max(0, Math.trunc(a.discountPence ?? 0)),
+      0
+    );
+  }, [offers.discountPence, offers.applied]);
+
+  const offerTotalShown = Math.max(0, Math.trunc(offerDiscountTotal ?? offersTotalComputed ?? 0));
+  const effectiveDiscountShown = usingOffers ? offerTotalShown : promoTotalShown;
 
   const clearAppliedSnapshot = useCallback(() => {
     onPromoApplied?.({
@@ -184,8 +278,6 @@ export default function OrderSummary({
           items: evalItems,
           userId: userId ?? null,
           email: email ?? null,
-
-          // ✅ server computes subtotal from items; we only pass current shipping
           shippingPence: Math.max(0, Math.trunc(shippingCost)),
           currency,
           shippingKind
@@ -239,7 +331,6 @@ export default function OrderSummary({
     clearAppliedSnapshot
   ]);
 
-  // ✅ Auto re-check when shipping/totals change (ONLY if already applied)
   useEffect(() => {
     if (!mounted) return;
     if (!recheckKey) return;
@@ -257,6 +348,59 @@ export default function OrderSummary({
     clearAppliedSnapshot();
   }
 
+  // -----------------------------
+  // ✅ Offer display helpers
+  // - discount by item (from meta)
+  // - free qty by item (from autoAdd)
+  // - show offer name ONCE (not buy+get duplicated)
+  // -----------------------------
+
+  const offerDiscountByItemKey = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const a of offersToShow) {
+      const ld = a.meta?.lineDiscounts ?? [];
+      for (const d of ld) {
+        const k = itemKeyOf({ productId: d.productId ?? null, sku: d.sku ?? null, name: d.name });
+        m.set(k, (m.get(k) ?? 0) + Math.max(0, Math.trunc(d.amountPence ?? 0)));
+      }
+    }
+    return m;
+  }, [offersToShow]);
+
+  const offerNamesByItemKey = useMemo(() => {
+    const m = new Map<string, string[]>();
+
+    for (const a of offersToShow) {
+      const parts = a.meta?.lineParticipants ?? [];
+      for (const p of parts) {
+        const k = itemKeyOf({ productId: p.productId ?? null, sku: p.sku ?? null, name: p.name });
+        const arr = m.get(k) ?? [];
+        arr.push(a.name);
+        m.set(k, arr);
+      }
+    }
+
+    // unique, stable
+    for (const [k, arr] of m.entries()) {
+      const uniq = Array.from(new Set(arr.map((x) => x.trim()).filter(Boolean)));
+      m.set(k, uniq);
+    }
+
+    return m;
+  }, [offersToShow]);
+
+  const freeQtyByItemKey = useMemo(() => {
+    const m = new Map<string, number>();
+
+    // autoAdd is the clearest source of "extra free units"
+    for (const a of offers.autoAdd ?? []) {
+      const k = itemKeyOf({ productId: a.productId ?? null, sku: a.sku ?? null, name: a.name });
+      m.set(k, (m.get(k) ?? 0) + Math.max(0, Math.trunc(a.qty ?? 0)));
+    }
+
+    return m;
+  }, [offers.autoAdd]);
+
   return (
     <aside className={styles.summary} aria-label="Order summary">
       <h3 className={styles.h3}>Summary</h3>
@@ -266,60 +410,137 @@ export default function OrderSummary({
         {mounted && items.length === 0 && <li className={styles.muted}>Your cart is empty.</li>}
 
         {mounted &&
-          items.map((it) => (
-            <li key={it.id} className={styles.itemRow}>
-              <div className={styles.itemLeft}>
-                <div className={styles.thumbWrap} aria-hidden>
-                  <img
-                    src={it.imageUrl ?? it.image ?? '/assets/prince-foods-logo.png'}
-                    alt={it.name}
-                    className={styles.thumb}
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </div>
+          items.map((it) => {
+            const sku = (it as unknown as { sku?: string | null }).sku ?? null;
 
-                <div className={styles.itemMeta}>
-                  <span className={styles.itemName} title={it.name}>
-                    {it.name}
-                  </span>
+            const itemKey = itemKeyOf({
+              productId: it.productId ?? null,
+              sku,
+              name: it.name
+            });
 
-                  <div className={styles.qtyControls} aria-label="Quantity controls">
-                    <button
-                      type="button"
-                      onClick={() => (it.quantity > 1 ? onDecQty(it.id) : onRemove(it.id))}
-                      className={styles.qtyBtn}
-                      aria-label="Decrease quantity"
-                    >
-                      −
-                    </button>
+            const lineOfferDiscount = offerDiscountByItemKey.get(itemKey) ?? 0;
 
-                    <input
-                      className={styles.qtyInput}
-                      inputMode="numeric"
-                      value={it.quantity}
-                      onChange={(e) => {
-                        const v = Math.max(1, parseInt(e.target.value || '1', 10));
-                        onSetQty(it.id, v);
-                      }}
-                      aria-label="Quantity"
+            const offerNames = offerNamesByItemKey.get(itemKey) ?? [];
+            const freeQty = usingOffers ? (freeQtyByItemKey.get(itemKey) ?? 0) : 0;
+
+            // ✅ Display qty includes free units (BOGOF-style)
+            const displayQty = Math.max(1, Math.trunc(it.quantity)) + Math.max(0, freeQty);
+
+            const paidQty = Math.max(1, Math.trunc(it.quantity));
+            const fullQty = paidQty + Math.max(0, freeQty);
+
+            const unit = Math.max(0, Math.trunc(it.unitPrice));
+            const paidTotalPence = unit * paidQty;
+            const fullTotalPence = unit * fullQty;
+
+            const showWas = usingOffers && freeQty > 0 && fullTotalPence > paidTotalPence;
+
+            // When free qty exists, we keep the input readOnly (avoids mismatch when typing)
+            const lockQtyInput = freeQty > 0 && usingOffers;
+
+            return (
+              <li key={it.id} className={styles.itemRow}>
+                <div className={styles.itemLeft}>
+                  <div className={styles.thumbWrap} aria-hidden>
+                    <img
+                      src={
+                        it.imageUrl ??
+                        (it as unknown as { image?: string | null }).image ??
+                        '/assets/prince-foods-logo.png'
+                      }
+                      alt={it.name}
+                      className={styles.thumb}
+                      loading="lazy"
+                      decoding="async"
                     />
+                  </div>
 
-                    <button
-                      type="button"
-                      onClick={() => onIncQty(it.id)}
-                      className={styles.qtyBtn}
-                      aria-label="Increase quantity"
-                    >
-                      +
-                    </button>
+                  <div className={styles.itemMeta}>
+                    <span className={styles.itemName} title={it.name}>
+                      {it.name}
+                    </span>
+
+                    <div className={styles.qtyControls} aria-label="Quantity controls">
+                      <button
+                        type="button"
+                        onClick={() => (it.quantity > 1 ? onDecQty(it.id) : onRemove(it.id))}
+                        className={styles.qtyBtn}
+                        aria-label="Decrease quantity"
+                      >
+                        −
+                      </button>
+
+                      <input
+                        className={styles.qtyInput}
+                        inputMode="numeric"
+                        value={displayQty}
+                        readOnly={lockQtyInput}
+                        onChange={(e) => {
+                          // Only allow typing if not locked (no free qty)
+                          if (lockQtyInput) return;
+                          const v = Math.max(1, parseInt(e.target.value || '1', 10));
+                          onSetQty(it.id, v);
+                        }}
+                        aria-label="Quantity"
+                        title={
+                          lockQtyInput
+                            ? `Includes ${freeQty} free item${freeQty === 1 ? '' : 's'}`
+                            : undefined
+                        }
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => onIncQty(it.id)}
+                        className={styles.qtyBtn}
+                        aria-label="Increase quantity"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    {usingOffers && freeQty > 0 && (
+                      <div className={styles.offerLineHint}>
+                        Includes <strong>{freeQty}</strong> free item{freeQty === 1 ? '' : 's'}
+                      </div>
+                    )}
+
+                    {lineOfferDiscount > 0 && (
+                      <div className={styles.offerLineHint}>
+                        Offer applied: <strong>-{penceToGBP(lineOfferDiscount)}</strong>
+                      </div>
+                    )}
+
+                    {/* ✅ Simpler: show offer name(s) once (no duplicate buy/get lines) */}
+                    {offerNames.length > 0 && (
+                      <div className={styles.offerLineMeta}>
+                        {offerNames.map((n) => (
+                          <div key={n} className={styles.offerLineMetaRow}>
+                            <span className={styles.offerLineMetaText}>{n}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
 
-              <div className={styles.itemPrice}>{penceToGBP(it.unitPrice * it.quantity)}</div>
-            </li>
-          ))}
+                {/* price stays as PAID qty only */}
+                <div className={styles.itemPrice}>
+                  {showWas ? (
+                    <div style={{ display: 'grid', justifyItems: 'end', gap: 4 }}>
+                      <span style={{ textDecoration: 'line-through', opacity: 0.65, fontSize: 13 }}>
+                        Was {penceToGBP(fullTotalPence)}
+                      </span>
+                      <span>Now {penceToGBP(paidTotalPence)}</span>
+                    </div>
+                  ) : (
+                    penceToGBP(paidTotalPence)
+                  )}
+                </div>
+              </li>
+            );
+          })}
       </ul>
 
       <div className={styles.promoRow}>
@@ -358,19 +579,15 @@ export default function OrderSummary({
         )}
       </div>
 
-      {promoState.status === 'applied' && (
+      {promoState.status === 'applied' && !usingOffers && (
         <p className={styles.promoHint}>
           ✅ Applied: <strong>{promoState.code}</strong>
           {promoState.name ? <> — {promoState.name}</> : null}
-          {promoDiscountTotal > 0 ? <> ({penceToGBP(promoDiscountTotal)} off)</> : null}
+          {promoTotalShown > 0 ? <> ({penceToGBP(promoTotalShown)} off)</> : null}
         </p>
       )}
 
-      {promoState.status === 'error' && (
-        <p className={styles.promoHint} style={{ color: '#ef4444' }}>
-          {promoState.message}
-        </p>
-      )}
+      {promoState.status === 'error' && <p className={styles.err}>{promoState.message}</p>}
 
       <div className={styles.row}>
         <span>Subtotal</span>
@@ -382,27 +599,11 @@ export default function OrderSummary({
         <span>{penceToGBP(shippingCost)}</span>
       </div>
 
-      {promoState.status === 'applied' && (itemDiscount > 0 || shipDiscount > 0) && (
-        <>
-          {itemDiscount > 0 && (
-            <div className={styles.row}>
-              <span>Promo discount</span>
-              <span>-{penceToGBP(itemDiscount)}</span>
-            </div>
-          )}
-
-          {shipDiscount > 0 && (
-            <div className={styles.row}>
-              <span>Shipping discount</span>
-              <span>-{penceToGBP(shipDiscount)}</span>
-            </div>
-          )}
-
-          <div className={styles.row}>
-            <span>Total discount ({promoState.code})</span>
-            <span>-{penceToGBP(promoDiscountTotal)}</span>
-          </div>
-        </>
+      {effectiveDiscountShown > 0 && (
+        <div className={styles.row}>
+          <span>{usingOffers ? 'Discount (Offer)' : 'Discount (Promo)'}</span>
+          <span>-{penceToGBP(effectiveDiscountShown)}</span>
+        </div>
       )}
 
       <div className={styles.total}>

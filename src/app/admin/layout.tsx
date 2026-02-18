@@ -84,7 +84,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         title: 'Site Editing',
         hide: !canEditSite,
         items: [
-          { href: '/admin/site/home', label: 'Home' },
+          { href: '/admin/site/home', label: 'Home (Hero/Delivery/etc)' },
+          { href: '/admin/site/home/sections', label: 'Home Sections' },
           { href: '/admin/site/about', label: 'About' },
           { href: '/admin/site/faq', label: 'FAQ' },
           { href: '/admin/site/contact', label: 'Contact' }
@@ -118,7 +119,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         hide: !canManageMarketing,
         items: [
           // ✅ PROMOTIONS ADMIN PAGE INTEGRATION
-          { href: '/admin/promotions', label: 'Promotions' }
+          { href: '/admin/promotions', label: 'Promotions' },
+          { href: '/admin/offers', label: 'Offers' }
         ]
       },
       {

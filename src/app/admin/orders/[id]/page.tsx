@@ -96,6 +96,16 @@ interface PromotionRow {
   status: string;
 }
 
+interface OrderOfferRow {
+  id: string;
+  offerId: string;
+  offerName: string;
+  offerKind: string | null;
+  discountPence: number;
+  meta: unknown;
+  appliedAt: Date | string;
+}
+
 interface OrderWithRels {
   id: string;
   displayId: string | null;
@@ -136,12 +146,46 @@ interface OrderWithRels {
 
   payments: PaymentRow[];
   items: OrderItemRow[];
+  orderOffers: OrderOfferRow[];
 }
 
 function formatMoney(pence: number, currency = 'GBP') {
-  return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format((pence ?? 0) / 100);
+  const v = Number.isFinite(pence) ? pence : 0;
+  return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(v / 100);
 }
+
 const formatKg = (g: number) => `${(g / 1000).toFixed(2)} kg`;
+
+/** ✅ Offer meta parsing (removes all `any`) */
+interface AutoAddMetaItem {
+  name: string;
+  qty: number;
+}
+interface OfferMeta {
+  autoAdd?: AutoAddMetaItem[];
+}
+
+function parseOfferMeta(meta: unknown): OfferMeta {
+  if (!meta || typeof meta !== 'object') return {};
+
+  const m = meta as Record<string, unknown>;
+  const raw = m.autoAdd;
+
+  if (!Array.isArray(raw)) return {};
+
+  const cleaned: AutoAddMetaItem[] = raw
+    .map((it) => {
+      if (!it || typeof it !== 'object') return null;
+      const o = it as Record<string, unknown>;
+      const name = typeof o.name === 'string' ? o.name : null;
+      const qty = typeof o.qty === 'number' ? o.qty : null;
+      if (!name || qty === null) return null;
+      return { name, qty };
+    })
+    .filter((x): x is AutoAddMetaItem => Boolean(x));
+
+  return cleaned.length ? { autoAdd: cleaned } : {};
+}
 
 function Badge({
   children,
@@ -157,6 +201,7 @@ function Badge({
     danger: { background: '#5a1717', color: '#ffd6d6' },
     muted: { background: '#2a2a2a', color: '#bbb' }
   };
+
   return (
     <span
       style={{
@@ -185,8 +230,23 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         payments: true,
         shippingAddress: true,
         billingAddress: true,
+
         // ✅ include promo info (select only needed fields)
-        promotion: { select: { id: true, code: true, name: true, status: true } }
+        promotion: { select: { id: true, code: true, name: true, status: true } },
+
+        // ✅ offers audit
+        orderOffers: {
+          orderBy: { appliedAt: 'asc' },
+          select: {
+            id: true,
+            offerId: true,
+            offerName: true,
+            offerKind: true,
+            discountPence: true,
+            meta: true,
+            appliedAt: true
+          }
+        }
       }
     }),
     prisma.orderActivity.findMany({
@@ -200,7 +260,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     })
   ]);
 
-  // Cast to the local shapes we use (avoids implicit any + avoids @prisma/client Address import)
   const order = (orderRaw as unknown as OrderWithRels | null) ?? null;
   const activities = (activitiesRaw as unknown as ActivityRow[]) ?? [];
   const orderTagRows = (orderTagRowsRaw as unknown as OrderTagRow[]) ?? [];
@@ -246,10 +305,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   const refundableRemainingPence = Math.max(
     0,
-    (order.grandTotal ?? 0) - ((order.refundTotal ?? 0) as number)
+    (order.grandTotal ?? 0) -
+      (Number.isFinite(order.refundTotal as number) ? (order.refundTotal as number) : 0)
   );
 
-  // Reversal window banner (prefer new field, fallback to legacy)
   const now = new Date();
   const reversibleUntilRaw = order.cancelReversibleUntil ?? order.editableUntil;
   const reversibleUntil = reversibleUntilRaw ? new Date(reversibleUntilRaw) : null;
@@ -260,7 +319,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   const isArchived = Boolean(order.archivedAt);
 
-  // ✅ promo label (handles promotion or just promotionCode fallback)
   const promoLabel = order.promotion
     ? `${order.promotion.code}${order.promotion.name ? ` — ${order.promotion.name}` : ''}`
     : (order.promotionCode ?? null);
@@ -403,8 +461,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <Card label="Grand total" value={formatMoney(order.grandTotal, currency)} />
             <Card label="Total weight" value={formatKg(totalWeightGrams)} />
 
-            {/* ✅ Promotion shown only if present */}
             {promoLabel && <Card label="Promotion" value={promoLabel} />}
+            {order.orderOffers.length > 0 && (
+              <Card label="Offers" value={`${order.orderOffers.length} used`} />
+            )}
           </section>
 
           <section>
@@ -505,6 +565,49 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             )}
           </section>
 
+          {order.orderOffers.length > 0 && (
+            <section>
+              <h2 style={{ margin: '6px 0' }}>Offers</h2>
+
+              <div style={{ overflow: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+                  <thead>
+                    <tr>
+                      <th style={th}>Date</th>
+                      <th style={th}>Offer</th>
+                      <th style={th}>Discount</th>
+                      <th style={th}>Free items / notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {order.orderOffers.map((o: OrderOfferRow) => {
+                      const meta = parseOfferMeta(o.meta);
+                      const autoAdd = meta.autoAdd ?? [];
+                      const freeTxt =
+                        autoAdd.length > 0
+                          ? autoAdd.map((x) => `${x.name} ×${x.qty}`).join(', ')
+                          : '—';
+
+                      return (
+                        <tr key={o.id} style={{ borderTop: '1px solid #222' }}>
+                          <td style={td}>{new Date(o.appliedAt).toLocaleString('en-GB')}</td>
+                          <td style={td}>
+                            {o.offerName}
+                            {o.offerKind ? (
+                              <span style={{ opacity: 0.7 }}> ({o.offerKind})</span>
+                            ) : null}
+                          </td>
+                          <td style={td}>{formatMoney(o.discountPence, currency)}</td>
+                          <td style={td}>{freeTxt}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
           <section>
             <h3 style={{ marginBottom: 6 }}>Activity</h3>
 
@@ -533,7 +636,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             `}
           </style>
 
-          {/* Customer */}
           <section>
             <h2>Customer</h2>
             <div
@@ -570,7 +672,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </div>
           </section>
 
-          {/* Meta */}
           <section>
             <h3>Meta</h3>
             <div
@@ -599,17 +700,14 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </div>
           </section>
 
-          {/* Shipments */}
           <section>
             <ApcShipmentCard orderId={order.id} />
           </section>
 
-          {/* ✅ Returns / failed delivery workflow */}
           <section>
             <ReturnActionsCard orderId={order.id} />
           </section>
 
-          {/* Addresses */}
           <section>
             <h2>Addresses</h2>
             <div style={{ display: 'grid', gap: 6 }}>
@@ -618,7 +716,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </div>
           </section>
 
-          {/* Tags */}
           <section>
             <h3>Tags</h3>
             <TagEditor

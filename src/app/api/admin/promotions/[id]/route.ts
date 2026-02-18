@@ -102,7 +102,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   if (!body) return NextResponse.json({ ok: false, error: 'Invalid JSON' }, { status: 400 });
 
-  // ✅ action mode
+  // action mode
   if ('action' in body) {
     if (body.action === 'pause') {
       const updated = await prisma.promotion.update({ where: { id }, data: { status: 'PAUSED' } });

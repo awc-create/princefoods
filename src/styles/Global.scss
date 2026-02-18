@@ -106,7 +106,8 @@ html {
   -moz-osx-font-smoothing: grayscale;
 
   /* Respect user color scheme in UA controls */
-  color-scheme: light dark;
+  color-scheme: light;
+  forced-color-adjust: none;
 }
 
 body {

@@ -407,7 +407,7 @@ export async function quotePromotion(input: PromoQuoteInput): Promise<PromoQuote
   return {
     ok: true,
     promotionId: promo.id,
-    promotionCode: promo.code,
+    promotionCode: promo.code ?? promotionCode,
     discountPence: finalDiscount,
     shippingDiscountPence: finalShipDiscount,
     reasons
@@ -467,9 +467,15 @@ export async function redeemPromotionOnCapturedPayment(args: {
     async (tx) => {
       // Idempotent: already redeemed for this order?
       const existing = await tx.promotionRedemption.findUnique({
-        where: { orderId },
+        where: {
+          orderId_promotionId: {
+            orderId,
+            promotionId
+          }
+        },
         select: { id: true }
       });
+
       if (existing) return;
 
       const promo = await tx.promotion.findUnique({

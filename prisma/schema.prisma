@@ -51,6 +51,7 @@ model Product {
   discountValue   Float?
   inventory       String?
   weight          Float?
+  caseQty         Int? // units per case / master box
 
   // ✅ shipping
   shippingWeightGrams Int?
@@ -257,6 +258,10 @@ model User {
   // ✅ Promotions (opposite relations)
   promotionsLocked     Promotion[]           @relation("PromotionLockedToUser")
   promotionRedemptions PromotionRedemption[]
+  orderOffers          OrderOffer[]
+
+  // ✅ OfferAttempt opposite relation
+  offerAttempts OfferAttempt[]
 
   @@index([email])
   @@index([deletedAt])
@@ -557,6 +562,18 @@ enum PromotionStatus {
   EXPIRED
 }
 
+enum PromotionApplyMode {
+  AUTO // applies automatically
+  CODE // requires a code
+  HYBRID // can apply automatically AND can be forced via code
+}
+
+enum PromotionStackPolicy {
+  BEST_DISCOUNT_WINS // evaluate all eligible, pick best discount result
+  HIGHEST_PRIORITY_WINS // only one offer applies (highest priority)
+  ALLOW_STACKING // multiple offers can apply (subject to caps)
+}
+
 enum PromotionDiscountType {
   PERCENT // e.g. 10% off
   AMOUNT // e.g. £5 off
@@ -588,7 +605,7 @@ model PromotionAttempt {
 
   checkoutId String?
 
-  code        String
+  code        String?
   promotionId String?
   promotion   Promotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull)
 
@@ -596,7 +613,7 @@ model PromotionAttempt {
   email  String?
 
   orderId String?
-  order   Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
   outcome   PromoAttemptOutcome
   errorCode String?
@@ -604,8 +621,8 @@ model PromotionAttempt {
   currency              String @default("GBP")
   subtotalPence         Int?
   shippingPence         Int?
-  discountPence         Int @default(0)
-  shippingDiscountPence Int @default(0)
+  discountPence         Int    @default(0)
+  shippingDiscountPence Int    @default(0)
 
   // ✅ optional “used” timestamp (nice for admin thread)
   usedAt DateTime?
@@ -621,6 +638,93 @@ model PromotionAttempt {
   @@index([checkoutId, createdAt])
 }
 
+enum OfferMode {
+  AUTO
+  CODE
+  BOTH
+}
+
+enum OfferStatus {
+  ACTIVE
+  PAUSED
+  EXPIRED
+}
+
+enum OfferStackingMode {
+  BEST_DISCOUNT_WINS
+  HIGHEST_PRIORITY_WINS
+  STACK_ALLOWED
+}
+
+enum OfferVisibility {
+  ALL
+  BADGE_ONLY
+  PRODUCT_PAGE
+  CART_ONLY
+}
+
+model Offer {
+  id String @id @default(cuid())
+
+  name String
+
+  mode OfferMode @default(AUTO)
+  code String? @unique
+
+  status   OfferStatus @default(ACTIVE)
+  startsAt DateTime?
+  endsAt   DateTime?
+
+  stackingMode OfferStackingMode @default(BEST_DISCOUNT_WINS)
+  priority     Int              @default(0)
+
+  maxDiscountPerOrderPence Int?
+  preventFreeOrder         Boolean @default(false)
+
+  visibility OfferVisibility @default(ALL)
+
+  // Keep your flexible config:
+  exclusions Json?  // optional
+  payload    Json   // OfferPayload (your TS union) stored as JSON
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, startsAt, endsAt])
+  @@index([stackingMode, priority])
+  @@index([createdAt])
+}
+
+model OrderOffer {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // best-effort link to customer (guest-safe)
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  emailUsed String?
+
+  // snapshot of offer
+  offerId   String
+  offerName String
+  offerKind String?
+
+  discountPence Int @default(0)
+
+  // what it applied to (store cart-line refs / free items info)
+  meta Json?
+
+  appliedAt DateTime @default(now())
+
+  @@index([orderId, appliedAt])
+  @@index([userId, appliedAt])
+  @@index([emailUsed, appliedAt])
+  @@index([offerId, appliedAt])
+}
+
 model Order {
   id        String   @id @default(cuid())
   displayId String   @unique
@@ -628,7 +732,7 @@ model Order {
   updatedAt DateTime @updatedAt
 
   userId String?
-  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   contactEmail String
 
@@ -659,7 +763,7 @@ model Order {
   archivedAt     DateTime?
   canceledAt     DateTime?
   canceledReason String?
-  refundTotal    Int      @default(0)
+  refundTotal    Int       @default(0)
   notesAdmin     String?
   editableUntil  DateTime?
 
@@ -673,18 +777,23 @@ model Order {
   refundAmountPence Int?
   refundId          String?
 
-  items      OrderItem[]
-  payments   Payment[]
-  activities OrderActivity[]
-  orderTags  OrderTag[]
-  shipments  Shipment[]
-  returnCase ReturnCase?
+  items           OrderItem[]
+  payments        Payment[]
+  activities      OrderActivity[]
+  orderTags       OrderTag[]
+  shipments       Shipment[]
+  orderPromotions OrderPromotion[]
+  returnCase      ReturnCase?
+
+  // ✅ OfferAttempt opposite relation
+  offerAttempts OfferAttempt[]
 
   promotionId String?
   promotion   Promotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull)
 
-  promotionCode       String?
-  promotionRedemption PromotionRedemption?
+  promotionCode        String?
+  promotionRedemptions PromotionRedemption[]
+  orderOffers          OrderOffer[]
 
   shippingZoneId  String?
   shippingRateId  String?
@@ -736,6 +845,60 @@ model OrderActivity {
   note      String?
   meta      Json?
   createdAt DateTime     @default(now())
+}
+
+enum OfferAttemptOutcome {
+  // Evaluate endpoint outcomes (engine evaluated an offer set)
+  EVAL_OK
+  EVAL_ERR
+
+  // Place-order outcomes (offer applied / not applied / rejected)
+  ORDER_APPLIED
+  ORDER_NOT_APPLIED
+  ORDER_REJECTED
+
+  // Payment captured (used)
+  ORDER_USED
+}
+
+model OfferAttempt {
+  id String @id @default(cuid())
+
+  // optional grouping key if you have a checkout/cart session id
+  checkoutId String?
+
+  // Offers aren't a Prisma model; store identifiers (always set something)
+  offerId   String
+  offerName String?
+  offerKind String?
+
+  userId String?
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  email String?
+
+  orderId String?
+  order   Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  outcome   OfferAttemptOutcome
+  errorCode String?
+
+  currency              String @default("GBP")
+  subtotalPence         Int?
+  shippingPence         Int?
+  discountPence         Int @default(0)
+  shippingDiscountPence Int @default(0)
+
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([offerId])
+  @@index([offerName])
+  @@index([userId])
+  @@index([email])
+  @@index([orderId])
+  @@index([createdAt])
+  @@index([checkoutId, createdAt])
 }
 
 enum ActivityType {
@@ -791,10 +954,19 @@ model Promotion {
   id String @id @default(cuid())
 
   // Client controls
-  name   String
-  code   String          @unique
+  name String
+
+  // ✅ optional now (AUTO promos won't have codes)
+  code String? @unique
+
+  // keep for now (we can repurpose later)
   type   PromotionType   @default(CODE)
   status PromotionStatus @default(ACTIVE)
+
+  // ✅ new
+  applyMode   PromotionApplyMode   @default(CODE)
+  stackPolicy PromotionStackPolicy @default(BEST_DISCOUNT_WINS)
+  priority    Int                  @default(0) // higher = stronger
 
   startsAt DateTime?
   endsAt   DateTime?
@@ -829,11 +1001,14 @@ model Promotion {
   // Redemptions
   redemptions PromotionRedemption[]
 
-  // ✅ Opposite of Order.promotion
+  // ✅ Opposite of Order.promotion (legacy single promo)
   orders Order[]
 
   // ✅ Opposite of PromotionAttempt.promotion
   promoAttempts PromotionAttempt[]
+
+  // ✅ NEW: multi promo per order
+  orderPromotions OrderPromotion[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -841,6 +1016,8 @@ model Promotion {
   @@index([status, startsAt, endsAt])
   @@index([lockedToUserId])
   @@index([lockedToEmail])
+  @@index([applyMode, status])
+  @@index([priority])
 }
 
 model PromotionCategory {
@@ -871,7 +1048,7 @@ model PromotionRedemption {
   promotionId String
   promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
 
-  orderId String @unique
+  orderId String
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   userId String?
@@ -884,9 +1061,32 @@ model PromotionRedemption {
 
   createdAt DateTime @default(now())
 
+  @@unique([orderId, promotionId])
   @@index([promotionId, createdAt])
   @@index([userId, createdAt])
   @@index([emailUsed, createdAt])
+}
+
+model OrderPromotion {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  promotionId String
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+
+  // snapshot of what happened
+  codeUsed              String?
+  discountPence         Int     @default(0)
+  shippingDiscountPence Int     @default(0)
+
+  // useful for admin/audit
+  appliedAt DateTime @default(now())
+
+  @@unique([orderId, promotionId])
+  @@index([promotionId, appliedAt])
+  @@index([orderId, appliedAt])
 }
 
 enum ShippingService {
@@ -1008,6 +1208,47 @@ model WebhookEvent {
   @@index([type, receivedAt])
 }
 
+enum HomeSectionType {
+  PRODUCT_CAROUSEL
+}
+
+enum HomeSectionProductSource {
+  BEST_SELLERS
+  LEAST_SOLD
+  MOST_CLICKED
+  LEAST_CLICKED
+  NEW_ARRIVALS
+  DEALS
+  COLLECTION
+  CATEGORY
+  MANUAL
+}
+
+model HomeSection {
+  id        String @id @default(cuid())
+
+  title     String
+  subtitle  String?
+  type      HomeSectionType @default(PRODUCT_CAROUSEL)
+
+  enabled   Boolean @default(false)  // ✅ default OFF
+  position  Int     @default(0)
+
+  startAt   DateTime?
+  endAt     DateTime?
+
+  // prevent deletion for “system” ones if you ever add them later
+  isLocked  Boolean @default(false)
+
+  config    Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([enabled, position])
+  @@index([startAt, endAt])
+}
+
 /**
  * =========================
  * HOME & ABOUT SETTINGS
@@ -1021,6 +1262,8 @@ model HomeSettings {
   promotions      Json     @default("[]")
   productShowcase Json     @default("{}")
   reviews         Json     @default("{}")
+  sections        Json     @default("{}")
+  
   updatedAt       DateTime @updatedAt
 }
 

@@ -1,4 +1,3 @@
-/* src/app/cart/cart.module.scss */
 .shell {
   max-width: 1100px;
   margin: 0 auto;
@@ -63,15 +62,39 @@
   display: grid;
   gap: 4px;
 }
+
 .name {
   font-weight: 800;
 }
+
 .sku {
   font-size: 12px;
   color: #6b7280;
 }
+
 .price {
   font-weight: 600;
+}
+
+/* ✅ New: offer label (plain text, no pill) */
+.offerText {
+  font-size: 12px;
+  color: #374151;
+  margin-top: 4px;
+}
+.offerText strong {
+  font-weight: 800;
+}
+
+/* ✅ Free items hint (BOGOF) */
+.freeHint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #0f766e; /* teal-ish */
+  font-weight: 600;
+}
+.freeHint strong {
+  font-weight: 800;
 }
 
 .qtyRow {
@@ -79,6 +102,7 @@
   align-items: center;
   gap: 10px;
 }
+
 .qtyRow button {
   width: 28px;
   height: 28px;
@@ -86,13 +110,17 @@
   border: 1px solid #e5e7eb;
   background: #fff;
 }
+
 .qty {
   min-width: 18px;
   text-align: center;
+  font-weight: 700;
 }
+
 .lineTotal {
   font-weight: 800;
 }
+
 .remove {
   width: 34px;
   height: 34px;
@@ -100,6 +128,7 @@
   border-radius: 8px;
   background: #fff;
 }
+
 .clear {
   margin: 10px;
   background: rgba(0, 0, 0, 0);
@@ -140,6 +169,7 @@
   font-weight: 800;
   border: 1px solid #b21e2b;
 }
+
 .checkout:hover {
   filter: brightness(0.96);
 }

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     );
     const skip = (page - 1) * limit;
 
-    // optional price filters
+    // optional price filters (GBP)
     const minStr = url.searchParams.get('min');
     const maxStr = url.searchParams.get('max');
     const min = minStr != null && minStr !== '' ? Number(minStr) : undefined;
@@ -58,6 +58,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    /**
+     * ✅ Bounds should:
+     * - respect visibility + category selection
+     * - NOT be affected by current min/max filter (so slider always shows full range)
+     */
+    const whereForBounds: Prisma.ProductWhereInput = {
+      visible: true,
+      ...categoryFilter
+    };
+
     const where: Prisma.ProductWhereInput = {
       visible: true,
       ...priceFilter,
@@ -91,7 +101,7 @@ export async function GET(req: NextRequest) {
         orderBy = [{ createdAt: 'desc' }];
     }
 
-    const [total, rows] = await Promise.all([
+    const [total, rows, bounds] = await Promise.all([
       prisma.product.count({ where }),
       prisma.product.findMany({
         where,
@@ -116,6 +126,11 @@ export async function GET(req: NextRequest) {
           unitsSold: true,
           revenuePence: true
         }
+      }),
+      prisma.product.aggregate({
+        where: whereForBounds,
+        _min: { price: true },
+        _max: { price: true }
       })
     ]);
 
@@ -161,6 +176,10 @@ export async function GET(req: NextRequest) {
     const pageCount = Math.max(1, Math.ceil(total / limit));
     const hasNextPage = page < pageCount;
 
+    // ✅ bounds in GBP (same units as your product price)
+    const minPrice = Number(bounds._min.price ?? 0);
+    const maxPrice = Number(bounds._max.price ?? 0);
+
     return NextResponse.json({
       ok: true,
       products,
@@ -168,7 +187,11 @@ export async function GET(req: NextRequest) {
       limit,
       total,
       pageCount,
-      hasNextPage
+      hasNextPage,
+      priceBounds: {
+        min: Number.isFinite(minPrice) ? minPrice : 0,
+        max: Number.isFinite(maxPrice) ? maxPrice : 0
+      }
     });
   } catch (error) {
     console.error('[API /products] Error:', error);

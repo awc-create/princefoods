@@ -1,10 +1,15 @@
 // src/app/api/checkout/place-order/route.ts
 import { authOptions } from '@/lib/auth-options';
+import { logOfferAttemptsBulk } from '@/lib/offer-attempts';
 import { logActivity } from '@/lib/order-activity';
 import { prisma } from '@/lib/prisma';
 import { quoteShipping, type ShippingService, type ShippingTemp } from '@/lib/shipping';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
+
+// ✅ Offers engine (JSON offers from AppSetting)
+import { evaluateOffers, type CartLine as OfferCartLine } from '@/lib/offers-engine';
+import { getOffers } from '@/lib/offers-store';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -96,6 +101,44 @@ function cleanOptional(v: string | undefined) {
 }
 
 /**
+ * ✅ Offers engine applied-line helpers
+ * Your engine's OfferApplied doesn't have `.id`, so we resolve a stable id safely.
+ */
+function offerAppliedId(o: unknown): string {
+  if (!o || typeof o !== 'object') return 'OFFER_UNKNOWN';
+
+  const r = o as Record<string, unknown>;
+
+  const direct =
+    (typeof r.offerId === 'string' && r.offerId) ||
+    (typeof r.key === 'string' && r.key) ||
+    (typeof r.code === 'string' && r.code) ||
+    (typeof r.name === 'string' && r.name);
+
+  if (direct) return String(direct).trim().slice(0, 80).toUpperCase().replace(/\s+/g, '_');
+
+  try {
+    const s = JSON.stringify(o);
+    return `OFFER_${s.length}_${Buffer.from(s).toString('base64').slice(0, 24)}`;
+  } catch {
+    return 'OFFER_UNKNOWN';
+  }
+}
+
+function offerAppliedKind(o: unknown): string | null {
+  if (!o || typeof o !== 'object') return null;
+  const r = o as Record<string, unknown>;
+  return typeof r.kind === 'string' ? r.kind : null;
+}
+
+function offerAppliedDiscountPence(o: unknown): number {
+  if (!o || typeof o !== 'object') return 0;
+  const r = o as Record<string, unknown>;
+  const v = r.discountPence;
+  return typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.trunc(v)) : 0;
+}
+
+/**
  * ✅ Best-effort address book save (non-blocking)
  */
 async function saveAddressBookBestEffort(args: {
@@ -158,7 +201,7 @@ function clampPct(n: number) {
   return Math.max(0, Math.min(100, n));
 }
 
-// ✅ logs ORDER_* attempt rows (linked to orderId when created)
+// ✅ logs ORDER_* promo attempt rows (linked to orderId when created)
 async function logPromoOrderAttempt(args: {
   checkoutId?: string | null;
   code: string;
@@ -222,7 +265,7 @@ export async function POST(req: Request) {
 
       shippingQuote?: { zoneId?: string; rateId?: string };
 
-      // ✅ NEW: correlation id from client (same one you send to /promotions/evaluate)
+      // ✅ correlation id from client
       checkoutId?: string | null;
     };
 
@@ -230,7 +273,7 @@ export async function POST(req: Request) {
 
     if (!body?.items?.length) return bad('No items in order.');
 
-    // ✅ Validate lines + compute trusted subtotal
+    // ✅ Validate lines + compute trusted subtotal (PAID items only)
     let computedSubtotal = 0;
     for (const it of body.items) {
       if (!nonEmpty(it.name)) return bad('Invalid line item: name is required.');
@@ -263,8 +306,7 @@ export async function POST(req: Request) {
     const maybeUserId: string | undefined =
       (session?.user as { id?: string } | null)?.id ?? undefined;
 
-    // ✅ IMPORTANT FIX:
-    // only connect Address/User if the user actually exists in DB.
+    // ✅ only connect Address/User if the user actually exists in DB.
     let safeUserId: string | null = null;
     if (maybeUserId) {
       const exists = await prisma.user.findUnique({
@@ -281,14 +323,16 @@ export async function POST(req: Request) {
     const emailForOrder = contactEmailTrimmed || sessionEmail || 'guest@prince-v.com';
     const emailNorm = emailForOrder.trim().toLowerCase();
 
-    // ✅ remove next day/express: always STANDARD
+    // ✅ always STANDARD
     const service: ShippingService = 'STANDARD';
 
-    // Snapshot product shipping + promo targeting inputs
+    // Snapshot product shipping + offer targeting inputs
     const ids = body.items.map((i) => i.productId).filter(Boolean) as string[];
 
     const products: Array<{
       id: string;
+      name: string;
+      sku: string | null;
       categoryId: string | null;
       shippingTemp: ShippingTemp;
       shippingWeightGrams: number | null;
@@ -296,14 +340,27 @@ export async function POST(req: Request) {
       ids.length > 0
         ? await prisma.product.findMany({
             where: { id: { in: ids } },
-            select: { id: true, categoryId: true, shippingTemp: true, shippingWeightGrams: true }
+            select: {
+              id: true,
+              name: true,
+              sku: true,
+              categoryId: true,
+              shippingTemp: true,
+              shippingWeightGrams: true
+            }
           })
         : [];
 
     const byId = new Map(products.map((p) => [p.id, p]));
     const catById = new Map(products.map((p) => [p.id, p.categoryId]));
 
-    const enriched = body.items.map((it) => {
+    type EnrichedLine = Line & {
+      unitWeightGrams: number;
+      temp: ShippingTemp;
+      isFree?: boolean;
+    };
+
+    let enriched: EnrichedLine[] = body.items.map((it) => {
       const p = it.productId ? byId.get(it.productId) : undefined;
 
       const unitWeightGrams =
@@ -316,12 +373,65 @@ export async function POST(req: Request) {
       return { ...it, unitWeightGrams, temp };
     });
 
+    // -------- OFFERS ENGINE (JSON offers) --------
+    // We evaluate offers BEFORE shipping so BOGOF auto-add can influence shipping weight/price.
+    const codeRaw = typeof body.promotionCode === 'string' ? body.promotionCode : '';
+    const normalizedCode = normalizePromoCode(codeRaw);
+
+    const offersAll = await getOffers();
+
+    const offerLines: OfferCartLine[] = enriched.map((it) => ({
+      productId: it.productId ?? undefined,
+      sku: it.sku ?? undefined,
+      name: it.name,
+      unitPricePence: it.unitPrice,
+      qty: it.quantity,
+      categoryId: it.productId ? (catById.get(it.productId) ?? undefined) : undefined
+    }));
+
+    const offerResult = evaluateOffers(offersAll, {
+      lines: offerLines,
+      code: normalizedCode || null
+    });
+
+    // If BOGOF wants auto-add free items, add them as £0 lines (server truth)
+    if (offerResult.autoAdd.length) {
+      const extra: EnrichedLine[] = offerResult.autoAdd.map((a) => {
+        const p = a.productId ? byId.get(a.productId) : undefined;
+
+        const unitWeightGrams =
+          p?.shippingWeightGrams != null && Number.isFinite(p.shippingWeightGrams)
+            ? Math.max(0, Math.trunc(p.shippingWeightGrams))
+            : 0;
+
+        const temp: ShippingTemp = (p?.shippingTemp as ShippingTemp) ?? 'DRY';
+
+        return {
+          name: a.name,
+          quantity: Math.max(1, Math.trunc(a.qty)),
+          unitPrice: 0,
+          productId: a.productId ?? null,
+          sku: a.sku ?? null,
+          imageUrl: null,
+          unitWeightGrams,
+          temp,
+          isFree: true,
+          options: {
+            free: true,
+            autoAddedByOfferId: a.reasonOfferId
+          }
+        };
+      });
+
+      enriched = [...enriched, ...extra];
+    }
+
     const totalWeightGrams = enriched.reduce(
       (sum, it) => sum + it.unitWeightGrams * it.quantity,
       0
     );
 
-    // ✅ Enforce shipping server-side
+    // ✅ Enforce shipping server-side (includes any auto-added free items)
     const shipCountry = s.country.trim().toUpperCase();
     const shipPostcode = s.postcode.trim();
 
@@ -349,15 +459,12 @@ export async function POST(req: Request) {
           ? 'FROZEN'
           : 'DRY';
 
-    // ✅ Promo evaluation (server-truth)
-    let promotionId: string | undefined = undefined;
-    let promotionCode: string | undefined = undefined;
+    // -------- PROMOTION (DB) evaluation --------
+    let promotionId: string | null = null;
+    let promotionCode: string | null = null;
 
     let promoItemDiscountPence = 0;
     let promoShippingDiscountPence = 0;
-
-    const codeRaw = typeof body.promotionCode === 'string' ? body.promotionCode : '';
-    const normalizedCode = normalizePromoCode(codeRaw);
 
     if (normalizedCode) {
       const promo = await prisma.promotion.findUnique({
@@ -394,7 +501,7 @@ export async function POST(req: Request) {
           !promo.lockedToEmail || promo.lockedToEmail.trim().toLowerCase() === emailNorm;
 
         if (okTime && okLockUser && okLockEmail) {
-          // ✅ usage gates (soft here)
+          // ✅ usage gates
           let okTotalUses = true;
           if (promo.maxUsesTotal != null && promo.maxUsesTotal >= 0) {
             const used = await prisma.promotionRedemption.count({
@@ -419,7 +526,10 @@ export async function POST(req: Request) {
           }
 
           if (okTotalUses && okPerUser) {
-            const itemsForPromo = enriched.map((it) => ({
+            // only PAID items should be eligible for item discount (ignore free auto-add lines)
+            const paidItems = enriched.filter((x) => !x.isFree);
+
+            const itemsForPromo = paidItems.map((it) => ({
               productId: it.productId ?? undefined,
               unitPrice: it.unitPrice,
               quantity: it.quantity
@@ -481,12 +591,78 @@ export async function POST(req: Request) {
       }
     }
 
+    // -------- Decide: Offers vs Promotion (BEST SAVINGS WINS) --------
+    const offerItemDiscountPence = Math.max(0, Math.trunc(offerResult.discountTotalPence ?? 0));
+    const promoTotalSavings = promoItemDiscountPence + promoShippingDiscountPence;
+    const offerTotalSavings = offerItemDiscountPence; // offers currently don’t do shipping discount
+
+    // Use offers if they save more OR they auto-added free items (even if discount is 0)
+    const offersHaveImpact = offerTotalSavings > 0 || offerResult.autoAdd.length > 0;
+    const promoApplied = Boolean(promotionId && promotionCode);
+
+    const useOffers = offersHaveImpact && (!promoApplied || offerTotalSavings > promoTotalSavings);
+
+    // ✅ Optional: if offers evaluated but didn't win, log ORDER_NOT_APPLIED (best-effort)
+    if (!useOffers && (offerResult.applied.length || offerResult.autoAdd.length)) {
+      await logOfferAttemptsBulk(
+        [
+          ...offerResult.applied.map((o) => ({
+            checkoutId,
+            offerId: offerAppliedId(o),
+            offerName: (o as { name?: string }).name ?? 'Offer',
+            offerKind: offerAppliedKind(o),
+            userId: safeUserId,
+            email: emailNorm || null,
+            orderId: null,
+            outcome: 'ORDER_NOT_APPLIED' as const,
+            errorCode: promoApplied ? 'LOST_TO_PROMO' : 'NO_IMPACT',
+            currency,
+            subtotalPence: computedSubtotal,
+            shippingPence: null,
+            discountPence: offerAppliedDiscountPence(o),
+            shippingDiscountPence: 0
+          })),
+          ...offerResult.autoAdd.map((a) => ({
+            checkoutId,
+            offerId: a.reasonOfferId ?? 'AUTO_ADD',
+            offerName: 'Auto-added free items',
+            offerKind: 'AUTO_ADD',
+            userId: safeUserId,
+            email: emailNorm || null,
+            orderId: null,
+            outcome: 'ORDER_NOT_APPLIED' as const,
+            errorCode: promoApplied ? 'LOST_TO_PROMO' : 'NO_IMPACT',
+            currency,
+            subtotalPence: computedSubtotal,
+            shippingPence: null,
+            discountPence: 0,
+            shippingDiscountPence: 0
+          }))
+        ].slice(0, 50)
+      );
+    }
+
+    // If offers win, drop promo on the order (promo code is still logged as rejected)
+    if (useOffers) {
+      promotionId = null;
+      promotionCode = null;
+      promoItemDiscountPence = 0;
+      promoShippingDiscountPence = 0;
+    }
+
     // ✅ totals (trusted)
     const shippingAfterDiscount = Math.max(0, baseShippingTotal - promoShippingDiscountPence);
-    const discountTotal = Math.max(0, promoItemDiscountPence + promoShippingDiscountPence);
+
+    const discountTotal = Math.max(
+      0,
+      (useOffers ? offerItemDiscountPence : promoItemDiscountPence) + promoShippingDiscountPence
+    );
+
+    const itemDiscountUsed = useOffers ? offerItemDiscountPence : promoItemDiscountPence;
+
     const grandTotal = Math.max(
       0,
-      computedSubtotal + shippingAfterDiscount - promoItemDiscountPence + t.tax
+      computedSubtotal + shippingAfterDiscount - itemDiscountUsed + t.tax
     );
 
     // ✅ Create addresses snapshot
@@ -594,6 +770,80 @@ export async function POST(req: Request) {
         });
 
         await logActivity(created.id, 'PLACED');
+
+        // ✅ Offers audit trail
+        if (useOffers && (offerResult.applied.length || offerResult.autoAdd.length)) {
+          await prisma.orderActivity.create({
+            data: {
+              orderId: created.id,
+              type: 'NOTE',
+              note: `Offers applied: ${
+                offerResult.applied
+                  .map((x) => (x as { name?: string }).name ?? 'Offer')
+                  .join(', ') || 'BOGOF auto-add'
+              }`,
+              meta: {
+                applied: offerResult.applied,
+                autoAdd: offerResult.autoAdd,
+                discountPence: offerItemDiscountPence
+              } as unknown as object
+            }
+          });
+        }
+
+        // ✅ Persist offer usage (queryable: for customer page + order detail)
+        if (useOffers && (offerResult.applied.length || offerResult.autoAdd.length)) {
+          const userId = created.userId ?? null;
+
+          const rows = offerResult.applied.length
+            ? offerResult.applied.map((o) => ({
+                orderId: created.id,
+                userId,
+                emailUsed: emailNorm || null,
+                offerId: offerAppliedId(o),
+                offerName: (o as { name?: string }).name ?? 'Offer',
+                offerKind: offerAppliedKind(o),
+                discountPence: offerAppliedDiscountPence(o),
+                meta: { applied: o, autoAdd: offerResult.autoAdd } as unknown as object
+              }))
+            : [
+                {
+                  orderId: created.id,
+                  userId,
+                  emailUsed: emailNorm || null,
+                  offerId: offerResult.autoAdd[0]?.reasonOfferId ?? 'AUTO_ADD',
+                  offerName: 'Auto-added free items',
+                  offerKind: 'AUTO_ADD',
+                  discountPence: Math.max(0, Math.trunc(offerItemDiscountPence)),
+                  meta: { autoAdd: offerResult.autoAdd } as unknown as object
+                }
+              ];
+
+          await prisma.orderOffer.createMany({ data: rows });
+
+          // ✅ OfferAttempt: record what happened on place-order (order-linked) - BULK
+          await logOfferAttemptsBulk(
+            rows.map((r) => ({
+              checkoutId,
+              offerId: r.offerId,
+              offerName: r.offerName,
+              offerKind: r.offerKind ?? null,
+
+              userId,
+              email: emailNorm || null,
+              orderId: created.id,
+
+              outcome: 'ORDER_APPLIED' as const,
+              errorCode: null,
+
+              currency: created.currency ?? 'GBP',
+              subtotalPence: created.subtotal ?? null,
+              shippingPence: created.shippingTotal ?? null,
+              discountPence: r.discountPence ?? 0,
+              shippingDiscountPence: 0
+            }))
+          );
+        }
 
         // ✅ Log promo attempt against the order (so usage table can join it)
         if (normalizedCode) {

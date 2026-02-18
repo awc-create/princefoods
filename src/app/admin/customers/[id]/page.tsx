@@ -1,6 +1,7 @@
 // src/app/admin/customers/%5Bid%5D/page.tsx.
 'use client';
 
+import CustomerOffers from '@/components/admin/customer/offers/CustomerOffers';
 import CustomerPromotions from '@/components/admin/customer/promotions/promotions';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -222,6 +223,10 @@ export default function CustomerDetailPage() {
 
         <div className={styles.card}>
           <CustomerPromotions customerId={id} />
+        </div>
+
+        <div className={styles.card}>
+          <CustomerOffers customerId={id} />
         </div>
       </section>
     </div>

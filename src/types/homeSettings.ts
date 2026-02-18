@@ -139,3 +139,34 @@ export interface HomeSettingsDTO {
   productShowcase: ProductShowcaseSettings;
   reviews: ReviewsSettings;
 }
+
+/* =========================================================
+   Home Sections Builder (NEW)
+   Defaults OFF. Client can switch ON.
+   Includes “Hidden Gems” (least clicked / least sold) without naming negatively.
+========================================================= */
+
+export type HomeSectionKind =
+  | 'best_sellers'
+  | 'on_sale'
+  | 'b1g1'
+  | 'new_arrivals'
+  | 'trending'
+  | 'top_rated'
+  | 'seasonal'
+  | 'hidden_gems_clicks'
+  | 'hidden_gems_sales';
+
+export interface HomeSectionRow {
+  id: string;
+  enabled: boolean;
+  title: string;
+  kind: HomeSectionKind;
+  limit: number;
+  note?: string;
+}
+
+export interface HomeSectionsSettings {
+  enabled: boolean; // master switch for sections builder on home
+  sections: HomeSectionRow[]; // ordered list
+}

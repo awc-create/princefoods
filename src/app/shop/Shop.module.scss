@@ -1,4 +1,4 @@
-// src/app/shop/Shop.module.scss
+/* src/app/shop/Shop.module.scss */
 .wrapper {
   width: 100%;
 }
@@ -14,6 +14,7 @@
   padding: 0 4px;
   min-width: 0;
 } /* prevent overflow */
+
 .products h2 {
   text-transform: capitalize;
   letter-spacing: 0.2px;
@@ -24,12 +25,37 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 18px;
+
+  /* ✅ makes all cards stretch uniformly in each row */
+  align-items: stretch;
 }
 
 .paginationWrap {
   display: flex;
   justify-content: center;
   margin: 24px 0 12px;
+}
+
+.topRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sortLabel {
+  font-size: 14px;
+}
+
+.skeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+.skeletonCard {
+  height: 260px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.08);
 }
 
 @media (max-width: 960px) {

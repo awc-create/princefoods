@@ -1,0 +1,255 @@
+/* src/app/admin/offers/offers.module.scss */
+
+.page {
+  padding: 18px 18px 28px;
+}
+
+.topRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.h1 {
+  margin: 0;
+  font-size: 1.65rem;
+  font-weight: 950;
+  letter-spacing: -0.02em;
+}
+
+.count {
+  font-weight: 900;
+  font-size: 1.1rem;
+  color: #667085;
+  margin-left: 8px;
+}
+
+.sub {
+  margin: 6px 0 0;
+  color: #667085;
+  font-weight: 650;
+}
+
+.topActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.primaryBtn,
+.secondaryBtn {
+  height: 40px;
+  border-radius: 999px;
+  padding: 0 14px;
+  font-weight: 850;
+  border: 1px solid rgba(17, 24, 39, 0.16);
+  cursor: pointer;
+}
+
+.primaryBtn {
+  background: #2f5bea;
+  color: white;
+  border-color: rgba(47, 91, 234, 0.35);
+}
+
+.primaryBtn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.secondaryBtn {
+  background: white;
+  color: #101828;
+}
+
+.bannerError {
+  background: #fef2f2;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #991b1b;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-weight: 750;
+  margin-bottom: 12px;
+}
+
+.card {
+  background: white;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 16px 50px rgba(2, 6, 23, 0.06);
+  overflow: hidden;
+}
+
+.filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.08);
+  background: #f8fafc;
+}
+
+.searchWrap {
+  flex: 1;
+}
+
+.search {
+  width: 100%;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 24, 39, 0.16);
+  padding: 0 14px;
+  font-weight: 700;
+  outline: none;
+  background: white;
+}
+
+.select {
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 24, 39, 0.16);
+  padding: 0 14px;
+  font-weight: 750;
+  outline: none;
+  background: white;
+}
+
+.tableWrap {
+  overflow: auto;
+}
+
+.mutedCell {
+  padding: 16px;
+  color: #667085;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* =========================
+   Tabs (like Promotions)
+   ========================= */
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin: 8px 0 14px;
+}
+
+.tabBtn {
+  height: 40px;
+  border-radius: 999px;
+  padding: 0 14px;
+  font-weight: 900;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  background: white;
+  cursor: pointer;
+}
+
+.tabActive {
+  background: rgba(47, 91, 234, 0.1);
+  border-color: rgba(47, 91, 234, 0.35);
+}
+
+/* =========================
+   Usage (like Promotions)
+   ========================= */
+.hint {
+  color: #667085;
+  font-weight: 650;
+}
+
+.usageRow {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin: 8px 0 12px;
+}
+
+@media (max-width: 980px) {
+  .usageRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.usageCard {
+  background: white;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 18px;
+  padding: 12px 14px;
+  box-shadow: 0 16px 50px rgba(2, 6, 23, 0.06);
+}
+
+.usageKpi {
+  font-size: 1.5rem;
+  font-weight: 950;
+  color: #0f172a;
+}
+
+.usageLabel {
+  margin-top: 4px;
+  color: #667085;
+  font-weight: 750;
+}
+
+/* =========================
+   Table style for usage tables
+   ========================= */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 920px;
+}
+
+.table thead th {
+  text-align: left;
+  font-size: 0.9rem;
+  padding: 12px 14px;
+  background: rgba(47, 91, 234, 0.12);
+  color: #0f172a;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.08);
+  font-weight: 900;
+}
+
+.table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.07);
+  vertical-align: top;
+}
+
+.cellMain {
+  font-weight: 850;
+  color: #0f172a;
+}
+
+.cellSub {
+  color: #667085;
+  font-weight: 650;
+  margin-top: 2px;
+  font-size: 0.9rem;
+}
+
+.pill {
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 0.8rem;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+}
+
+.pillActive {
+  background: rgba(34, 197, 94, 0.12);
+  color: #166534;
+  border-color: rgba(34, 197, 94, 0.22);
+}
+.pillPaused {
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+  border-color: rgba(245, 158, 11, 0.22);
+}
+.pillExpired {
+  background: rgba(148, 163, 184, 0.2);
+  color: #334155;
+  border-color: rgba(148, 163, 184, 0.28);
+}

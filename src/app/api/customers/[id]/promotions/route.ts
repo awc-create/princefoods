@@ -91,7 +91,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   let attempts: Array<{
     id: string;
     createdAt: string;
-    code: string;
+    code: string; // ✅ string (not nullable)
     outcome: 'APPLIED' | 'REJECTED';
     errorCode: string | null;
     promotionId: string | null;
@@ -132,7 +132,10 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     attempts = attemptsRaw.map((a) => ({
       id: a.id,
       createdAt: a.createdAt.toISOString(),
-      code: a.code,
+
+      // ✅ FIX: Prisma gives string | null → normalise to string
+      code: (a.code ?? '').trim(),
+
       outcome: mapAttemptOutcome(a.outcome),
       errorCode: a.errorCode ?? null,
       promotionId: a.promotion?.id ?? null,

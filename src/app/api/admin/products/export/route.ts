@@ -1,4 +1,3 @@
-// src/app/api/admin/products/export/route.ts
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
@@ -10,6 +9,8 @@ interface SessionUserWithRole {
 }
 const hasRole = (u: unknown): u is SessionUserWithRole =>
   !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
+
+export const runtime = 'nodejs';
 
 // ✅ add shipping_weight (grams)
 const HEADERS = [
@@ -38,18 +39,19 @@ function childCategory(full?: string | null) {
   return parts.length ? parts[parts.length - 1] : '';
 }
 
-export const runtime = 'nodejs';
-
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   const role: Role | undefined = hasRole(session?.user)
     ? (session!.user.role ?? undefined)
     : undefined;
+
   if (!role || (role !== 'HEAD' && role !== 'STAFF')) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
   }
 
   const { searchParams } = new URL(req.url);
+
+  // A) explicit IDs export
   const idsParam = searchParams.get('ids');
   const ids = idsParam
     ? idsParam
@@ -58,8 +60,36 @@ export async function GET(req: Request) {
         .filter(Boolean)
     : null;
 
+  // B) filtered export by search + collections (used when no ids are passed)
+  const search = (searchParams.get('search') ?? '').trim();
+
+  const collectionsParam = (searchParams.get('collections') ?? '').trim();
+  const collections = collectionsParam
+    ? collectionsParam
+        .split(',')
+        .map((s) => decodeURIComponent(s).trim())
+        .filter(Boolean)
+    : [];
+
+  const where =
+    ids && ids.length
+      ? { id: { in: ids } }
+      : {
+          ...(search
+            ? {
+                OR: [
+                  { name: { contains: search, mode: 'insensitive' as const } },
+                  { sku: { contains: search, mode: 'insensitive' as const } },
+                  { brand: { contains: search, mode: 'insensitive' as const } },
+                  { collection: { contains: search, mode: 'insensitive' as const } }
+                ]
+              }
+            : {}),
+          ...(collections.length ? { collection: { in: collections } } : {})
+        };
+
   const items = await prisma.product.findMany({
-    where: ids ? { id: { in: ids } } : undefined,
+    where,
     orderBy: { createdAt: 'desc' },
     select: {
       name: true,
@@ -78,6 +108,7 @@ export async function GET(req: Request) {
 
   for (const p of items) {
     const grams = p.shippingWeightGrams ?? (p.weight != null ? Math.round(p.weight * 1000) : '');
+
     const row: Record<CsvHeader, string | number> = {
       Pic: p.productImageUrl ?? '',
       Name: p.name ?? '',
@@ -87,10 +118,12 @@ export async function GET(req: Request) {
       Collection: childCategory(p.collection),
       shipping_weight: grams as number | ''
     };
+
     lines.push(HEADERS.map((h) => esc(row[h])).join(','));
   }
 
   const csv = lines.join('\n');
+
   return new NextResponse(csv, {
     status: 200,
     headers: {

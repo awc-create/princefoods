@@ -1,4 +1,3 @@
-// src/app/admin/products/[id]/page.tsx
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
@@ -15,12 +14,14 @@ interface Product {
   productImageUrl: string | null;
   description: string | null;
   visible: boolean;
+
+  // ✅ new
+  caseQty: number | null;
 }
 
 export default function ProductEditPage() {
-  // Don't destructure directly; handle possible null/loose typing
   const params = useParams() as { id?: string } | null;
-  const id = params?.id; // string | undefined
+  const id = params?.id;
 
   const router = useRouter();
   const [p, setP] = useState<Product | null>(null);
@@ -29,7 +30,7 @@ export default function ProductEditPage() {
 
   useEffect(() => {
     let ignore = false;
-    if (!id) return; // wait until id exists
+    if (!id) return;
 
     (async () => {
       setLoading(true);
@@ -56,11 +57,14 @@ export default function ProductEditPage() {
   async function save() {
     if (!id) return;
     setSaving(true);
-    const res = await fetch(`/api/admin/products/${id}/edit`, {
-      method: 'POST',
+
+    // ✅ your API supports PATCH /api/admin/products/[id]
+    const res = await fetch(`/api/admin/products/${id}`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(p)
     });
+
     setSaving(false);
     if (res.ok) router.push('/admin/products');
   }
@@ -89,6 +93,21 @@ export default function ProductEditPage() {
             step="0.01"
             value={p.price ?? ''}
             onChange={(e) => setP({ ...p, price: e.target.value ? Number(e.target.value) : null })}
+          />
+        </label>
+
+        <label>
+          Units per case (caseQty)
+          <input
+            type="number"
+            min={1}
+            value={p.caseQty ?? ''}
+            onChange={(e) =>
+              setP({
+                ...p,
+                caseQty: e.target.value ? Math.trunc(Number(e.target.value)) : null
+              })
+            }
           />
         </label>
 

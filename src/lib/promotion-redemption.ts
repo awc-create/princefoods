@@ -8,7 +8,7 @@ type RedeemResult =
 
 /**
  * Redeem the promo on payment capture.
- * - Idempotent: one redemption per order (orderId is unique in PromotionRedemption)
+ * - Idempotent: one redemption per order (best-effort by query; enforce via DB unique if desired)
  * - Hard-enforces maxUsesTotal / maxUsesPerUser at redemption time
  */
 export async function redeemPromotionForPaidOrder(orderId: string): Promise<RedeemResult> {
@@ -31,8 +31,8 @@ export async function redeemPromotionForPaidOrder(orderId: string): Promise<Rede
       if (!order) return { ok: false, error: 'ORDER_NOT_FOUND' };
       if (!order.promotionId || !order.promotionCode) return { ok: true, created: false };
 
-      // already redeemed?
-      const existing = await tx.promotionRedemption.findUnique({
+      // already redeemed? (orderId is NOT unique in your schema, so use findFirst)
+      const existing = await tx.promotionRedemption.findFirst({
         where: { orderId: order.id },
         select: { id: true }
       });
@@ -77,20 +77,19 @@ export async function redeemPromotionForPaidOrder(orderId: string): Promise<Rede
           const used = await tx.promotionRedemption.count({
             where: { promotionId: promo.id, userId: order.userId }
           });
-          if (used >= promo.maxUsesPerUser)
+          if (used >= promo.maxUsesPerUser) {
             return { ok: false, error: 'PROMO_MAX_USES_PER_USER_REACHED' };
+          }
         } else if (emailNorm) {
           const used = await tx.promotionRedemption.count({
             where: { promotionId: promo.id, emailUsed: emailNorm }
           });
-          if (used >= promo.maxUsesPerUser)
+          if (used >= promo.maxUsesPerUser) {
             return { ok: false, error: 'PROMO_MAX_USES_PER_EMAIL_REACHED' };
+          }
         }
       }
 
-      // MVP: we store what the order actually discounted (discountTotal).
-      // If you later want to separate item discount vs shipping discount,
-      // store both in Order (or compute + snapshot here) and fill both fields.
       await tx.promotionRedemption.create({
         data: {
           promotionId: promo.id,

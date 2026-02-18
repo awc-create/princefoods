@@ -137,6 +137,19 @@ interface PromoSnapshot {
   shippingDiscountPence: number;
 }
 
+// ✅ NEW: offers snapshot
+interface OffersSnapshot {
+  discountPence: number;
+  applied: { offerId: string; name: string; kind: string; discountPence: number }[];
+  autoAdd: {
+    reasonOfferId: string;
+    productId?: string | null;
+    sku?: string | null;
+    name: string;
+    qty: number;
+  }[];
+}
+
 export default function CheckoutClient({ email }: { email: string | null }) {
   const router = useRouter();
 
@@ -242,6 +255,13 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     shippingDiscountPence: 0
   });
 
+  // ✅ NEW: offers snapshot
+  const [offersSnap, setOffersSnap] = useState<OffersSnapshot>({
+    discountPence: 0,
+    applied: [],
+    autoAdd: []
+  });
+
   // If cart changes, promo snapshot may no longer be valid.
   // Keep UI safe by clearing the snapshot (user can re-apply).
   const promoCartKey = useMemo(() => {
@@ -260,6 +280,11 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     });
   }, [promoCartKey]);
 
+  // ✅ Clear offers preview too
+  useEffect(() => {
+    setOffersSnap({ discountPence: 0, applied: [], autoAdd: [] });
+  }, [promoCartKey]);
+
   const liveSubtotal = mounted ? subtotal() : 0;
   const tax = 0;
 
@@ -267,9 +292,6 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     0,
     Math.trunc(promoSnap.discountPence) + Math.trunc(promoSnap.shippingDiscountPence)
   );
-
-  // Show promo effect in the UI grand total.
-  const grand = liveSubtotal + shippingPence - promoDiscountTotal + tax;
 
   const [touchedShipping, setTouchedShipping] = useState<AddrTouched>({});
   const [touchedBilling, setTouchedBilling] = useState<AddrTouched>({});
@@ -559,7 +581,61 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [mounted, shipping.country, shipping.postcode, items, formatUKPostcode]);
+  }, [mounted, shipping.country, shipping.postcode, items, formatUKPostcode, reset]);
+
+  // ✅ OFFERS quote (preview-only)
+  async function refreshOffers() {
+    if (!mounted) return;
+
+    if (!items.length) {
+      setOffersSnap({ discountPence: 0, applied: [], autoAdd: [] });
+      return;
+    }
+
+    const res = await fetch('/api/offers/quote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lines: items.map((it: CartLine) => ({
+          lineId: it.id, // ✅ IMPORTANT
+          productId: it.productId ?? undefined,
+          sku: it.sku ?? undefined,
+          name: it.name,
+          unitPricePence: Math.trunc(it.unitPrice),
+          qty: Math.trunc(it.quantity),
+          categoryId: (it as unknown as { categoryId?: string | null }).categoryId ?? undefined,
+          tags: (it as unknown as { tags?: string[] | null }).tags ?? undefined,
+          collection: (it as unknown as { collection?: string | null }).collection ?? undefined
+        })),
+        // optional: allow code-gated offers using the same text box
+        code: promo?.trim() ? promo.trim().toUpperCase() : null
+      })
+    });
+
+    const json = (await res.json()) as {
+      result?: {
+        discountTotalPence?: number;
+        applied?: OffersSnapshot['applied'];
+        autoAdd?: OffersSnapshot['autoAdd'];
+      };
+    };
+
+    if (!res.ok || !json.result) {
+      setOffersSnap({ discountPence: 0, applied: [], autoAdd: [] });
+      return;
+    }
+
+    setOffersSnap({
+      discountPence: Math.max(0, Math.trunc(json.result.discountTotalPence ?? 0)),
+      applied: Array.isArray(json.result.applied) ? json.result.applied : [],
+      autoAdd: Array.isArray(json.result.autoAdd) ? json.result.autoAdd : []
+    });
+  }
+
+  useEffect(() => {
+    void refreshOffers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, promoCartKey, promo]);
 
   function makeOrderBody() {
     const ship = packAddress(shipping);
@@ -579,7 +655,7 @@ export default function CheckoutClient({ email }: { email: string | null }) {
         name: i.name,
         unitPrice: i.unitPrice,
         quantity: i.quantity,
-        imageUrl: i.imageUrl ?? i.image ?? undefined,
+        imageUrl: i.imageUrl ?? (i as unknown as { image?: string | null }).image ?? undefined,
         productId: i.productId ?? undefined
       })),
       shippingAddress: ship,
@@ -588,15 +664,16 @@ export default function CheckoutClient({ email }: { email: string | null }) {
       totals: {
         subtotal: liveSubtotal,
         shipping: shippingPence,
-        discount: promoDiscountTotal,
+        discount: 0, // server will compute truth; UI shows best-wins separately
         tax: 0,
-        grandTotal: grand
+        grandTotal: 0
       },
       currency: 'GBP',
       contactEmail: emailForOrder,
       saveAddress: isLoggedIn ? saveToAccount : false,
       saveAddressLabel: isLoggedIn && saveToAccount ? saveLabel.trim() : '',
       saveAddressKind: 'SHIPPING' as const,
+      // Send promo if it was applied; server will still do best-wins
       ...promoPayload
     };
   }
@@ -772,6 +849,18 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     return [c, p, String(Math.trunc(shippingPence ?? 0)), shippingKind, 'GBP'].join('|');
   }, [shipping.country, shipping.postcode, shippingPence, shippingKind]);
 
+  // ✅ BEST WINS totals (UI mirrors server)
+  const offerDiscountTotal = Math.max(0, Math.trunc(offersSnap.discountPence));
+  const offersHaveImpact = offerDiscountTotal > 0 || (offersSnap.autoAdd?.length ?? 0) > 0;
+  const promoHaveImpact = promoDiscountTotal > 0;
+
+  const useOffers =
+    offersHaveImpact && (!promoHaveImpact || offerDiscountTotal > promoDiscountTotal);
+  const discountShown = useOffers ? offerDiscountTotal : promoDiscountTotal;
+
+  // Show discount effect in the UI grand total.
+  const grand = liveSubtotal + shippingPence - discountShown + tax;
+
   return (
     <main className={styles.shell}>
       <div className={styles.headerRow}>
@@ -934,6 +1023,10 @@ export default function CheckoutClient({ email }: { email: string | null }) {
               shippingDiscountPence: Math.max(0, Math.trunc(v.shippingDiscountPence ?? 0))
             });
           }}
+          offersSnap={offersSnap}
+          useOffers={useOffers}
+          offerDiscountTotal={offerDiscountTotal}
+          promoDiscountTotal={promoDiscountTotal}
         />
       </div>
 

@@ -18,12 +18,18 @@ function bad(msg: string, status = 400) {
   return NextResponse.json({ ok: false, error: msg }, { status });
 }
 
-function isIntPence(n: unknown): n is number {
+function isNonNegInt(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n) && Number.isInteger(n) && n >= 0;
 }
 
+function isPosInt(n: unknown): n is number {
+  return typeof n === 'number' && Number.isFinite(n) && Number.isInteger(n) && n >= 1;
+}
+
 function clampPct(n: number) {
-  return Math.max(0, Math.min(100, n));
+  // ensure integer 0..100
+  const x = Number.isFinite(n) ? Math.trunc(n) : 0;
+  return Math.max(0, Math.min(100, x));
 }
 
 function normalizeCode(raw: string) {
@@ -80,7 +86,6 @@ export async function POST(req: Request) {
       items?: EvalItem[];
       userId?: string | null;
       email?: string | null;
-      subtotalPence?: number; // ignored by design
       shippingPence?: number;
       currency?: string;
       shippingKind?: ShippingKind;
@@ -130,8 +135,9 @@ export async function POST(req: Request) {
     return bad('NO_ITEMS');
   }
 
+  // ✅ validate items properly
   for (const it of items) {
-    if (!isIntPence(it.unitPrice)) {
+    if (!isNonNegInt(it.unitPrice)) {
       await logAttempt({
         checkoutId,
         code: promoCode,
@@ -143,7 +149,7 @@ export async function POST(req: Request) {
       });
       return bad('BAD_ITEM_PRICE');
     }
-    if (!isIntPence(it.quantity) || it.quantity < 1) {
+    if (!isPosInt(it.quantity)) {
       await logAttempt({
         checkoutId,
         code: promoCode,
@@ -158,7 +164,7 @@ export async function POST(req: Request) {
   }
 
   const sub = subtotalFor(items);
-  const ship = isIntPence(shippingPence) ? shippingPence : 0;
+  const ship = isNonNegInt(shippingPence) ? shippingPence : 0;
   const kind: ShippingKind = shippingKind ?? 'DRY';
 
   const promo = await prisma.promotion.findUnique({
@@ -207,6 +213,7 @@ export async function POST(req: Request) {
   }
 
   const now = new Date();
+
   if (promo.status !== 'ACTIVE') {
     await logAttempt({
       checkoutId,
@@ -222,6 +229,7 @@ export async function POST(req: Request) {
     });
     return bad('PROMO_NOT_ACTIVE', 400);
   }
+
   if (promo.startsAt && now < promo.startsAt) {
     await logAttempt({
       checkoutId,
@@ -237,6 +245,7 @@ export async function POST(req: Request) {
     });
     return bad('PROMO_NOT_STARTED', 400);
   }
+
   if (promo.endsAt && now > promo.endsAt) {
     await logAttempt({
       checkoutId,
@@ -254,6 +263,7 @@ export async function POST(req: Request) {
   }
 
   const emailNorm = typeof email === 'string' ? email.trim().toLowerCase() : '';
+
   if (promo.lockedToUserId && promo.lockedToUserId !== (userId ?? null)) {
     await logAttempt({
       checkoutId,
@@ -269,6 +279,7 @@ export async function POST(req: Request) {
     });
     return bad('PROMO_LOCKED_TO_USER', 403);
   }
+
   if (promo.lockedToEmail && promo.lockedToEmail.trim().toLowerCase() !== emailNorm) {
     await logAttempt({
       checkoutId,
@@ -285,6 +296,7 @@ export async function POST(req: Request) {
     return bad('PROMO_LOCKED_TO_EMAIL', 403);
   }
 
+  // total uses
   if (promo.maxUsesTotal != null && promo.maxUsesTotal >= 0) {
     const used = await prisma.promotionRedemption.count({ where: { promotionId: promo.id } });
     if (used >= promo.maxUsesTotal) {
@@ -304,48 +316,22 @@ export async function POST(req: Request) {
     }
   }
 
+  // per user/email uses
   if (promo.maxUsesPerUser != null && promo.maxUsesPerUser >= 0) {
     if (userId) {
       const used = await prisma.promotionRedemption.count({
         where: { promotionId: promo.id, userId }
       });
-      if (used >= promo.maxUsesPerUser) {
-        await logAttempt({
-          checkoutId,
-          code: promoCode,
-          promotionId: promo.id,
-          outcome: 'EVAL_ERR',
-          errorCode: 'PROMO_MAX_USES_PER_USER_REACHED',
-          currency: cur,
-          subtotalPence: sub,
-          shippingPence: ship,
-          userId: userId ?? null,
-          email: email ?? null
-        });
-        return bad('PROMO_MAX_USES_PER_USER_REACHED', 400);
-      }
+      if (used >= promo.maxUsesPerUser) return bad('PROMO_MAX_USES_PER_USER_REACHED', 400);
     } else if (emailNorm) {
       const used = await prisma.promotionRedemption.count({
         where: { promotionId: promo.id, emailUsed: emailNorm }
       });
-      if (used >= promo.maxUsesPerUser) {
-        await logAttempt({
-          checkoutId,
-          code: promoCode,
-          promotionId: promo.id,
-          outcome: 'EVAL_ERR',
-          errorCode: 'PROMO_MAX_USES_PER_EMAIL_REACHED',
-          currency: cur,
-          subtotalPence: sub,
-          shippingPence: ship,
-          userId: userId ?? null,
-          email: email ?? null
-        });
-        return bad('PROMO_MAX_USES_PER_EMAIL_REACHED', 400);
-      }
+      if (used >= promo.maxUsesPerUser) return bad('PROMO_MAX_USES_PER_EMAIL_REACHED', 400);
     }
   }
 
+  // target filtering
   const productIds = items.map((i) => i.productId).filter(Boolean) as string[];
 
   const products =
@@ -399,7 +385,6 @@ export async function POST(req: Request) {
     shippingDiscountPence = Math.max(0, Math.min(shippingDiscountPence, ship));
   }
 
-  // ✅ log success attempt
   await logAttempt({
     checkoutId,
     code: promoCode,

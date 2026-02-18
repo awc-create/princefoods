@@ -16,9 +16,14 @@ const HEADERS = [
   'discountMode',
   'discountValue',
   'inventory',
+
+  // ✅ wholesale
+  'caseQty',
+
   'weight', // (kg) optional
-  'shipping_weight', // ✅ (grams) — easy for Google Merchant feeds
+  'shipping_weight', // (grams)
   'cost',
+
   'productOptionName1',
   'productOptionType1',
   'productOptionDescription1',
@@ -37,6 +42,7 @@ const HEADERS = [
   'productOptionName6',
   'productOptionType6',
   'productOptionDescription6',
+
   'additionalInfoTitle1',
   'additionalInfoDescription1',
   'additionalInfoTitle2',
@@ -49,6 +55,7 @@ const HEADERS = [
   'additionalInfoDescription5',
   'additionalInfoTitle6',
   'additionalInfoDescription6',
+
   'customTextField1',
   'customTextCharLimit1',
   'customTextMandatory1',

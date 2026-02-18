@@ -1,4 +1,3 @@
-// src/app/api/admin/products/import/route.ts
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
@@ -167,15 +166,18 @@ function pickKeys<T extends Record<string, unknown>>(obj: T, keys: string[]): Pa
   return out;
 }
 
+function intOrNull(val: unknown): number | null {
+  if (val == null || String(val).trim() === '') return null;
+  const n = Math.trunc(Number(val));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 /* -------------------------------------------
    Weight parsing → grams
-   - handles: "200g", "1kg", "500 ml", "1L", "2 x 500g", "3×330ml", etc.
-   - liquids: ml ≈ g (density ~ water) — good enough for shipping
 ------------------------------------------- */
 function parseWeightToGramsFromName(name: string): number | null {
   const s = name.toLowerCase();
 
-  // 2x500g / 2 × 500 g
   const multi = s.match(/(\d+)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(kg|g|l|ml)\b/);
   if (multi) {
     const qty = Number(multi[1]);
@@ -195,7 +197,6 @@ function parseWeightToGramsFromName(name: string): number | null {
     return grams > 0 ? grams : null;
   }
 
-  // Single: 200g / 0.5 kg / 500ml / 1 l
   const single = s.match(/(\d+(?:\.\d+)?)\s*(kg|g|l|ml)\b/);
   if (single) {
     const val = Number(single[1]);
@@ -236,23 +237,19 @@ function normalizeWeightKg(raw?: string | null): number | null {
 
 /* -------------------------------------------
    Map CSV row → Prisma Product data
-   (now fills both weight (kg) and shippingWeightGrams (g))
 ------------------------------------------- */
 function deriveWeights(row: NormalizedRow): { weightKg: number | null; grams: number | null } {
-  // 1) explicit weight column wins (if present)
   const explicitKg = normalizeWeightKg(row.weight ?? null);
   if (explicitKg != null) {
     return { weightKg: explicitKg, grams: Math.round(explicitKg * 1000) };
   }
 
-  // 2) explicit shipping_weight column (grams) if provided
   const swRaw = row.shipping_weight ?? row.shippingweight ?? null;
   if (swRaw != null && swRaw !== '') {
     const g = Math.round(Number(swRaw));
     if (Number.isFinite(g) && g > 0) return { weightKg: g / 1000, grams: g };
   }
 
-  // 3) fallback: parse from name
   const name = (row.name ?? '').trim();
   if (name) {
     const g = parseWeightToGramsFromName(name);
@@ -269,6 +266,17 @@ function mapToProductCreate(id: string, r: NormalizedRow) {
   const detected = detectAndNormalizeImageUrl(chosen && chosen.length > 0 ? chosen : null);
 
   const { weightKg, grams } = deriveWeights(r);
+
+  // ✅ support several possible column names
+  const caseQty =
+    intOrNull(
+      r.caseqty ??
+        r.unitspercase ??
+        r.unitsperbox ??
+        r.masterboxqty ??
+        r.unitsincase ??
+        r.unitspermasterbox
+    ) ?? null;
 
   return {
     id,
@@ -287,6 +295,9 @@ function mapToProductCreate(id: string, r: NormalizedRow) {
     discountMode: r.discountmode || null,
     discountValue: numOrNull(r.discountvalue),
     inventory: r.inventory || null,
+
+    // ✅ wholesale
+    caseQty,
 
     // ✅ weights
     weight: weightKg, // kg
@@ -406,7 +417,11 @@ export async function POST(req: Request) {
           'weight',
           'shipping_weight',
           'productimageurl',
-          'image'
+          'image',
+          // ✅ allow case qty to be pulled from Variant row too if present
+          'caseqty',
+          'unitspercase',
+          'unitsperbox'
         ]) as NormalizedRow)
       };
 
