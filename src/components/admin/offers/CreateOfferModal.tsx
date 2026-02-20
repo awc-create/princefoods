@@ -29,7 +29,9 @@ function fmtErr(e: unknown, fallback: string) {
 function kindLabel(kind: AdminOfferKind) {
   if (kind === 'BOGOF') return 'BOGOF';
   if (kind === 'X_FOR_Y') return 'X for Y';
-  return 'X for £';
+  if (kind === 'X_FOR_FIXED_PRICE') return 'X for £';
+  if (kind === 'PERCENT_OFF') return '% off';
+  return '£ off';
 }
 
 function targetLabel(t: OfferTargetType) {
@@ -70,7 +72,12 @@ export default function CreateOfferModal({
   const [buyQty, setBuyQty] = useState(2);
   const [getQty, setGetQty] = useState<number | null>(1);
   const [payQty, setPayQty] = useState<number | null>(1);
+
+  // used by X_FOR_FIXED_PRICE and AMOUNT_OFF
   const [pricePence, setPricePence] = useState<number | null>(100); // £1 default
+
+  // used by PERCENT_OFF
+  const [percent, setPercent] = useState<number | null>(10);
 
   /* =====================
      Targeting
@@ -93,8 +100,13 @@ export default function CreateOfferModal({
     if (!name.trim()) return false;
     if (targetType === 'PRODUCTS') return productIds.length > 0;
     if (targetType === 'CATEGORIES') return categoryIds.length > 0;
+
+    // kind-specific minimal checks
+    if (kind === 'PERCENT_OFF') return (percent ?? 0) > 0;
+    if (kind === 'AMOUNT_OFF') return (pricePence ?? 0) > 0;
+
     return true;
-  }, [name, targetType, productIds.length, categoryIds.length]);
+  }, [name, targetType, productIds.length, categoryIds.length, kind, percent, pricePence]);
 
   const summary = useMemo(() => {
     const left = `${kindLabel(kind)} • ${targetLabel(targetType)}`;
@@ -115,6 +127,8 @@ export default function CreateOfferModal({
     if (kind === 'BOGOF') {
       setPayQty(null);
       setPricePence(null);
+      setPercent(null);
+
       setGetQty((v) => v ?? 1);
       setBuyQty((v) => v || 2);
       return;
@@ -123,6 +137,8 @@ export default function CreateOfferModal({
     if (kind === 'X_FOR_Y') {
       setGetQty(null);
       setPricePence(null);
+      setPercent(null);
+
       setPayQty((v) => v ?? 1);
       setBuyQty((v) => v || 2);
       return;
@@ -131,8 +147,30 @@ export default function CreateOfferModal({
     if (kind === 'X_FOR_FIXED_PRICE') {
       setGetQty(null);
       setPayQty(null);
+      setPercent(null);
+
       setPricePence((v) => v ?? 100);
       setBuyQty((v) => v || 2);
+      return;
+    }
+
+    if (kind === 'PERCENT_OFF') {
+      // no qtys
+      setGetQty(null);
+      setPayQty(null);
+      setPricePence(null);
+
+      setPercent((v) => v ?? 10);
+      return;
+    }
+
+    if (kind === 'AMOUNT_OFF') {
+      // no qtys
+      setGetQty(null);
+      setPayQty(null);
+      setPercent(null);
+
+      setPricePence((v) => v ?? 100);
     }
   }, [open, kind]);
 
@@ -237,14 +275,30 @@ export default function CreateOfferModal({
                 pool
               }
             }
-          : {
-              kind: 'X_FOR_FIXED_PRICE',
-              data: {
-                qty: buyQty,
-                pricePence: Math.max(0, Math.trunc(pricePence ?? 0)),
-                pool
+          : kind === 'X_FOR_FIXED_PRICE'
+            ? {
+                kind: 'X_FOR_FIXED_PRICE',
+                data: {
+                  qty: buyQty,
+                  pricePence: Math.max(0, Math.trunc(pricePence ?? 0)),
+                  pool
+                }
               }
-            };
+            : kind === 'PERCENT_OFF'
+              ? {
+                  kind: 'PERCENT_OFF',
+                  data: {
+                    percent: Math.max(0, Math.min(100, Math.trunc(percent ?? 0))),
+                    pool
+                  }
+                }
+              : {
+                  kind: 'AMOUNT_OFF',
+                  data: {
+                    amountPence: Math.max(0, Math.trunc(pricePence ?? 0)),
+                    pool
+                  }
+                };
 
     const body: OfferAdminForm = {
       // id omitted on create (server generates)
@@ -290,7 +344,7 @@ export default function CreateOfferModal({
           <div className={styles.modalHeaderLeft}>
             <div className={styles.modalTitle}>Create offer</div>
             <div className={styles.modalSub}>
-              Automatic deals like BOGOF / X-for-Y / X-for-£ (no coupon code).
+              Automatic deals like BOGOF / X-for-Y / X-for-£ / % off / £ off (no coupon code).
             </div>
 
             <div className={styles.modalMetaRow}>
@@ -323,7 +377,7 @@ export default function CreateOfferModal({
                   <label className={styles.label}>Offer name</label>
                   <input
                     className={styles.input}
-                    placeholder="e.g. 2 for £1"
+                    placeholder="e.g. 10% off"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                   />
@@ -339,6 +393,8 @@ export default function CreateOfferModal({
                     <option value="BOGOF">BOGOF (Buy X get Y free)</option>
                     <option value="X_FOR_Y">X for Y (Buy X pay for Y)</option>
                     <option value="X_FOR_FIXED_PRICE">X for £ (Buy X for fixed price)</option>
+                    <option value="PERCENT_OFF">% off (Percent discount)</option>
+                    <option value="AMOUNT_OFF">£ off (Fixed amount discount)</option>
                   </select>
                 </div>
               </div>
@@ -421,6 +477,8 @@ export default function CreateOfferModal({
                   setPayQty={setPayQty}
                   pricePence={pricePence}
                   setPricePence={setPricePence}
+                  percent={percent}
+                  setPercent={setPercent}
                 />
               </div>
             </div>

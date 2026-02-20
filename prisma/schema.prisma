@@ -30,6 +30,21 @@ enum ShippingTemp {
   FROZEN
 }
 
+model Media {
+  id        String   @id @default(cuid())
+  url       String
+  kind      String?  // optional: "HOME_SECTION", "HERO", etc.
+  name      String?  // optional label
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  homeSections HomeSection[]
+
+  @@index([createdAt])
+  @@index([kind])
+}
+
 /**
  * =========================
  * PRODUCTS + CATEGORIES
@@ -58,6 +73,9 @@ model Product {
   shippingTemp        ShippingTemp @default(DRY)
 
   cost Float?
+
+  // ✅ for campaign/seasonal targeting + manual merchandising
+  tags String[] @default([])
 
   // --------- Analytics counters ----------
   views        Int @default(0) // page impressions
@@ -160,6 +178,9 @@ model Product {
   @@index([shippingWeightGrams])
   @@index([shippingTemp])
   @@index([sku])
+
+  // ✅ NEW (Postgres array index)
+  @@index([tags], type: Gin)
 }
 
 model Category {
@@ -971,6 +992,9 @@ model Promotion {
   startsAt DateTime?
   endsAt   DateTime?
 
+  // ✅ used by Home Sections CAMPAIGN + seasonal merchandising
+  campaignKey CampaignKey? @default(CUSTOM)
+
   // Eligibility controls
   lockedToUserId String?
   lockedToUser   User?   @relation("PromotionLockedToUser", fields: [lockedToUserId], references: [id], onDelete: SetNull)
@@ -1018,6 +1042,9 @@ model Promotion {
   @@index([lockedToEmail])
   @@index([applyMode, status])
   @@index([priority])
+
+  // ✅ NEW
+  @@index([campaignKey])
 }
 
 model PromotionCategory {
@@ -1222,6 +1249,21 @@ enum HomeSectionProductSource {
   COLLECTION
   CATEGORY
   MANUAL
+  CAMPAIGN
+}
+
+enum CampaignKey {
+  ONAM
+  VISHU
+  DIWALI
+  PONGAL
+  RAMADAN_EID
+  EASTER
+  CHRISTMAS
+  NEW_YEAR
+  SUMMER_BBQ
+  BACK_TO_UNI
+  CUSTOM
 }
 
 model HomeSection {
@@ -1240,6 +1282,10 @@ model HomeSection {
   // prevent deletion for “system” ones if you ever add them later
   isLocked  Boolean @default(false)
 
+  // ✅ NEW: optional media relation (campaign image, banner, etc.)
+  mediaId   String?
+  media     Media?   @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+
   config    Json?
 
   createdAt DateTime @default(now())
@@ -1247,6 +1293,7 @@ model HomeSection {
 
   @@index([enabled, position])
   @@index([startAt, endAt])
+  @@index([mediaId])
 }
 
 /**

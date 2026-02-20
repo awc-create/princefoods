@@ -1,8 +1,9 @@
-// src/components/products/ProductSlider.tsx
 'use client';
 
+import { useCart } from '@/lib/cart-store';
 import Image from 'next/image';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from './ProductSlider.module.scss';
 
 interface Product {
@@ -10,84 +11,232 @@ interface Product {
   name: string;
   price: number;
   productImageUrl: string | null;
+
+  // optional legacy fields if you ever pass them later
+  ribbon?: string | null;
+  discountMode?: string | null;
+  discountValue?: number | null;
 }
 
+type DealMeta =
+  | { mode: 'PERCENT_OFF'; percent: number }
+  | { mode: 'AMOUNT_OFF'; amountPence: number }
+  | null;
+
+interface BadgesResponse {
+  ok?: boolean;
+  badges?: Record<string, string[]>;
+  deals?: Record<string, DealMeta>;
+}
+
+const normalizeImage = (src?: string | null): string =>
+  !src || !src.trim()
+    ? '/assets/prince-foods-logo.png'
+    : src.startsWith('//')
+      ? `https:${src}`
+      : src;
+
+const poundsToPence = (n: number) => Math.round((n ?? 0) * 100);
+
 const priceStr = (n: number) =>
-  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n || 0);
+  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n ?? 0);
 
-// 🔒 Force the same test image for every product (lives under /public/assets/…)
-const TEST_IMG = '/assets/96bfc4_3a3fd4d7b9824b31a86d7d873dff083a~mv2.jpeg';
-const imgPath = (_img: string | null) => TEST_IMG;
-
-// 🔸 analytics helper
-const trackClick = (productId: string) =>
+const track = (payload: unknown) =>
   fetch('/api/track', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'product_click', productId })
+    body: JSON.stringify(payload)
   }).catch(() => {});
 
-export default function ProductSlider({ title, products }: { title: string; products: Product[] }) {
+function isInteractiveTarget(t: EventTarget | null) {
+  if (!t || !(t instanceof HTMLElement)) return false;
+  return Boolean(t.closest('a,button,input,select,textarea,label,[role="button"]'));
+}
+
+/** compute discounted display prices (returns null if no effective discount) */
+function computeDealPrice(basePrice: number, deal: DealMeta) {
+  if (!deal) return null;
+
+  const base = Number.isFinite(basePrice) ? basePrice : 0;
+  if (base <= 0) return null;
+
+  if (deal.mode === 'PERCENT_OFF') {
+    const pct = Math.max(0, Math.min(100, Math.trunc(deal.percent ?? 0)));
+    if (pct <= 0) return null;
+
+    const now = +(base * (1 - pct / 100)).toFixed(2);
+    if (!Number.isFinite(now) || now >= base) return null;
+
+    return { now, was: base };
+  }
+
+  if (deal.mode === 'AMOUNT_OFF') {
+    const off = Math.max(0, Math.trunc(deal.amountPence ?? 0));
+    if (off <= 0) return null;
+
+    const now = +Math.max(0, base - off / 100).toFixed(2);
+    if (!Number.isFinite(now) || now >= base) return null;
+
+    return { now, was: base };
+  }
+
+  return null;
+}
+
+export default function ProductSlider({
+  title,
+  products,
+  subtitle
+}: {
+  title: string;
+  subtitle?: string | null;
+  products: Product[];
+}) {
   const trackRef = useRef<HTMLDivElement | null>(null);
+
+  // cart
+  const add = useCart((st) => st.add);
+  const open = useCart((st) => st.open);
 
   // qty per product
   const [qty, setQty] = useState<Record<string, number>>({});
   const inc = (id: string) => setQty((q) => ({ ...q, [id]: Math.min((q[id] ?? 1) + 1, 99) }));
   const dec = (id: string) => setQty((q) => ({ ...q, [id]: Math.max((q[id] ?? 1) - 1, 1) }));
 
+  // offers: pills + deal meta (for price display)
+  const [badgesById, setBadgesById] = useState<Record<string, string[]>>({});
+  const [dealsById, setDealsById] = useState<Record<string, DealMeta>>({});
+
   // drag-to-scroll
   const [dragging, setDragging] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
-  const [, setTick] = useState(0); // re-render to refresh arrow disabled state
+  const dragRef = useRef({
+    startX: 0,
+    scrollLeft: 0,
+    moved: 0
+  });
 
-  const canPrev = () => !!trackRef.current && trackRef.current.scrollLeft > 0;
-  const canNext = () =>
-    !!trackRef.current &&
-    trackRef.current.scrollLeft + trackRef.current.clientWidth < trackRef.current.scrollWidth - 2;
-
+  // ✅ wrap-aware scroll
   const scrollByCards = useCallback((dir: 1 | -1) => {
     const el = trackRef.current;
     if (!el) return;
+
+    const maxLeft = Math.max(0, el.scrollWidth - el.clientWidth);
+    const atStart = el.scrollLeft <= 1;
+    const atEnd = el.scrollLeft >= maxLeft - 1;
+
+    // wrap
+    if (dir === 1 && atEnd) {
+      el.scrollTo({ left: 0, behavior: 'smooth' });
+      return;
+    }
+    if (dir === -1 && atStart) {
+      el.scrollTo({ left: maxLeft, behavior: 'smooth' });
+      return;
+    }
+
     el.scrollBy({ left: dir * el.clientWidth, behavior: 'smooth' });
   }, []);
 
+  const handleAdd = (p: Product, quantity: number) => {
+    const img = normalizeImage(p.productImageUrl);
+
+    add({
+      id: p.id,
+      productId: p.id,
+      name: p.name,
+      image: img,
+      imageUrl: img,
+      unitPrice: poundsToPence(p.price),
+      quantity
+    });
+
+    open();
+    track({ type: 'product_click', productId: p.id, action: 'add_to_cart' });
+  };
+
+  // Fetch offer badges + best deal meta for slider products
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const ids = (products ?? []).map((p) => p.id).filter(Boolean);
+
+      if (!ids.length) {
+        setBadgesById({});
+        setDealsById({});
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/offers/badges', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productIds: ids })
+        });
+
+        const data = (await res.json().catch(() => ({}))) as BadgesResponse;
+        if (cancelled) return;
+
+        setBadgesById(data.badges ?? {});
+        setDealsById(data.deals ?? {});
+      } catch {
+        if (!cancelled) {
+          setBadgesById({});
+          setDealsById({});
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [products]);
+
+  // pointer drag
   useEffect(() => {
     const el = trackRef.current;
     if (!el) return;
 
     const onDown = (e: PointerEvent) => {
+      if (isInteractiveTarget(e.target)) return;
+
       setDragging(true);
-      setStartX(e.pageX - el.getBoundingClientRect().left);
-      setScrollLeft(el.scrollLeft);
-      el.setPointerCapture(e.pointerId);
+      dragRef.current.startX = e.pageX - el.getBoundingClientRect().left;
+      dragRef.current.scrollLeft = el.scrollLeft;
+      dragRef.current.moved = 0;
+
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {}
     };
+
     const onMove = (e: PointerEvent) => {
       if (!dragging) return;
       const x = e.pageX - el.getBoundingClientRect().left;
-      el.scrollLeft = scrollLeft - (x - startX) * 1.1;
+      const walk = (x - dragRef.current.startX) * 1.1;
+      dragRef.current.moved += Math.abs(walk);
+      el.scrollLeft = dragRef.current.scrollLeft - walk;
     };
+
     const onUp = (e: PointerEvent) => {
       setDragging(false);
       try {
         el.releasePointerCapture(e.pointerId);
       } catch {}
     };
-    const onScroll = () => setTick((t) => (t + 1) % 1000);
 
     el.addEventListener('pointerdown', onDown);
     el.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
-    el.addEventListener('scroll', onScroll, { passive: true });
 
     return () => {
       el.removeEventListener('pointerdown', onDown);
       el.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
-      el.removeEventListener('scroll', onScroll);
     };
-  }, [dragging, startX, scrollLeft]);
+  }, [dragging]);
 
+  // keyboard arrows (wraps too)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const hover = trackRef.current?.matches(':hover,:focus-within');
@@ -99,33 +248,65 @@ export default function ProductSlider({ title, products }: { title: string; prod
     return () => window.removeEventListener('keydown', onKey);
   }, [scrollByCards]);
 
+  const sliderId = useMemo(() => `pf-slider-${title.replace(/\s+/g, '-').toLowerCase()}`, [title]);
+
   return (
-    <section className={styles.sliderWrapper} aria-labelledby="pf-best-sellers">
-      <h2 id="pf-best-sellers" className={styles.heading}>
+    <section className={styles.sliderWrapper} aria-labelledby={sliderId}>
+      <h2 id={sliderId} className={styles.heading}>
         {title}
       </h2>
 
+      {subtitle ? <p className={styles.subheading}>{subtitle}</p> : null}
+
       <div className={styles.carousel}>
+        {/* ✅ LEFT arrow */}
         <button
           className={styles.arrow}
           onClick={() => scrollByCards(-1)}
           aria-label="Previous products"
-          disabled={!canPrev()}
           type="button"
         >
           ‹
         </button>
 
+        {/* track */}
         <div className={styles.track} ref={trackRef} tabIndex={0} aria-label="Product list">
           {products.map((p) => {
             const q = qty[p.id] ?? 1;
+            const img = normalizeImage(p.productImageUrl);
+
+            const badges = badgesById[p.id] ?? [];
+            const deal = dealsById[p.id] ?? null;
+            const dealPrice = computeDealPrice(p.price, deal);
+
             return (
               <article key={p.id} className={styles.card} role="listitem">
-                {/* TOP mini-card — image + name + price */}
                 <div className={styles.topCard}>
                   <div className={styles.imageSection}>
+                    {badges.length > 0 ? (
+                      <div className={styles.badgeStack} aria-label="Offers">
+                        {badges.slice(0, 2).map((b) => (
+                          <span key={b} className={styles.badge}>
+                            {b}
+                          </span>
+                        ))}
+                        {badges.length > 2 ? (
+                          <span className={styles.badgeSoft}>+{badges.length - 2}</span>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    <Link
+                      href={`/product/${p.id}`}
+                      aria-label={p.name}
+                      onClick={() =>
+                        track({ type: 'product_click', productId: p.id, action: 'view' })
+                      }
+                      className={styles.imageLink}
+                    />
+
                     <Image
-                      src={imgPath(p.productImageUrl)}
+                      src={img}
                       alt={p.name}
                       fill
                       sizes="(max-width: 520px) 90vw, (max-width: 1160px) 45vw, 300px"
@@ -138,11 +319,18 @@ export default function ProductSlider({ title, products }: { title: string; prod
                     <p className={styles.name} title={p.name}>
                       {p.name}
                     </p>
-                    <p className={styles.price}>{priceStr(p.price)}</p>
+
+                    {dealPrice ? (
+                      <div className={styles.priceDealRow} aria-label="Discounted price">
+                        <span className={styles.priceNow}>{priceStr(dealPrice.now)}</span>
+                        <span className={styles.priceWas}>{priceStr(dealPrice.was)}</span>
+                      </div>
+                    ) : (
+                      <p className={styles.price}>{priceStr(p.price)}</p>
+                    )}
                   </div>
                 </div>
 
-                {/* BOTTOM mini-card — qty + actions */}
                 <div className={styles.bottomCard} tabIndex={0}>
                   <div className={styles.qty}>
                     <button aria-label="Decrease quantity" onClick={() => dec(p.id)} type="button">
@@ -156,18 +344,10 @@ export default function ProductSlider({ title, products }: { title: string; prod
 
                   <div className={styles.actions}>
                     <button
-                      className={styles.btnGhost}
-                      type="button"
-                      aria-label={`Quick view ${p.name}`}
-                      onClick={() => trackClick(p.id)}
-                    >
-                      Quick View
-                    </button>
-                    <button
                       className={styles.btnPrimary}
                       type="button"
                       aria-label={`Add ${p.name} to cart`}
-                      onClick={() => trackClick(p.id)}
+                      onClick={() => handleAdd(p, q)}
                     >
                       Add to Cart
                     </button>
@@ -178,11 +358,11 @@ export default function ProductSlider({ title, products }: { title: string; prod
           })}
         </div>
 
+        {/* ✅ RIGHT arrow */}
         <button
           className={styles.arrow}
           onClick={() => scrollByCards(1)}
           aria-label="Next products"
-          disabled={!canNext()}
           type="button"
         >
           ›

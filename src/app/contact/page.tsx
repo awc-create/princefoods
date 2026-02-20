@@ -1,3 +1,4 @@
+// src/app/contact/page.tsx
 import ContactOffices from '@/components/contact/ContactOffice';
 import { Suspense } from 'react';
 import ContactClient from './ContactClient';

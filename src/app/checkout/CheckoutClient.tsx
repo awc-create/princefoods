@@ -137,10 +137,44 @@ interface PromoSnapshot {
   shippingDiscountPence: number;
 }
 
-// ✅ NEW: offers snapshot
+/* =========================
+   ✅ Offers snapshot (FULL shape incl meta + eligible)
+   ========================= */
+interface LineDiscount {
+  productId?: string | null;
+  sku?: string | null;
+  name: string;
+  qty: number;
+  amountPence: number;
+  reason?: 'FREE' | 'DISCOUNT';
+}
+
+interface LineParticipant {
+  productId?: string | null;
+  sku?: string | null;
+  name: string;
+  qty: number;
+  role?: 'BUY' | 'GET' | 'ELIGIBLE' | 'FREE';
+}
+
+interface OfferCard {
+  offerId: string;
+  name: string;
+  kind: string;
+  discountPence: number;
+  meta?: {
+    lineDiscounts?: LineDiscount[];
+    lineParticipants?: LineParticipant[];
+    groups?: number;
+    freeCount?: number;
+    samePool?: boolean;
+  } | null;
+}
+
 interface OffersSnapshot {
   discountPence: number;
-  applied: { offerId: string; name: string; kind: string; discountPence: number }[];
+  applied: OfferCard[];
+  eligible?: OfferCard[];
   autoAdd: {
     reasonOfferId: string;
     productId?: string | null;
@@ -148,6 +182,15 @@ interface OffersSnapshot {
     name: string;
     qty: number;
   }[];
+}
+
+const normNameKey = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+const normSkuKey = (s: string) => s.trim().toUpperCase().replace(/\s+/g, ' ');
+
+function itemKeyOf(x: { productId?: string | null; sku?: string | null; name: string }) {
+  if (x.productId) return `pid:${x.productId}`;
+  if (x.sku) return `sku:${normSkuKey(x.sku)}`;
+  return `name:${normNameKey(x.name)}`;
 }
 
 export default function CheckoutClient({ email }: { email: string | null }) {
@@ -255,15 +298,13 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     shippingDiscountPence: 0
   });
 
-  // ✅ NEW: offers snapshot
   const [offersSnap, setOffersSnap] = useState<OffersSnapshot>({
     discountPence: 0,
     applied: [],
+    eligible: [],
     autoAdd: []
   });
 
-  // If cart changes, promo snapshot may no longer be valid.
-  // Keep UI safe by clearing the snapshot (user can re-apply).
   const promoCartKey = useMemo(() => {
     return items
       .map((i) => `${i.productId ?? ''}:${i.id}:${i.quantity}:${Math.trunc(i.unitPrice)}`)
@@ -280,9 +321,8 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     });
   }, [promoCartKey]);
 
-  // ✅ Clear offers preview too
   useEffect(() => {
-    setOffersSnap({ discountPence: 0, applied: [], autoAdd: [] });
+    setOffersSnap({ discountPence: 0, applied: [], eligible: [], autoAdd: [] });
   }, [promoCartKey]);
 
   const liveSubtotal = mounted ? subtotal() : 0;
@@ -522,7 +562,6 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     };
   }
 
-  // ✅ STANDARD ONLY shipping quote
   useEffect(() => {
     if (!mounted) return;
 
@@ -583,12 +622,11 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     return () => window.clearTimeout(timer);
   }, [mounted, shipping.country, shipping.postcode, items, formatUKPostcode, reset]);
 
-  // ✅ OFFERS quote (preview-only)
   async function refreshOffers() {
     if (!mounted) return;
 
     if (!items.length) {
-      setOffersSnap({ discountPence: 0, applied: [], autoAdd: [] });
+      setOffersSnap({ discountPence: 0, applied: [], eligible: [], autoAdd: [] });
       return;
     }
 
@@ -597,7 +635,7 @@ export default function CheckoutClient({ email }: { email: string | null }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         lines: items.map((it: CartLine) => ({
-          lineId: it.id, // ✅ IMPORTANT
+          lineId: it.id,
           productId: it.productId ?? undefined,
           sku: it.sku ?? undefined,
           name: it.name,
@@ -607,7 +645,6 @@ export default function CheckoutClient({ email }: { email: string | null }) {
           tags: (it as unknown as { tags?: string[] | null }).tags ?? undefined,
           collection: (it as unknown as { collection?: string | null }).collection ?? undefined
         })),
-        // optional: allow code-gated offers using the same text box
         code: promo?.trim() ? promo.trim().toUpperCase() : null
       })
     });
@@ -616,18 +653,20 @@ export default function CheckoutClient({ email }: { email: string | null }) {
       result?: {
         discountTotalPence?: number;
         applied?: OffersSnapshot['applied'];
+        eligible?: OffersSnapshot['eligible'];
         autoAdd?: OffersSnapshot['autoAdd'];
       };
     };
 
     if (!res.ok || !json.result) {
-      setOffersSnap({ discountPence: 0, applied: [], autoAdd: [] });
+      setOffersSnap({ discountPence: 0, applied: [], eligible: [], autoAdd: [] });
       return;
     }
 
     setOffersSnap({
       discountPence: Math.max(0, Math.trunc(json.result.discountTotalPence ?? 0)),
       applied: Array.isArray(json.result.applied) ? json.result.applied : [],
+      eligible: Array.isArray(json.result.eligible) ? json.result.eligible : [],
       autoAdd: Array.isArray(json.result.autoAdd) ? json.result.autoAdd : []
     });
   }
@@ -664,7 +703,7 @@ export default function CheckoutClient({ email }: { email: string | null }) {
       totals: {
         subtotal: liveSubtotal,
         shipping: shippingPence,
-        discount: 0, // server will compute truth; UI shows best-wins separately
+        discount: 0,
         tax: 0,
         grandTotal: 0
       },
@@ -673,7 +712,6 @@ export default function CheckoutClient({ email }: { email: string | null }) {
       saveAddress: isLoggedIn ? saveToAccount : false,
       saveAddressLabel: isLoggedIn && saveToAccount ? saveLabel.trim() : '',
       saveAddressKind: 'SHIPPING' as const,
-      // Send promo if it was applied; server will still do best-wins
       ...promoPayload
     };
   }
@@ -836,13 +874,9 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     setBilling((b) => ({ ...b, ...addrToForm(addr) }));
   };
 
-  // Use guest email when session email missing
   const emailForPromo = needEmail ? contactEmail.trim() : (email ?? sessionEmail ?? '');
-
-  // Right now we only do STANDARD + best-effort DRY/FROZEN later. Keep DRY.
   const shippingKind: 'DRY' | 'FROZEN' | 'MIXED' = 'DRY';
 
-  // ✅ This drives auto re-check when shipping changes (only if promo is already applied)
   const promoRecheckKey = useMemo(() => {
     const c = (shipping.country ?? '').trim().toUpperCase();
     const p = (shipping.postcode ?? '').trim().toUpperCase();
@@ -858,8 +892,32 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     offersHaveImpact && (!promoHaveImpact || offerDiscountTotal > promoDiscountTotal);
   const discountShown = useOffers ? offerDiscountTotal : promoDiscountTotal;
 
-  // Show discount effect in the UI grand total.
-  const grand = liveSubtotal + shippingPence - discountShown + tax;
+  // ✅ compute value of free units (autoAdd) so we don't double-discount
+  const offersFreeValuePence = useMemo(() => {
+    if (!offersSnap?.autoAdd?.length) return 0;
+
+    const priceByKey = new Map<string, number>();
+    for (const it of items) {
+      const k = itemKeyOf({ productId: it.productId ?? null, sku: it.sku ?? null, name: it.name });
+      priceByKey.set(k, Math.max(0, Math.trunc(it.unitPrice)));
+    }
+
+    let total = 0;
+    for (const a of offersSnap.autoAdd) {
+      const k = itemKeyOf({ productId: a.productId ?? null, sku: a.sku ?? null, name: a.name });
+      const unit = priceByKey.get(k) ?? 0;
+      const qty = Math.max(0, Math.trunc(a.qty ?? 0));
+      total += unit * qty;
+    }
+
+    return Math.max(0, Math.trunc(total));
+  }, [offersSnap.autoAdd, items]);
+
+  // ✅ When using offers, show a "was" subtotal including free value
+  const subtotalShown = useOffers ? liveSubtotal + offersFreeValuePence : liveSubtotal;
+
+  // ✅ Show discount effect in the UI grand total WITHOUT double-discounting
+  const grand = subtotalShown + shippingPence - discountShown + tax;
 
   return (
     <main className={styles.shell}>
@@ -1000,7 +1058,8 @@ export default function CheckoutClient({ email }: { email: string | null }) {
         <OrderSummary
           mounted={mounted}
           items={items}
-          liveSubtotal={liveSubtotal}
+          // ✅ pass the "was" subtotal when offers are used (prevents double-discount in UI)
+          liveSubtotal={subtotalShown}
           shippingCost={shippingPence}
           grand={grand}
           onDecQty={decQty}

@@ -3,8 +3,13 @@ import type { OfferAdminForm, OfferPayload, OfferTargetRule } from '@/types/offe
 
 export type OfferTargetType = 'SITE_WIDE' | 'PRODUCTS' | 'CATEGORIES';
 
-// Admin UI only supports these 3
-export type AdminOfferKind = 'BOGOF' | 'X_FOR_Y' | 'X_FOR_FIXED_PRICE';
+// ✅ Admin UI supports these 5 now
+export type AdminOfferKind =
+  | 'BOGOF'
+  | 'X_FOR_Y'
+  | 'X_FOR_FIXED_PRICE'
+  | 'PERCENT_OFF'
+  | 'AMOUNT_OFF';
 
 export interface SelectionInput {
   targetType: OfferTargetType;
@@ -59,6 +64,8 @@ export function adminKindFromPayload(p: OfferPayload): AdminOfferKind {
   if (p.kind === 'BOGOF') return 'BOGOF';
   if (p.kind === 'X_FOR_Y') return 'X_FOR_Y';
   if (p.kind === 'X_FOR_FIXED_PRICE') return 'X_FOR_FIXED_PRICE';
+  if (p.kind === 'PERCENT_OFF') return 'PERCENT_OFF';
+  if (p.kind === 'AMOUNT_OFF') return 'AMOUNT_OFF';
   return 'BOGOF';
 }
 
@@ -71,7 +78,12 @@ export function uiFromAdminForm(o: OfferAdminForm): {
   buyQty: number;
   getQty: number | null;
   payQty: number | null;
+
+  // used by X_FOR_FIXED_PRICE and AMOUNT_OFF
   pricePence: number | null;
+
+  // used by PERCENT_OFF
+  percent: number | null;
 
   targetType: OfferTargetType;
   productIds: string[];
@@ -85,6 +97,7 @@ export function uiFromAdminForm(o: OfferAdminForm): {
   let getQty: number | null = null;
   let payQty: number | null = null;
   let pricePence: number | null = null;
+  let percent: number | null = null;
 
   let pool: OfferTargetRule[] = [{ type: 'ALL_PRODUCTS' }];
 
@@ -100,6 +113,13 @@ export function uiFromAdminForm(o: OfferAdminForm): {
     buyQty = p.data.qty ?? 2;
     pricePence = p.data.pricePence ?? 0;
     pool = p.data.pool ?? [{ type: 'ALL_PRODUCTS' }];
+  } else if (p.kind === 'PERCENT_OFF') {
+    percent = typeof (p.data as { percent?: number }).percent === 'number' ? p.data.percent : 0;
+    pool = (p.data as { pool?: OfferTargetRule[] }).pool ?? [{ type: 'ALL_PRODUCTS' }];
+  } else if (p.kind === 'AMOUNT_OFF') {
+    pricePence =
+      typeof (p.data as { amountPence?: number }).amountPence === 'number' ? p.data.amountPence : 0;
+    pool = (p.data as { pool?: OfferTargetRule[] }).pool ?? [{ type: 'ALL_PRODUCTS' }];
   } else {
     // Unsupported kind in UI → keep safe defaults and SITE_WIDE
     buyQty = 2;
@@ -119,6 +139,7 @@ export function uiFromAdminForm(o: OfferAdminForm): {
     getQty,
     payQty,
     pricePence,
+    percent,
 
     targetType: sel.targetType,
     productIds: sel.productIds,
@@ -128,13 +149,41 @@ export function uiFromAdminForm(o: OfferAdminForm): {
 
 export function payloadFromUi(args: {
   kind: AdminOfferKind;
+
   buyQty: number;
   getQty: number | null;
   payQty: number | null;
+
+  // used by X_FOR_FIXED_PRICE and AMOUNT_OFF
   pricePence: number | null;
+
+  // used by PERCENT_OFF
+  percent: number | null;
+
   pool: OfferTargetRule[];
 }): OfferAdminForm['payload'] {
-  const { kind, buyQty, getQty, payQty, pricePence, pool } = args;
+  const { kind, buyQty, getQty, payQty, pricePence, percent, pool } = args;
+
+  if (kind === 'PERCENT_OFF') {
+    const pct = Math.max(0, Math.min(100, Math.trunc(percent ?? 0)));
+    return {
+      kind: 'PERCENT_OFF',
+      data: {
+        percent: pct,
+        pool
+      }
+    };
+  }
+
+  if (kind === 'AMOUNT_OFF') {
+    return {
+      kind: 'AMOUNT_OFF',
+      data: {
+        amountPence: Math.max(0, Math.trunc(pricePence ?? 0)),
+        pool
+      }
+    };
+  }
 
   if (kind === 'BOGOF') {
     return {

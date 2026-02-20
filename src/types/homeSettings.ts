@@ -1,25 +1,23 @@
 // src/types/homeSettings.ts
-// ISO string or null for optional time windows
+
+// ISO string (or null) for optional time windows
 export type IsoDateString = string | null;
 
-// Small helper for per-field timed override blocks
+/* =========================================================
+   Timed Overrides
+========================================================= */
+
 export type TimedText =
   | {
       text?: string;
-      startAt?: IsoDateString; // local/UTC string; treat consistently in UI
+      startAt?: IsoDateString;
       endAt?: IsoDateString;
     }
   | undefined;
 
-/* ---------- Showcase & Promotions ---------- */
-export type ShowcaseKind =
-  | 'best_sellers'
-  | 'on_sale'
-  | 'b1g1'
-  | 'new_arrivals'
-  | 'trending'
-  | 'top_rated'
-  | 'seasonal';
+/* =========================================================
+   Promotions (Campaign System)
+========================================================= */
 
 export type PromotionTemplateKey =
   | 'onam'
@@ -33,45 +31,65 @@ export type PromotionTemplateKey =
   | 'summer_bbq'
   | 'back_to_uni';
 
-/* ---------- Hero ---------- */
+export type CampaignKey = PromotionTemplateKey | 'custom';
+
+export interface Promotion {
+  key: CampaignKey;
+
+  title: string;
+  message: string;
+
+  imageUrl: string;
+
+  ctaLabel: string;
+  ctaHref: string;
+
+  active: boolean;
+
+  startAt?: IsoDateString;
+  endAt?: IsoDateString;
+}
+
+/* =========================================================
+   Hero
+========================================================= */
+
 export interface HeroSettings {
   title: string;
   subtitle: string;
+
   primaryCtaLabel: string;
   primaryCtaHref: string;
+
   secondaryCtaLabel?: string;
   secondaryCtaHref?: string;
+
   floatingTag?: string;
 
-  /**
-   * NEW (preferred): ordered list of images for the hero slider.
-   * If provided and non-empty, this is used.
-   */
+  /** Preferred slider images */
   images?: string[];
 
-  /**
-   * LEGACY (fallback): single image URL.
-   * Used only when `images` is empty/undefined, for backwards compatibility.
-   */
+  /** Legacy fallback */
   imageUrl?: string;
 
-  // Optional global window to treat all hero fields as "seasonal" copy.
   overrideStart?: IsoDateString;
   overrideEnd?: IsoDateString;
 
-  // Optional per-field windows (take precedence if defined)
   titleOverride?: TimedText;
   subtitleOverride?: TimedText;
   floatingTagOverride?: TimedText;
 }
 
-/* ---------- Delivery ---------- */
+/* =========================================================
+   Delivery
+========================================================= */
+
 export interface DeliveryCard {
-  id: string; // 'gb', 'ni', or a unique id like 'd_...'
-  title: string; // e.g. "Delivery – Great Britain"
-  freeThreshold: number; // e.g. 30
-  frozenFee: number; // e.g. 3.99
-  message?: string; // optional per-card note
+  id: string; // 'gb', 'ni', or custom like 'd_...'
+  title: string;
+  freeThreshold: number;
+  frozenFee: number;
+  message?: string;
   enabled?: boolean;
 }
 
@@ -79,45 +97,31 @@ export interface DeliverySettings {
   gbFreeThreshold: number;
   niFreeThreshold: number;
   frozenFee: number;
+
   message?: string;
 
-  // Optional global window
   overrideStart?: IsoDateString;
   overrideEnd?: IsoDateString;
 
-  // Optional per-field window
   messageOverride?: TimedText;
 
-  /** Preferred: dynamic delivery cards. If empty/undefined, UI falls back to GB/NI presets. */
   cards?: DeliveryCard[];
 }
 
-/* ---------- Instagram ---------- */
+/* =========================================================
+   Instagram
+========================================================= */
+
 export interface InstagramSettings {
-  token: string; // long-lived Basic Display token
-  usernameUrl: string; // https://instagram.com/...
+  token: string;
+  usernameUrl: string;
   enabled: boolean;
 }
 
-/* ---------- Promotions ---------- */
-export interface Promotion {
-  key: PromotionTemplateKey | 'custom';
-  title: string;
-  message: string;
-  imageUrl: string;
-  ctaLabel: string;
-  ctaHref: string;
-  active: boolean;
-}
+/* =========================================================
+   Reviews
+========================================================= */
 
-/* ---------- Product Showcase ---------- */
-export interface ProductShowcaseSettings {
-  title: string; // heading above the slider
-  kinds: ShowcaseKind[]; // selectable filters admin wants available
-  selectedKind: ShowcaseKind; // which one to show on the home page
-}
-
-/* ---------- Reviews ---------- */
 export interface ReviewItem {
   id: string;
   name: string;
@@ -126,11 +130,33 @@ export interface ReviewItem {
 
 export interface ReviewsSettings {
   autoplay: boolean;
-  showCount: number; // how many visible on the home page
+  showCount: number;
   items: ReviewItem[];
 }
 
-/* ---------- Root DTO ---------- */
+/* =========================================================
+   Legacy Showcase (Optional — can be phased out)
+========================================================= */
+
+export type ShowcaseKind =
+  | 'best_sellers'
+  | 'on_sale'
+  | 'b1g1'
+  | 'new_arrivals'
+  | 'trending'
+  | 'top_rated'
+  | 'seasonal';
+
+export interface ProductShowcaseSettings {
+  title: string;
+  kinds: ShowcaseKind[];
+  selectedKind: ShowcaseKind;
+}
+
+/* =========================================================
+   Root DTO
+========================================================= */
+
 export interface HomeSettingsDTO {
   hero: HeroSettings;
   delivery: DeliverySettings;
@@ -138,35 +164,4 @@ export interface HomeSettingsDTO {
   promotions: Promotion[];
   productShowcase: ProductShowcaseSettings;
   reviews: ReviewsSettings;
-}
-
-/* =========================================================
-   Home Sections Builder (NEW)
-   Defaults OFF. Client can switch ON.
-   Includes “Hidden Gems” (least clicked / least sold) without naming negatively.
-========================================================= */
-
-export type HomeSectionKind =
-  | 'best_sellers'
-  | 'on_sale'
-  | 'b1g1'
-  | 'new_arrivals'
-  | 'trending'
-  | 'top_rated'
-  | 'seasonal'
-  | 'hidden_gems_clicks'
-  | 'hidden_gems_sales';
-
-export interface HomeSectionRow {
-  id: string;
-  enabled: boolean;
-  title: string;
-  kind: HomeSectionKind;
-  limit: number;
-  note?: string;
-}
-
-export interface HomeSectionsSettings {
-  enabled: boolean; // master switch for sections builder on home
-  sections: HomeSectionRow[]; // ordered list
 }

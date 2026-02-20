@@ -196,8 +196,21 @@ export default function OrderSummary({
   const usingOffers = Boolean(useOffers);
 
   const offersToShow = useMemo(() => {
-    if (usingOffers) return offers.applied;
     const eligible = offers.eligible ?? [];
+
+    if (usingOffers) {
+      const merged = [...offers.applied, ...eligible];
+
+      const seen = new Set<string>();
+      return merged.filter((o) => {
+        const id = String(o.offerId ?? '');
+        if (!id) return false;
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+    }
+
     return eligible.length ? eligible : offers.applied;
   }, [usingOffers, offers.applied, offers.eligible]);
 
@@ -349,10 +362,7 @@ export default function OrderSummary({
   }
 
   // -----------------------------
-  // ✅ Offer display helpers
-  // - discount by item (from meta)
-  // - free qty by item (from autoAdd)
-  // - show offer name ONCE (not buy+get duplicated)
+  // Offer display helpers
   // -----------------------------
 
   const offerDiscountByItemKey = useMemo(() => {
@@ -380,7 +390,6 @@ export default function OrderSummary({
       }
     }
 
-    // unique, stable
     for (const [k, arr] of m.entries()) {
       const uniq = Array.from(new Set(arr.map((x) => x.trim()).filter(Boolean)));
       m.set(k, uniq);
@@ -392,7 +401,6 @@ export default function OrderSummary({
   const freeQtyByItemKey = useMemo(() => {
     const m = new Map<string, number>();
 
-    // autoAdd is the clearest source of "extra free units"
     for (const a of offers.autoAdd ?? []) {
       const k = itemKeyOf({ productId: a.productId ?? null, sku: a.sku ?? null, name: a.name });
       m.set(k, (m.get(k) ?? 0) + Math.max(0, Math.trunc(a.qty ?? 0)));
@@ -424,7 +432,7 @@ export default function OrderSummary({
             const offerNames = offerNamesByItemKey.get(itemKey) ?? [];
             const freeQty = usingOffers ? (freeQtyByItemKey.get(itemKey) ?? 0) : 0;
 
-            // ✅ Display qty includes free units (BOGOF-style)
+            // Display qty includes free units (BOGOF-style)
             const displayQty = Math.max(1, Math.trunc(it.quantity)) + Math.max(0, freeQty);
 
             const paidQty = Math.max(1, Math.trunc(it.quantity));
@@ -434,9 +442,19 @@ export default function OrderSummary({
             const paidTotalPence = unit * paidQty;
             const fullTotalPence = unit * fullQty;
 
-            const showWas = usingOffers && freeQty > 0 && fullTotalPence > paidTotalPence;
+            // ✅ NEW: show Was/Now for percentage/amount discounts too
+            const safeLineDiscount = Math.max(0, Math.trunc(lineOfferDiscount ?? 0));
+            const discountedNowPence = Math.max(0, paidTotalPence - safeLineDiscount);
 
-            // When free qty exists, we keep the input readOnly (avoids mismatch when typing)
+            const showWasForBogof = usingOffers && freeQty > 0 && fullTotalPence > paidTotalPence;
+
+            const showWasForDiscount =
+              usingOffers &&
+              freeQty === 0 &&
+              safeLineDiscount > 0 &&
+              discountedNowPence < paidTotalPence;
+
+            // When free qty exists, keep input readOnly (avoids mismatch when typing)
             const lockQtyInput = freeQty > 0 && usingOffers;
 
             return (
@@ -477,7 +495,6 @@ export default function OrderSummary({
                         value={displayQty}
                         readOnly={lockQtyInput}
                         onChange={(e) => {
-                          // Only allow typing if not locked (no free qty)
                           if (lockQtyInput) return;
                           const v = Math.max(1, parseInt(e.target.value || '1', 10));
                           onSetQty(it.id, v);
@@ -512,7 +529,6 @@ export default function OrderSummary({
                       </div>
                     )}
 
-                    {/* ✅ Simpler: show offer name(s) once (no duplicate buy/get lines) */}
                     {offerNames.length > 0 && (
                       <div className={styles.offerLineMeta}>
                         {offerNames.map((n) => (
@@ -525,14 +541,25 @@ export default function OrderSummary({
                   </div>
                 </div>
 
-                {/* price stays as PAID qty only */}
+                {/* ✅ PRICE DISPLAY:
+                    - BOGOF: Was = full price incl free units, Now = paid price
+                    - %/amount off: Was = paid price, Now = paid price minus discount
+                    - otherwise: normal paid price
+                */}
                 <div className={styles.itemPrice}>
-                  {showWas ? (
+                  {showWasForBogof ? (
                     <div style={{ display: 'grid', justifyItems: 'end', gap: 4 }}>
                       <span style={{ textDecoration: 'line-through', opacity: 0.65, fontSize: 13 }}>
                         Was {penceToGBP(fullTotalPence)}
                       </span>
                       <span>Now {penceToGBP(paidTotalPence)}</span>
+                    </div>
+                  ) : showWasForDiscount ? (
+                    <div style={{ display: 'grid', justifyItems: 'end', gap: 4 }}>
+                      <span style={{ textDecoration: 'line-through', opacity: 0.65, fontSize: 13 }}>
+                        Was {penceToGBP(paidTotalPence)}
+                      </span>
+                      <span>Now {penceToGBP(discountedNowPence)}</span>
                     </div>
                   ) : (
                     penceToGBP(paidTotalPence)

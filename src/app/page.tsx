@@ -1,5 +1,7 @@
 // src/app/page.tsx
 import { prisma } from '@/lib/prisma';
+import type { HomeSectionsResolvedDTO } from '@/types/homeResolved';
+import type { HomeSectionRow } from '@/types/homeSections';
 import type {
   DeliveryCard,
   DeliverySettings,
@@ -12,6 +14,7 @@ import type {
   TimedText
 } from '@/types/homeSettings';
 import { unstable_noStore as noStore } from 'next/cache';
+import { headers } from 'next/headers';
 
 import Delivery from '@/components/home/delivery/Delivery';
 import Hero from '@/components/home/hero/Hero';
@@ -27,17 +30,29 @@ interface ProductRow {
   name: string;
   price: number | null;
   productImageUrl: string | null;
+  ribbon: string | null;
+  discountMode: string | null;
+  discountValue: number | null;
 }
 
-const normalizeProducts = (rows: ProductRow[]) =>
+// What ProductSlider expects
+interface SliderProduct {
+  id: string;
+  name: string;
+  price: number;
+  productImageUrl: string | null;
+}
+
+const normalizeProducts = (rows: ProductRow[]): SliderProduct[] =>
   rows.map((p) => ({
-    ...p,
+    id: p.id,
+    name: p.name,
     price: p.price ?? 0,
     productImageUrl: p.productImageUrl?.trim() ? p.productImageUrl : '/assets/prince-foods-logo.png'
   }));
 
-// Helpers
 const inWindow = (start?: string | null, end?: string | null, now = new Date()) => {
+  // if either missing, treat as always-on
   if (!start || !end) return true;
   const s = new Date(start);
   const e = new Date(end);
@@ -51,10 +66,72 @@ const pickTimed = (base: string | undefined, override?: TimedText) => {
 
 const DEFAULT_HERO_IMAGE = '/assets/96bfc4_3547f98fa8f54128b23c97aa34bf83b9~mv2.avif';
 
+function isSectionsOk(x: unknown): x is { ok: true; data: HomeSectionsResolvedDTO } {
+  if (!x || typeof x !== 'object') return false;
+  const rec = x as Record<string, unknown>;
+  if (rec.ok !== true) return false;
+
+  const data = rec.data as unknown;
+  if (!data || typeof data !== 'object') return false;
+
+  const d = data as Record<string, unknown>;
+  return Array.isArray(d.sections);
+}
+
+async function originFromHeaders(): Promise<string> {
+  // ✅ in your Next version, headers() is async
+  const h = await headers();
+
+  const host = h.get('x-forwarded-host') ?? h.get('host');
+  const proto = h.get('x-forwarded-proto') ?? 'http';
+
+  return host ? `${proto}://${host}` : '';
+}
+
+async function getResolvedHomeSections(): Promise<
+  Array<{ section: HomeSectionRow; productIds: string[] }>
+> {
+  try {
+    // ✅ server-side fetch needs absolute URL sometimes; this handles both
+    const origin = await originFromHeaders();
+    const url = origin ? `${origin}/api/site/home/sections` : '/api/site/home/sections';
+
+    const res = await fetch(url, { cache: 'no-store' });
+    const json = (await res.json()) as unknown;
+
+    if (!isSectionsOk(json)) return [];
+    return json.data.sections;
+  } catch {
+    return [];
+  }
+}
+
+async function productsByIds(ids: string[]): Promise<ProductRow[]> {
+  const clean = ids.filter(Boolean);
+  if (clean.length === 0) return [];
+
+  const rows = await prisma.product.findMany({
+    where: { id: { in: clean }, visible: true },
+    select: {
+      id: true,
+      name: true,
+      price: true,
+      productImageUrl: true,
+      ribbon: true,
+      discountMode: true,
+      discountValue: true
+    }
+  });
+
+  // ✅ preserve resolver ordering
+  const map = new Map(rows.map((r) => [r.id, r]));
+  return clean.map((id) => map.get(id)).filter((x): x is ProductRow => !!x);
+}
+
 export default async function Home() {
   noStore();
 
-  // 1) Load settings
+  // 1) Settings
   let settings: HomeSettingsDTO | null = null;
   try {
     const row = await prisma.homeSettings.findUnique({ where: { id: 1 } });
@@ -72,22 +149,26 @@ export default async function Home() {
     settings = null;
   }
 
-  // 2) Products
-  let products: ProductRow[] = [];
-  try {
-    products = await prisma.product.findMany({
-      where: { visible: true },
-      take: 16,
-      orderBy: { createdAt: 'desc' },
-      select: { id: true, name: true, price: true, productImageUrl: true }
-    });
-  } catch {
-    products = [];
-  }
-  const displayProducts = normalizeProducts(products);
+  // 2) Sections (DB-backed)
+  const resolved = await getResolvedHomeSections();
 
-  // Fallback: ONLY when DB is empty
-  const FALLBACK_PRODUCTS = [
+  const sliders = await Promise.all(
+    resolved.map(async ({ section, productIds }) => {
+      const rows = await productsByIds(productIds);
+      return {
+        id: section.id,
+        title: section.title,
+        subtitle: section.subtitle ?? null,
+        enabled: section.enabled !== false,
+        products: normalizeProducts(rows)
+      };
+    })
+  );
+
+  const enabledSliders = sliders.filter((s) => s.enabled);
+
+  // fallback products (only if no enabled sliders)
+  const FALLBACK_PRODUCTS: SliderProduct[] = [
     {
       id: 'tmp-1',
       name: 'Prince Foods Nadan Chappathi 400g',
@@ -99,33 +180,8 @@ export default async function Home() {
       name: 'Prince Foods Malabar Murukku 150g',
       price: 2.29,
       productImageUrl: '/assets/fallback/murukku.jpg'
-    },
-    {
-      id: 'tmp-3',
-      name: 'Prince Foods Sweet Banana Chips Sarkarra Varatti 150g',
-      price: 1.49,
-      productImageUrl: '/assets/fallback/banana-chips.jpg'
-    },
-    {
-      id: 'tmp-4',
-      name: 'Prince Foods Cassava Chips (Spicy) 150g',
-      price: 2.29,
-      productImageUrl: '/assets/fallback/cassava-chips.jpg'
-    },
-    {
-      id: 'tmp-5',
-      name: 'Prince Foods Plantain Chips 250g',
-      price: 1.99,
-      productImageUrl: '/assets/fallback/plantain-chips.jpg'
-    },
-    {
-      id: 'tmp-6',
-      name: 'Prince Foods Mixture 600g',
-      price: 3.99,
-      productImageUrl: '/assets/fallback/mixture.jpg'
     }
   ];
-  const sliderProducts = displayProducts.length > 0 ? displayProducts : FALLBACK_PRODUCTS;
 
   // 3) Derive props
   const now = new Date();
@@ -135,36 +191,30 @@ export default async function Home() {
     ? inWindow(heroBase.overrideStart ?? null, heroBase.overrideEnd ?? null, now)
     : true;
 
-  const heroTitle = heroBase
-    ? (pickTimed(heroWithinGlobal ? heroBase.title : undefined, heroBase.titleOverride) ??
-      'South Asian Groceries, Delivered.')
-    : 'South Asian Groceries, Delivered.';
+  const heroTitle =
+    pickTimed(heroWithinGlobal ? heroBase?.title : undefined, heroBase?.titleOverride) ??
+    'South Asian Groceries, Delivered.';
 
-  const heroSubtitle = heroBase
-    ? (pickTimed(heroWithinGlobal ? heroBase.subtitle : undefined, heroBase.subtitleOverride) ??
-      'Since 2007—authentic Indian & Sri Lankan favourites with fast UK & Ireland delivery.')
-    : 'Since 2007—authentic Indian & Sri Lankan favourites with fast UK & Ireland delivery.';
+  const heroSubtitle =
+    pickTimed(heroWithinGlobal ? heroBase?.subtitle : undefined, heroBase?.subtitleOverride) ??
+    'Since 2007—authentic Indian & Sri Lankan favourites with fast UK & Ireland delivery.';
 
-  // Prefer images[], fallback to legacy imageUrl, then default
   const heroImages =
     heroBase?.images && heroBase.images.length > 0
       ? heroBase.images
       : [heroBase?.imageUrl ?? DEFAULT_HERO_IMAGE];
 
-  // Delivery
   const deliveryBase = settings?.delivery;
   const deliveryWithinGlobal = deliveryBase
     ? inWindow(deliveryBase.overrideStart ?? null, deliveryBase.overrideEnd ?? null, now)
     : true;
 
-  const deliveryMessage = deliveryBase
-    ? (pickTimed(
-        deliveryWithinGlobal ? deliveryBase.message : undefined,
-        deliveryBase.messageOverride
-      ) ?? 'No hidden fees. Frozen items are insulated for freshness.')
-    : 'No hidden fees. Frozen items are insulated for freshness.';
+  const deliveryMessage =
+    pickTimed(
+      deliveryWithinGlobal ? deliveryBase?.message : undefined,
+      deliveryBase?.messageOverride
+    ) ?? 'No hidden fees. Frozen items are insulated for freshness.';
 
-  // Locked defaults (non-deletable, but can be disabled via admin)
   const lockedDefaults: DeliveryCard[] = [
     {
       id: 'gb',
@@ -182,7 +232,6 @@ export default async function Home() {
     }
   ];
 
-  // Use admin overrides when present
   const gbOverride = deliveryBase?.cards?.find((c) => c.id === 'gb');
   const niOverride = deliveryBase?.cards?.find((c) => c.id === 'ni');
   const customCards = deliveryBase?.cards?.filter((c) => c.id !== 'gb' && c.id !== 'ni') ?? [];
@@ -191,12 +240,10 @@ export default async function Home() {
     gbOverride ?? lockedDefaults[0],
     niOverride ?? lockedDefaults[1],
     ...customCards
-  ].filter((c) => c.enabled !== false); // hide if disabled
+  ].filter((c) => c.enabled !== false);
 
   const instagramUsernameUrl =
     settings?.instagram?.usernameUrl ?? 'https://www.instagram.com/princefoodsuk/';
-
-  const showcaseTitle = settings?.productShowcase?.title ?? 'Best Sellers';
 
   return (
     <main className={styles.homeContainer}>
@@ -215,7 +262,6 @@ export default async function Home() {
               }
             : undefined
         }
-        // floatingTag intentionally omitted
         images={heroImages}
       />
 
@@ -229,7 +275,22 @@ export default async function Home() {
 
       <InstagramGrid usernameUrl={instagramUsernameUrl} />
 
-      <ProductSlider title={showcaseTitle} products={sliderProducts} />
+      {enabledSliders.length > 0 ? (
+        enabledSliders.map((s) => (
+          <ProductSlider
+            key={s.id}
+            title={s.title}
+            subtitle={s.subtitle ?? undefined}
+            products={s.products}
+          />
+        ))
+      ) : (
+        <ProductSlider
+          title="Best Sellers"
+          subtitle="Popular picks right now"
+          products={FALLBACK_PRODUCTS}
+        />
+      )}
 
       <ReviewStrip
         autoplay={settings?.reviews?.autoplay ?? true}

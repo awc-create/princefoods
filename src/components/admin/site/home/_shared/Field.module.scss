@@ -1,0 +1,14 @@
+/* src/components/admin/site/home/_shared/Field.module.scss */
+.field {
+  display: grid;
+  gap: 6px;
+}
+.label {
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: #333;
+}
+.help {
+  color: #6b7280;
+  font-size: 0.85rem;
+}

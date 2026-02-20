@@ -1,12 +1,25 @@
 // src/components/admin/offers/EditOfferModal.tsx
 'use client';
 
-import type { OfferAdminForm, OfferKind, OfferStatus } from '@/types/offers';
+import type { OfferAdminForm, OfferKind, OfferStatus, OfferTargetRule } from '@/types/offers';
 import { useEffect, useMemo, useState } from 'react';
+import OfferRuleBuilder from './OfferRuleBuilder';
 import styles from './offers.module.scss';
+import OfferTargetPicker, { type PickerOption } from './OfferTargetPicker';
+import type { AdminOfferKind, OfferTargetType } from './types';
+import { selectionToPool } from './types';
 
-interface _ApiErr {
+interface ApiErr {
   error: string;
+}
+
+function isOptionsOk(x: unknown): x is { options: PickerOption[] } {
+  return (
+    typeof x === 'object' &&
+    x !== null &&
+    'options' in x &&
+    Array.isArray((x as { options?: unknown }).options)
+  );
 }
 
 function fmtErr(e: unknown, fallback: string) {
@@ -19,28 +32,94 @@ function apiError(x: unknown): string | null {
   return typeof r.error === 'string' && r.error.trim() ? r.error : null;
 }
 
-function clampInt(raw: string | number, min: number, max: number) {
-  const n = typeof raw === 'number' ? raw : Number(raw);
+function clampInt(raw: string | number | null | undefined, min: number, max: number) {
+  const n = typeof raw === 'number' ? raw : Number(raw ?? min);
   const x = Number.isFinite(n) ? Math.trunc(n) : min;
   return Math.max(min, Math.min(max, x));
 }
 
-function penceToPounds(pence: number | null | undefined): string {
-  const v = typeof pence === 'number' && Number.isFinite(pence) ? pence : 0;
-  return (v / 100).toFixed(2);
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
 }
 
-function poundsToPence(raw: string): number {
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.round(n * 100);
+function isOfferTargetRuleArray(v: unknown): v is OfferTargetRule[] {
+  return Array.isArray(v);
 }
 
-// Admin UI only supports these 3 kinds for now
-type AdminKind = 'BOGOF' | 'X_FOR_Y' | 'X_FOR_FIXED_PRICE';
+function _readPool(data: unknown, fallback: OfferTargetRule[]): OfferTargetRule[] {
+  if (!isRecord(data)) return fallback;
+  const pool = data.pool;
+  return isOfferTargetRuleArray(pool) ? pool : fallback;
+}
 
-function isSupportedKind(k: OfferKind): k is AdminKind {
-  return k === 'BOGOF' || k === 'X_FOR_Y' || k === 'X_FOR_FIXED_PRICE';
+// ✅ Admin UI supports these 5 kinds now
+function isSupportedKind(k: OfferKind): k is AdminOfferKind {
+  return (
+    k === 'BOGOF' ||
+    k === 'X_FOR_Y' ||
+    k === 'X_FOR_FIXED_PRICE' ||
+    k === 'PERCENT_OFF' ||
+    k === 'AMOUNT_OFF'
+  );
+}
+
+function buildPool(targetType: OfferTargetType, productIds: string[], categoryIds: string[]) {
+  if (targetType === 'SITE_WIDE') return selectionToPool({ targetType: 'SITE_WIDE' });
+
+  if (targetType === 'PRODUCTS') {
+    return selectionToPool({ targetType: 'PRODUCTS', productIds });
+  }
+
+  return selectionToPool({ targetType: 'CATEGORIES', categoryIds });
+}
+
+/**
+ * Derive editor selection from a pool.
+ * We support these shapes:
+ * - [{ type: 'ALL_PRODUCTS' }]
+ * - [{ type: 'PRODUCT_IDS', ids: [...] }]
+ * - [{ type: 'CATEGORY_IDS', ids: [...] }]
+ *
+ * If multiple rules are present, we merge ids for PRODUCT_IDS/CATEGORY_IDS.
+ * If ALL_PRODUCTS appears anywhere, we treat it as SITE_WIDE.
+ */
+function deriveTargetFromPool(pool: OfferTargetRule[] | null | undefined): {
+  targetType: OfferTargetType;
+  productIds: string[];
+  categoryIds: string[];
+} {
+  const rules = Array.isArray(pool) ? pool : [];
+  if (!rules.length) return { targetType: 'SITE_WIDE', productIds: [], categoryIds: [] };
+
+  if (rules.some((r) => r && (r as OfferTargetRule).type === 'ALL_PRODUCTS')) {
+    return { targetType: 'SITE_WIDE', productIds: [], categoryIds: [] };
+  }
+
+  const productIds: string[] = [];
+  const categoryIds: string[] = [];
+
+  for (const r of rules) {
+    if (!r) continue;
+    if (r.type === 'PRODUCT_IDS') {
+      for (const id of r.ids ?? []) if (typeof id === 'string' && id) productIds.push(id);
+    }
+    if (r.type === 'CATEGORY_IDS') {
+      for (const id of r.ids ?? []) if (typeof id === 'string' && id) categoryIds.push(id);
+    }
+  }
+
+  const uniq = (arr: string[]) => Array.from(new Set(arr.map((x) => String(x)).filter(Boolean)));
+
+  if (productIds.length) {
+    return { targetType: 'PRODUCTS', productIds: uniq(productIds), categoryIds: [] };
+  }
+
+  if (categoryIds.length) {
+    return { targetType: 'CATEGORIES', productIds: [], categoryIds: uniq(categoryIds) };
+  }
+
+  // fallback (unknown rule types)
+  return { targetType: 'SITE_WIDE', productIds: [], categoryIds: [] };
 }
 
 export default function EditOfferModal({
@@ -62,26 +141,55 @@ export default function EditOfferModal({
 
   const [original, setOriginal] = useState<OfferAdminForm | null>(null);
 
-  // editable fields
+  /* =====================
+     Basics (editable)
+     ===================== */
   const [name, setName] = useState('');
   const [status, setStatus] = useState<OfferStatus>('ACTIVE');
   const [startsAt, setStartsAt] = useState<string | null>(null);
   const [endsAt, setEndsAt] = useState<string | null>(null);
   const [priority, setPriority] = useState<number>(0);
 
-  // rule editor fields (for supported kinds)
-  const [kind, setKind] = useState<AdminKind>('BOGOF');
-  const [buyQty, setBuyQty] = useState(2);
-  const [getQty, setGetQty] = useState(1);
-  const [payQty, setPayQty] = useState(1);
-  const [fixedPricePence, setFixedPricePence] = useState(100);
+  /* =====================
+     Kind + rule fields (CreateOfferModal-style)
+     ===================== */
+  const [kind, setKind] = useState<AdminOfferKind>('BOGOF');
 
-  // reset on open
+  const [buyQty, setBuyQty] = useState(2);
+  const [getQty, setGetQty] = useState<number | null>(1);
+  const [payQty, setPayQty] = useState<number | null>(1);
+
+  // used by X_FOR_FIXED_PRICE and AMOUNT_OFF
+  const [pricePence, setPricePence] = useState<number | null>(100); // £1 default
+
+  // used by PERCENT_OFF
+  const [percent, setPercent] = useState<number | null>(10);
+
+  /* =====================
+     Targeting (CreateOfferModal-style)
+     ===================== */
+  const [targetType, setTargetType] = useState<OfferTargetType>('SITE_WIDE');
+  const [productIds, setProductIds] = useState<string[]>([]);
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
+
+  /* =====================
+     Picker options
+     ===================== */
+  const [productOptions, setProductOptions] = useState<PickerOption[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<PickerOption[]>([]);
+  const [optErr, setOptErr] = useState<string | null>(null);
+  const [optLoading, setOptLoading] = useState(false);
+
+  /* =====================
+     Reset on open
+     ===================== */
   useEffect(() => {
     if (!open) return;
 
     setLoadErr(null);
     setSaveErr(null);
+    setOptErr(null);
+
     setOriginal(null);
 
     setName('');
@@ -91,13 +199,21 @@ export default function EditOfferModal({
     setPriority(0);
 
     setKind('BOGOF');
+
     setBuyQty(2);
     setGetQty(1);
     setPayQty(1);
-    setFixedPricePence(100);
+    setPricePence(100);
+    setPercent(10);
+
+    setTargetType('SITE_WIDE');
+    setProductIds([]);
+    setCategoryIds([]);
   }, [open]);
 
-  // load offer
+  /* =====================
+     Load offer
+     ===================== */
   useEffect(() => {
     if (!open) return;
 
@@ -116,27 +232,18 @@ export default function EditOfferModal({
         const res = await fetch(`/api/admin/offers/${offerId}`, { cache: 'no-store' });
         const json = (await res.json().catch(() => null)) as unknown;
 
-        if (!res.ok) {
-          throw new Error(apiError(json) ?? 'Failed to load offer.');
-        }
+        if (!res.ok) throw new Error(apiError(json) ?? 'Failed to load offer.');
+        if (!isRecord(json)) throw new Error('Failed to load offer.');
 
-        if (typeof json !== 'object' || json === null) {
-          throw new Error('Failed to load offer.');
-        }
+        const offer = (json as { offer?: unknown }).offer;
+        if (!isRecord(offer)) throw new Error('Failed to load offer.');
 
-        const r = json as Record<string, unknown>;
-        const offer = r.offer;
-
-        if (typeof offer !== 'object' || offer === null) {
-          throw new Error('Failed to load offer.');
-        }
-
-        const o = offer as OfferAdminForm;
-
+        const o = offer as unknown as OfferAdminForm;
         if (cancelled) return;
 
         setOriginal(o);
 
+        // Basics
         setName(o.name ?? '');
         setStatus(o.status ?? 'ACTIVE');
         setStartsAt(o.startsAt ?? null);
@@ -145,29 +252,90 @@ export default function EditOfferModal({
 
         const pk = o.payload?.kind;
 
-        // If unsupported kind, still allow changing name/status/window/priority,
-        // but lock kind/rule section.
+        // If unsupported kind, still allow changing basics (name/status/window/priority).
         if (pk && isSupportedKind(pk)) {
           setKind(pk);
 
+          // ---- Targeting ----
+          // Determine pool shape depending on kind
+          let pool: OfferTargetRule[] | undefined;
+
+          if (pk === 'BOGOF') {
+            pool = o.payload.data.buyPool;
+          } else if (
+            pk === 'PERCENT_OFF' ||
+            pk === 'AMOUNT_OFF' ||
+            pk === 'X_FOR_Y' ||
+            pk === 'X_FOR_FIXED_PRICE'
+          ) {
+            pool = o.payload.data.pool;
+          } else {
+            pool = undefined;
+          }
+
+          const derived = deriveTargetFromPool(pool);
+          setTargetType(derived.targetType);
+          setProductIds(derived.productIds);
+          setCategoryIds(derived.categoryIds);
+
+          // ---- Rule fields ----
           if (pk === 'BOGOF') {
             setBuyQty(clampInt(o.payload.data.buyQty, 1, 999));
             setGetQty(clampInt(o.payload.data.getQty, 1, 999));
+            setPayQty(null);
+            setPricePence(null);
+            setPercent(null);
           }
 
           if (pk === 'X_FOR_Y') {
             setBuyQty(clampInt(o.payload.data.buyQty, 1, 999));
             setPayQty(clampInt(o.payload.data.payQty, 1, 999));
+            setGetQty(null);
+            setPricePence(null);
+            setPercent(null);
           }
 
           if (pk === 'X_FOR_FIXED_PRICE') {
             setBuyQty(clampInt(o.payload.data.qty, 1, 999));
-            setFixedPricePence(
+            setPricePence(
               typeof o.payload.data.pricePence === 'number'
                 ? Math.max(0, Math.trunc(o.payload.data.pricePence))
                 : 0
             );
+            setGetQty(null);
+            setPayQty(null);
+            setPercent(null);
           }
+
+          if (pk === 'PERCENT_OFF') {
+            const pct =
+              typeof (o.payload.data as { percent?: number }).percent === 'number'
+                ? Math.trunc((o.payload.data as { percent?: number }).percent ?? 0)
+                : 0;
+            setPercent(Math.max(0, Math.min(100, pct)));
+            setGetQty(null);
+            setPayQty(null);
+            setPricePence(null);
+          }
+
+          if (pk === 'AMOUNT_OFF') {
+            const amt =
+              typeof (o.payload.data as { amountPence?: number }).amountPence === 'number'
+                ? Math.max(
+                    0,
+                    Math.trunc((o.payload.data as { amountPence?: number }).amountPence ?? 0)
+                  )
+                : 0;
+            setPricePence(amt);
+            setGetQty(null);
+            setPayQty(null);
+            setPercent(null);
+          }
+        } else {
+          // Unsupported kind: keep targeting/rule editor in a safe default state
+          setTargetType('SITE_WIDE');
+          setProductIds([]);
+          setCategoryIds([]);
         }
       } catch (e) {
         if (!cancelled) setLoadErr(fmtErr(e, 'Failed to load offer.'));
@@ -188,40 +356,172 @@ export default function EditOfferModal({
     return pk ? isSupportedKind(pk) : true;
   }, [original]);
 
-  const canSubmit = useMemo(() => {
-    if (loading || saving) return false;
-    if (!offerId) return false;
-    if (!name.trim()) return false;
-    if (!original) return false;
-    return true;
-  }, [loading, saving, offerId, name, original]);
-
-  // keep rule fields consistent when kind changes (within supported editor)
+  /* =====================
+     Reset rule fields on kind change (CreateOfferModal-style)
+     ===================== */
   useEffect(() => {
     if (!open) return;
+    if (!supported) return;
 
     if (kind === 'BOGOF') {
-      setPayQty(1);
-      setFixedPricePence(100);
-      setGetQty((v) => (v ? v : 1));
-      setBuyQty((v) => (v ? v : 2));
+      setPayQty(null);
+      setPricePence(null);
+      setPercent(null);
+
+      setGetQty((v) => v ?? 1);
+      setBuyQty((v) => v || 2);
+      return;
     }
 
     if (kind === 'X_FOR_Y') {
-      setGetQty(1);
-      setFixedPricePence(100);
-      setPayQty((v) => (v ? v : 1));
-      setBuyQty((v) => (v ? v : 2));
+      setGetQty(null);
+      setPricePence(null);
+      setPercent(null);
+
+      setPayQty((v) => v ?? 1);
+      setBuyQty((v) => v || 2);
+      return;
     }
 
     if (kind === 'X_FOR_FIXED_PRICE') {
-      setGetQty(1);
-      setPayQty(1);
-      setFixedPricePence((v) => (v ? v : 100));
-      setBuyQty((v) => (v ? v : 2));
-    }
-  }, [open, kind]);
+      setGetQty(null);
+      setPayQty(null);
+      setPercent(null);
 
+      setPricePence((v) => v ?? 100);
+      setBuyQty((v) => v || 2);
+      return;
+    }
+
+    if (kind === 'PERCENT_OFF') {
+      setGetQty(null);
+      setPayQty(null);
+      setPricePence(null);
+
+      setPercent((v) => v ?? 10);
+      return;
+    }
+
+    // AMOUNT_OFF
+    setGetQty(null);
+    setPayQty(null);
+    setPercent(null);
+
+    setPricePence((v) => v ?? 100);
+  }, [open, kind, supported]);
+
+  /* =====================
+     Reset targets on target type change (CreateOfferModal-style)
+     ===================== */
+  useEffect(() => {
+    if (!open) return;
+    if (!supported) return;
+
+    if (targetType === 'SITE_WIDE') {
+      setProductIds([]);
+      setCategoryIds([]);
+    }
+    if (targetType === 'PRODUCTS') {
+      setCategoryIds([]);
+    }
+    if (targetType === 'CATEGORIES') {
+      setProductIds([]);
+    }
+  }, [open, targetType, supported]);
+
+  /* =====================
+     Load picker options (same endpoints as Create)
+     ===================== */
+  useEffect(() => {
+    if (!open) return;
+    if (!supported) return;
+    if (targetType === 'SITE_WIDE') return;
+
+    let cancelled = false;
+
+    async function loadOptions() {
+      setOptErr(null);
+      setOptLoading(true);
+
+      try {
+        if (targetType === 'PRODUCTS' && productOptions.length === 0) {
+          const res = await fetch('/api/admin/offers/options/products', { cache: 'no-store' });
+          const json = (await res.json()) as { options: PickerOption[] } | ApiErr;
+
+          if (!res.ok || !isOptionsOk(json)) {
+            throw new Error(
+              'error' in json && json.error ? json.error : 'Failed to load products.'
+            );
+          }
+
+          if (!cancelled) setProductOptions(json.options);
+        }
+
+        if (targetType === 'CATEGORIES' && categoryOptions.length === 0) {
+          const res = await fetch('/api/admin/offers/options/categories', { cache: 'no-store' });
+          const json = (await res.json()) as { options: PickerOption[] } | ApiErr;
+
+          if (!res.ok || !isOptionsOk(json)) {
+            throw new Error(
+              'error' in json && json.error ? json.error : 'Failed to load categories.'
+            );
+          }
+
+          if (!cancelled) setCategoryOptions(json.options);
+        }
+      } catch (e) {
+        if (!cancelled) setOptErr(fmtErr(e, 'Failed to load options.'));
+      } finally {
+        if (!cancelled) setOptLoading(false);
+      }
+    }
+
+    void loadOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, supported, targetType, productOptions.length, categoryOptions.length]);
+
+  /* =====================
+     Validation
+     ===================== */
+  const canSubmit = useMemo(() => {
+    if (!offerId) return false;
+    if (loading || saving) return false;
+    if (!name.trim()) return false;
+    if (!original) return false;
+
+    // Unsupported kind: allow saving basics only
+    if (!supported) return true;
+
+    // Targeting requirements
+    if (targetType === 'PRODUCTS' && productIds.length === 0) return false;
+    if (targetType === 'CATEGORIES' && categoryIds.length === 0) return false;
+
+    // kind-specific minimal checks
+    if (kind === 'PERCENT_OFF') return (percent ?? 0) > 0;
+    if (kind === 'AMOUNT_OFF') return (pricePence ?? 0) > 0;
+
+    return true;
+  }, [
+    offerId,
+    loading,
+    saving,
+    name,
+    original,
+    supported,
+    targetType,
+    productIds.length,
+    categoryIds.length,
+    kind,
+    percent,
+    pricePence
+  ]);
+
+  /* =====================
+     Submit (PUT)
+     ===================== */
   async function save() {
     if (!canSubmit) return;
     if (!offerId) return;
@@ -231,7 +531,6 @@ export default function EditOfferModal({
     setSaving(true);
 
     try {
-      // Start from original (so we don’t accidentally drop fields the server expects)
       const next: OfferAdminForm = {
         ...original,
         name: name.trim(),
@@ -242,48 +541,58 @@ export default function EditOfferModal({
         exclusions: original.exclusions ?? {}
       };
 
-      // Only rewrite payload if it’s a supported kind (or if it was supported).
-      // If the original kind is unsupported, we leave payload untouched.
+      // Preserve payload exactly for unsupported kinds
       if (supported) {
-        const buy = clampInt(buyQty, 1, 999);
+        const pool = buildPool(targetType, productIds, categoryIds);
 
-        next.payload =
+        const payload: OfferAdminForm['payload'] =
           kind === 'BOGOF'
             ? {
                 kind: 'BOGOF',
                 data: {
-                  buyQty: buy,
-                  getQty: clampInt(getQty, 1, 999),
-                  buyPool: original.payload.kind === 'BOGOF' ? original.payload.data.buyPool : [],
-                  getPool: original.payload.kind === 'BOGOF' ? original.payload.data.getPool : [],
-                  warnIfGetMoreExpensive:
-                    original.payload.kind === 'BOGOF'
-                      ? original.payload.data.warnIfGetMoreExpensive
-                      : true,
-                  autoAddGetItem:
-                    original.payload.kind === 'BOGOF' ? original.payload.data.autoAddGetItem : false
+                  buyQty: clampInt(buyQty, 1, 999),
+                  getQty: clampInt(getQty ?? 1, 1, 999),
+                  buyPool: pool,
+                  getPool: pool,
+                  warnIfGetMoreExpensive: true,
+                  autoAddGetItem: true
                 }
               }
             : kind === 'X_FOR_Y'
               ? {
                   kind: 'X_FOR_Y',
                   data: {
-                    buyQty: buy,
-                    payQty: clampInt(payQty, 1, 999),
-                    pool: original.payload.kind === 'X_FOR_Y' ? original.payload.data.pool : []
+                    buyQty: clampInt(buyQty, 1, 999),
+                    payQty: clampInt(payQty ?? 1, 1, 999),
+                    pool
                   }
                 }
-              : {
-                  kind: 'X_FOR_FIXED_PRICE',
-                  data: {
-                    qty: buy,
-                    pricePence: Math.max(0, Math.trunc(fixedPricePence ?? 0)),
-                    pool:
-                      original.payload.kind === 'X_FOR_FIXED_PRICE'
-                        ? original.payload.data.pool
-                        : []
+              : kind === 'X_FOR_FIXED_PRICE'
+                ? {
+                    kind: 'X_FOR_FIXED_PRICE',
+                    data: {
+                      qty: clampInt(buyQty, 1, 999),
+                      pricePence: Math.max(0, Math.trunc(pricePence ?? 0)),
+                      pool
+                    }
                   }
-                };
+                : kind === 'PERCENT_OFF'
+                  ? {
+                      kind: 'PERCENT_OFF',
+                      data: {
+                        percent: Math.max(0, Math.min(100, Math.trunc(percent ?? 0))),
+                        pool
+                      }
+                    }
+                  : {
+                      kind: 'AMOUNT_OFF',
+                      data: {
+                        amountPence: Math.max(0, Math.trunc(pricePence ?? 0)),
+                        pool
+                      }
+                    };
+
+        next.payload = payload;
       }
 
       const res = await fetch(`/api/admin/offers/${offerId}`, {
@@ -293,10 +602,7 @@ export default function EditOfferModal({
       });
 
       const json = (await res.json().catch(() => null)) as unknown;
-
-      if (!res.ok) {
-        throw new Error(apiError(json) ?? 'Failed to save.');
-      }
+      if (!res.ok) throw new Error(apiError(json) ?? 'Failed to save.');
 
       onSaved();
       onClose();
@@ -323,6 +629,12 @@ export default function EditOfferModal({
           <div className={styles.modalHeaderLeft}>
             <div className={styles.modalTitle}>Edit offer</div>
             <div className={styles.modalSub}>Update and save changes.</div>
+
+            {optLoading && supported && targetType !== 'SITE_WIDE' ? (
+              <div className={styles.modalMetaRow}>
+                <span className={styles.loadingPill}>Loading…</span>
+              </div>
+            ) : null}
           </div>
 
           <button className={styles.iconBtn} onClick={onClose} aria-label="Close">
@@ -333,8 +645,12 @@ export default function EditOfferModal({
         <div className={styles.modalBody}>
           {loadErr && <div className={styles.bannerError}>{loadErr}</div>}
           {saveErr && <div className={styles.bannerError}>{saveErr}</div>}
+          {optErr && <div className={styles.bannerError}>{optErr}</div>}
 
           <div className={styles.formGrid}>
+            {/* =====================
+                Basics
+               ===================== */}
             <div className={styles.sectionCard}>
               <div className={styles.sectionHead}>
                 <div>
@@ -404,13 +720,75 @@ export default function EditOfferModal({
               </div>
             </div>
 
+            {/* =====================
+                Targeting (same as Create)
+               ===================== */}
             <div className={styles.sectionCard}>
               <div className={styles.sectionHead}>
                 <div>
-                  <div className={styles.sectionTitle}>Rule</div>
+                  <div className={styles.sectionTitle}>Targeting</div>
                   <div className={styles.sectionHint}>
                     {supported
-                      ? 'Edit the deal mechanics.'
+                      ? 'Decide which products this offer applies to.'
+                      : 'This offer kind is not editable in the UI yet (targeting will be preserved).'}
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.field}>
+                <label className={styles.label}>Applies to</label>
+                <select
+                  className={styles.select}
+                  value={targetType}
+                  onChange={(e) => setTargetType(e.target.value as OfferTargetType)}
+                  disabled={!supported || loading || saving}
+                >
+                  <option value="SITE_WIDE">All products</option>
+                  <option value="PRODUCTS">Specific products</option>
+                  <option value="CATEGORIES">Specific categories</option>
+                </select>
+
+                {supported &&
+                targetType !== 'SITE_WIDE' &&
+                (targetType === 'PRODUCTS' ? productIds.length === 0 : categoryIds.length === 0) ? (
+                  <div className={styles.hintInline}>
+                    Select at least one {targetType === 'PRODUCTS' ? 'product' : 'category'} to
+                    continue.
+                  </div>
+                ) : null}
+              </div>
+
+              {supported && targetType === 'PRODUCTS' && (
+                <OfferTargetPicker
+                  title="Products"
+                  placeholder="Search products…"
+                  options={productOptions}
+                  selectedIds={productIds}
+                  onChange={setProductIds}
+                />
+              )}
+
+              {supported && targetType === 'CATEGORIES' && (
+                <OfferTargetPicker
+                  title="Categories"
+                  placeholder="Search categories…"
+                  options={categoryOptions}
+                  selectedIds={categoryIds}
+                  onChange={setCategoryIds}
+                />
+              )}
+            </div>
+
+            {/* =====================
+                Rule (same as Create)
+               ===================== */}
+            <div className={styles.sectionCard}>
+              <div className={styles.sectionHead}>
+                <div>
+                  <div className={styles.sectionTitle}>Offer rule</div>
+                  <div className={styles.sectionHint}>
+                    {supported
+                      ? 'Configure quantities / pricing for this deal.'
                       : 'This offer kind is not editable in the UI yet (payload will be preserved).'}
                   </div>
                 </div>
@@ -422,86 +800,32 @@ export default function EditOfferModal({
                   <select
                     className={styles.select}
                     value={kind}
-                    onChange={(e) => setKind(e.target.value as AdminKind)}
+                    onChange={(e) => setKind(e.target.value as AdminOfferKind)}
                     disabled={!supported || loading || saving}
                   >
                     <option value="BOGOF">BOGOF (Buy X get Y free)</option>
                     <option value="X_FOR_Y">X for Y (Buy X pay for Y)</option>
                     <option value="X_FOR_FIXED_PRICE">X for £ (Buy X for fixed price)</option>
+                    <option value="PERCENT_OFF">% off (Percent discount)</option>
+                    <option value="AMOUNT_OFF">£ off (Fixed amount discount)</option>
                   </select>
                 </div>
 
-                <div className={styles.field}>
-                  <label className={styles.label}>
-                    {kind === 'X_FOR_FIXED_PRICE' ? 'Quantity (X)' : 'Buy quantity'}
-                  </label>
-                  <input
-                    className={styles.input}
-                    type="number"
-                    min={1}
-                    value={buyQty}
-                    onChange={(e) => setBuyQty(clampInt(e.target.value, 1, 999))}
-                    disabled={!supported || loading || saving}
+                <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
+                  <OfferRuleBuilder
+                    kind={kind}
+                    buyQty={buyQty}
+                    setBuyQty={setBuyQty}
+                    getQty={getQty}
+                    setGetQty={setGetQty}
+                    payQty={payQty}
+                    setPayQty={setPayQty}
+                    pricePence={pricePence}
+                    setPricePence={setPricePence}
+                    percent={percent}
+                    setPercent={setPercent}
                   />
                 </div>
-
-                {kind === 'BOGOF' && (
-                  <div className={styles.field}>
-                    <label className={styles.label}>Get free</label>
-                    <input
-                      className={styles.input}
-                      type="number"
-                      min={1}
-                      value={getQty}
-                      onChange={(e) => setGetQty(clampInt(e.target.value, 1, 999))}
-                      disabled={!supported || loading || saving}
-                    />
-                  </div>
-                )}
-
-                {kind === 'X_FOR_Y' && (
-                  <div className={styles.field}>
-                    <label className={styles.label}>Pay for (Y)</label>
-                    <input
-                      className={styles.input}
-                      type="number"
-                      min={1}
-                      value={payQty}
-                      onChange={(e) => setPayQty(clampInt(e.target.value, 1, 999))}
-                      disabled={!supported || loading || saving}
-                    />
-                  </div>
-                )}
-
-                {kind === 'X_FOR_FIXED_PRICE' && (
-                  <div className={styles.field}>
-                    <label className={styles.label}>Fixed price (total)</label>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '36px 1fr', gap: 8 }}>
-                      <div
-                        className={styles.input}
-                        style={{ display: 'grid', placeItems: 'center', padding: 0, opacity: 0.9 }}
-                        aria-hidden
-                      >
-                        £
-                      </div>
-
-                      <input
-                        className={styles.input}
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={penceToPounds(fixedPricePence)}
-                        onChange={(e) => setFixedPricePence(poundsToPence(e.target.value))}
-                        disabled={!supported || loading || saving}
-                      />
-                    </div>
-
-                    <div className={styles.hint} style={{ marginTop: 6 }}>
-                      Example: “2 for £1” → quantity 2, fixed price £1.00
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>

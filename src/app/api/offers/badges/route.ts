@@ -1,3 +1,4 @@
+// src/app/api/offers/badges/route.ts
 import { getOffers } from '@/lib/offers-store';
 import { prisma } from '@/lib/prisma';
 import type {
@@ -13,12 +14,20 @@ export const dynamic = 'force-dynamic';
 
 type BadgesMap = Record<string, string[]>;
 
+type DealMeta =
+  | { mode: 'PERCENT_OFF'; percent: number }
+  | { mode: 'AMOUNT_OFF'; amountPence: number }
+  | null;
+
+type DealsMap = Record<string, DealMeta>;
+
 interface ProductMini {
   id: string;
   name: string;
   sku: string | null;
   categoryId: string | null;
   collection: string | null;
+  price: number | null;
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
@@ -69,12 +78,11 @@ function payloadPools(payload: OfferPayload): OfferTargetRule[][] {
     case 'BOGOF':
       return [payload.data.buyPool, payload.data.getPool];
     case 'SPEND_X_GET_Y':
-      // spend-based is cart-level, not product-targeted (unless you extend it later)
+      // cart-level, not product-targeted by default
       return [];
     case 'FREE_GIFT':
     case 'FLASH_SALE':
     case 'BUNDLE':
-      // reserved/unknown targeting – treat as not product-badge-able for now
       return [];
     default:
       return [];
@@ -108,8 +116,7 @@ function matchesRule(p: ProductMini, rule: OfferTargetRule): boolean {
     }
 
     case 'TAG_SLUGS':
-      // Your Product select here doesn’t include tags.
-      // If/when Product has tags, we can extend this route to support it.
+      // Not supported here unless you select Product.tags in ProductMini
       return false;
 
     default:
@@ -128,8 +135,6 @@ function matchesAnyPool(p: ProductMini, pools: OfferTargetRule[][]): boolean {
 function badgeForOffer(o: OfferAdminForm): string | null {
   const payload = o.payload;
 
-  // Prefer a computed badge that’s consistent.
-  // If you want the admin "name" always, swap the return values to `o.name`.
   switch (payload.kind) {
     case 'BOGOF': {
       const buy = Math.max(1, Math.trunc(payload.data.buyQty));
@@ -148,19 +153,41 @@ function badgeForOffer(o: OfferAdminForm): string | null {
     }
     case 'PERCENT_OFF': {
       const pct = Math.max(0, Math.min(100, Math.trunc(payload.data.percent)));
-      return `${pct}% off`;
+      return pct > 0 ? `${pct}% off` : null;
     }
     case 'AMOUNT_OFF': {
       const pence = Math.max(0, Math.trunc(payload.data.amountPence));
-      return `£${(pence / 100).toFixed(2)} off`;
+      return pence > 0 ? `£${(pence / 100).toFixed(2)} off` : null;
     }
     case 'SPEND_X_GET_Y':
-      // cart-level; not a product badge by default
       return null;
-
     default:
       return null;
   }
+}
+
+function dealForOffer(o: OfferAdminForm): DealMeta {
+  const p = o.payload;
+
+  if (p.kind === 'PERCENT_OFF') {
+    const percent = Math.max(0, Math.min(100, Math.trunc(p.data.percent)));
+    return percent > 0 ? { mode: 'PERCENT_OFF', percent } : null;
+  }
+
+  if (p.kind === 'AMOUNT_OFF') {
+    const amountPence = Math.max(0, Math.trunc(p.data.amountPence));
+    return amountPence > 0 ? { mode: 'AMOUNT_OFF', amountPence } : null;
+  }
+
+  return null;
+}
+
+// compare “which discount is stronger” for a product
+function dealValuePence(meta: DealMeta, productPriceGBP: number): number {
+  if (!meta) return 0;
+  if (meta.mode === 'AMOUNT_OFF') return meta.amountPence;
+  // percent-off => value in pence
+  return Math.round((productPriceGBP * 100 * meta.percent) / 100);
 }
 
 export async function POST(req: Request) {
@@ -172,7 +199,10 @@ export async function POST(req: Request) {
       : [];
 
   if (!productIds.length) {
-    return NextResponse.json({ ok: true, badges: {} satisfies BadgesMap }, { status: 200 });
+    return NextResponse.json(
+      { ok: true, badges: {} satisfies BadgesMap, deals: {} satisfies DealsMap },
+      { status: 200 }
+    );
   }
 
   const products: ProductMini[] = await prisma.product.findMany({
@@ -182,33 +212,48 @@ export async function POST(req: Request) {
       name: true,
       sku: true,
       categoryId: true,
-      collection: true
+      collection: true,
+      price: true
     }
   });
 
   const offersAll: OfferAdminForm[] = await getOffers();
-
   const now = new Date();
 
   // Filter to only offers that should show up as badges
   const offers = offersAll.filter((o) => isOfferActiveNow(o, now) && inVisibility(o.visibility));
 
   const badges: BadgesMap = {};
-  for (const p of products) badges[p.id] = [];
+  const deals: DealsMap = {};
+
+  for (const p of products) {
+    badges[p.id] = [];
+    deals[p.id] = null;
+  }
 
   for (const o of offers) {
     const badge = badgeForOffer(o);
-    if (!badge) continue;
+    const deal = dealForOffer(o);
 
     const pools = payloadPools(o.payload);
     if (!pools.length) continue;
 
     for (const p of products) {
-      if (matchesAnyPool(p, pools)) {
+      if (!matchesAnyPool(p, pools)) continue;
+
+      if (badge) {
         badges[p.id] = uniq([...(badges[p.id] ?? []), badge]);
+      }
+
+      // pick strongest deal for price display (only for % / £ off)
+      if (deal && typeof p.price === 'number' && Number.isFinite(p.price)) {
+        const current = deals[p.id];
+        const nextVal = dealValuePence(deal, p.price);
+        const curVal = dealValuePence(current, p.price);
+        if (nextVal > curVal) deals[p.id] = deal;
       }
     }
   }
 
-  return NextResponse.json({ ok: true, badges }, { status: 200 });
+  return NextResponse.json({ ok: true, badges, deals }, { status: 200 });
 }

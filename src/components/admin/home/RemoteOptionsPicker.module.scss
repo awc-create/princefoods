@@ -1,0 +1,169 @@
+/* src/components/admin/home/RemoteOptionsPicker.module.scss */
+.wrap {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.label {
+  font-weight: 900;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.muted {
+  opacity: 0.7;
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.clearBtn {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.search {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+}
+
+.error {
+  color: #dc2626;
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.list {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.item {
+  border: 1px solid #eef2f7;
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  text-align: left;
+}
+
+.item:hover {
+  border-color: #dbeafe;
+  background: #f8fbff;
+}
+
+.itemActive {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.itemMain {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.itemLabel {
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemMeta {
+  opacity: 0.75;
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pill {
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-weight: 900;
+  font-size: 0.85rem;
+}
+
+.chipsRow {
+  display: grid;
+  gap: 8px;
+}
+
+.chipsLabel {
+  font-weight: 900;
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  max-width: 100%;
+}
+
+.chip:hover {
+  border-color: #dbeafe;
+  background: #f8fbff;
+}
+
+.chipText {
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 360px;
+}
+
+.chipX {
+  font-weight: 900;
+  opacity: 0.7;
+}
+
+.debug {
+  font-size: 0.85rem;
+  opacity: 0.75;
+  padding: 6px 8px;
+  border: 1px dashed #e5e7eb;
+  border-radius: 10px;
+}

@@ -1,3 +1,5 @@
+/* src/app/admin/site/home/HomeClient.module.scss */
+
 /* ---------- Layout ---------- */
 .wrap {
   --bg: #f7f7fb;
@@ -47,30 +49,20 @@
   gap: 12px;
 }
 
-.textareaAuto {
-  resize: none; /* user can’t drag; we grow programmatically */
-  overflow: hidden; /* no scrollbar flicker */
-  line-height: 1.4;
-  min-height: 42px; /* matches input height nicely */
-  white-space: pre-wrap;
-}
-
-/* Status text (clear colors) */
 .statusText {
   font-weight: 700;
   font-size: 0.95rem;
 }
 .statusUnsaved {
   color: #b91c1c;
-} /* red */
+}
 .statusSaved {
   color: #059669;
-} /* green */
+}
 .statusError {
   color: #dc2626;
-} /* red (error) */
+}
 
-/* Save button — readable even when disabled */
 .saveBtn {
   background: var(--primary, #e11d48);
   color: #fff;
@@ -87,29 +79,14 @@
 }
 .saveBtn:hover:not(:disabled) {
   transform: translateY(-1px);
-  background: #be123c; /* darker hover */
+  background: #be123c;
 }
 .saveBtn:disabled {
-  background: #f3f4f6; /* light grey bg */
-  color: #6b7280; /* readable grey text */
+  background: #f3f4f6;
+  color: #6b7280;
   cursor: not-allowed;
   box-shadow: none;
   opacity: 1;
-  filter: none;
-}
-
-/* Legacy hint styles (kept if referenced somewhere else) */
-.savedHint {
-  color: #059669;
-  font-weight: 700;
-}
-.errorHint {
-  color: #dc2626;
-  font-weight: 700;
-}
-.help {
-  color: var(--muted);
-  font-size: 0.9rem;
 }
 
 /* ---------- Tabs ---------- */
@@ -186,7 +163,6 @@
   font-size: 0.85rem;
 }
 
-/* Pure, local class only */
 .input {
   border: 1px solid var(--ring);
   border-radius: 8px;
@@ -232,37 +208,6 @@
   margin-top: 8px;
 }
 
-.templateBar {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.templateBtn {
-  border: 1px dashed var(--ring);
-  background: #fff;
-  border-radius: 8px;
-  padding: 8px 10px;
-  cursor: pointer;
-}
-
-.badges {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.badge {
-  border: 1px solid var(--ring);
-  background: #fff;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 0.9rem;
-  cursor: pointer;
-}
-.badgeActive {
-  background: #eef2ff;
-  border-color: #c7d2fe;
-}
-
 .secondary {
   border: 1px solid var(--ring);
   background: #fff;
@@ -287,10 +232,9 @@
 }
 
 .uploaderSmall {
-  max-width: 300px; /* tweak as you like */
+  max-width: 300px;
 }
 
-/* ---------- Compact hero images list ---------- */
 .imagesWrap {
   display: grid;
   gap: 10px;
@@ -320,4 +264,35 @@
 }
 .removeBtn {
   white-space: nowrap;
+}
+
+.templateBar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.templateBtn {
+  border: 1px dashed var(--ring);
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.badge {
+  border: 1px solid var(--ring);
+  background: #fff;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.badgeActive {
+  background: #eef2ff;
+  border-color: #c7d2fe;
 }

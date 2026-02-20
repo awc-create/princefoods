@@ -114,12 +114,17 @@ export async function GET(req: NextRequest) {
           description: true,
           price: true,
           productImageUrl: true,
+
+          // ✅ offer fields (needed for pills + UI)
           ribbon: true,
+          discountMode: true,
+          discountValue: true,
+
+          // misc fields
           collection: true,
           inventory: true,
           visible: true,
-          discountMode: true,
-          discountValue: true,
+
           // analytics
           views: true,
           clicks: true,
@@ -155,17 +160,28 @@ export async function GET(req: NextRequest) {
       title: r.name,
       description: r.description ?? undefined,
       price: r.price ?? 0,
+
+      // ✅ your frontend expects imageUrl (not productImageUrl)
       imageUrl: r.productImageUrl ?? null,
+
       slug: undefined,
       collection: r.collection ?? undefined,
       inventory: coerceInventory(r.inventory ?? null),
       visible: r.visible ?? true,
+
+      // ✅ keep these for ProductCard pills
+      ribbon: r.ribbon ?? null,
+      discountMode: r.discountMode ?? null,
+      discountValue: r.discountValue ?? null,
+
+      // keep your legacy tag/special too
       tag: r.ribbon ?? undefined,
       special: isSpecial({
         ribbon: r.ribbon ?? null,
         discountMode: r.discountMode ?? null,
         discountValue: r.discountValue ?? null
       }),
+
       // expose analytics (optional to use in UI)
       views: r.views,
       clicks: r.clicks,

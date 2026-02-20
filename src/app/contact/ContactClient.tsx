@@ -23,6 +23,7 @@ export default function ContactClient() {
     address: '',
     company: ''
   });
+
   const [loading, setLoading] = useState(false);
   const [ok, setOk] = useState<null | string>(null);
   const [err, setErr] = useState<null | string>(null);
@@ -30,52 +31,44 @@ export default function ContactClient() {
 
   const onChange =
     (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setForm((s) => ({ ...s, [key]: e.target.value }));
+      setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setOk(null);
     setErr(null);
 
+    // Custom validation only (no browser popups)
     if (!form.name.trim() || !form.email.trim() || !form.message.trim()) {
       setErr('Please fill in your name, email, and message.');
       return;
     }
-    // honeypot
+
+    // Honeypot (bot protection)
     if (form.company?.trim()) {
       setOk('Thanks — we’ve got your message. We’ll reply within 24–48 hours.');
-      setForm({
-        name: '',
-        email: '',
-        phone: '',
-        subject: '',
-        message: '',
-        address: '',
-        company: ''
-      });
+      resetForm();
       return;
     }
 
     setLoading(true);
+
     try {
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
       });
+
       const data = res.ok ? ((await res.json()) as { ticketId?: string }) : {};
+
       setOk(
-        `Thanks — we’ve got it${data?.ticketId ? ` (ticket #${data.ticketId})` : ''}. We’ll reply within 24–48 hours.`
+        `Thanks — we’ve got it${
+          data?.ticketId ? ` (ticket #${data.ticketId})` : ''
+        }. We’ll reply within 24–48 hours.`
       );
-      setForm({
-        name: '',
-        email: '',
-        phone: '',
-        subject: '',
-        message: '',
-        address: '',
-        company: ''
-      });
+
+      resetForm();
     } catch {
       setErr('Something went wrong. Please try again or email support@prince-foods.com.');
     } finally {
@@ -83,14 +76,27 @@ export default function ContactClient() {
     }
   }
 
+  function resetForm() {
+    setForm({
+      name: '',
+      email: '',
+      phone: '',
+      subject: '',
+      message: '',
+      address: '',
+      company: ''
+    });
+  }
+
   function copyEmail() {
     try {
       navigator.clipboard.writeText('support@prince-foods.com');
       setCopied(true);
     } catch {
-      // ignore
+      // ignore clipboard errors
     }
   }
+
   useEffect(() => {
     if (!copied) return;
     const t = setTimeout(() => setCopied(false), 1400);
@@ -100,14 +106,16 @@ export default function ContactClient() {
   return (
     <section className={styles.wrapper} aria-labelledby="contact-heading">
       <div className={styles.inner}>
+        {/* LEFT SIDE */}
         <div className={styles.left}>
           <h1 id="contact-heading">We’re here to help</h1>
+
           <p className={styles.sub}>
-            Questions about orders, products, or wholesale? Our team usually replies within
-            <strong> 24–48 hours</strong>.
+            Questions about orders, products, or wholesale? Our team usually replies within{' '}
+            <strong>24–48 hours</strong>.
           </p>
 
-          {/* Email chip (click to copy) */}
+          {/* Email chip */}
           <div className={styles.contactRow} role="group" aria-label="Email">
             <button
               type="button"
@@ -117,9 +125,11 @@ export default function ContactClient() {
             >
               ✉️
             </button>
+
             <a className={styles.emailLink} href="mailto:support@prince-foods.com">
               support@prince-foods.com
             </a>
+
             <span aria-live="polite" className={styles.copyToast} data-show={copied ? '1' : '0'}>
               Copied
             </span>
@@ -138,10 +148,10 @@ export default function ContactClient() {
           </nav>
         </div>
 
-        {/* WIDER card */}
-        <div className={styles.right} role="form" aria-label="Contact form card">
+        {/* RIGHT SIDE (FORM CARD) */}
+        <div className={styles.right} aria-label="Contact form card">
           <form className={styles.form} onSubmit={onSubmit} noValidate>
-            {/* honeypot */}
+            {/* Honeypot */}
             <input
               type="text"
               name="company"
@@ -158,24 +168,21 @@ export default function ContactClient() {
                 <label htmlFor="name">Name*</label>
                 <input
                   id="name"
-                  name="name"
                   type="text"
                   placeholder="Your full name"
                   value={form.name}
                   onChange={onChange('name')}
-                  required
                 />
               </div>
+
               <div className={styles.field}>
                 <label htmlFor="email">Email*</label>
                 <input
                   id="email"
-                  name="email"
                   type="email"
                   placeholder="you@example.com"
                   value={form.email}
                   onChange={onChange('email')}
-                  required
                 />
               </div>
             </div>
@@ -185,7 +192,6 @@ export default function ContactClient() {
                 <label htmlFor="phone">Phone</label>
                 <input
                   id="phone"
-                  name="phone"
                   type="tel"
                   placeholder="+44…"
                   inputMode="tel"
@@ -193,11 +199,11 @@ export default function ContactClient() {
                   onChange={onChange('phone')}
                 />
               </div>
+
               <div className={styles.field}>
                 <label htmlFor="address">Address (optional)</label>
                 <input
                   id="address"
-                  name="address"
                   type="text"
                   placeholder="House no., street, city"
                   value={form.address}
@@ -210,7 +216,6 @@ export default function ContactClient() {
               <label htmlFor="subject">Subject</label>
               <input
                 id="subject"
-                name="subject"
                 type="text"
                 placeholder="How can we help?"
                 value={form.subject}
@@ -222,12 +227,10 @@ export default function ContactClient() {
               <label htmlFor="message">Message*</label>
               <textarea
                 id="message"
-                name="message"
+                rows={6}
                 placeholder="Tell us what happened or what you need. Batch code, order #, product, etc."
                 value={form.message}
                 onChange={onChange('message')}
-                required
-                rows={6}
               />
             </div>
 
@@ -236,6 +239,7 @@ export default function ContactClient() {
                 {err}
               </p>
             )}
+
             {ok && (
               <p className={styles.success} role="status">
                 {ok}

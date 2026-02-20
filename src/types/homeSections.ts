@@ -1,57 +1,70 @@
 // src/types/homeSections.ts
-import type { IsoDateString } from './homeSettings';
+import type { CampaignKey, IsoDateString } from './homeSettings';
 
 export type HomeSectionType = 'PRODUCT_CAROUSEL';
 
 export type HomeSectionProductSource =
   | 'BEST_SELLERS'
-  | 'DEALS'
   | 'NEW_ARRIVALS'
+  | 'DEALS'
   | 'MOST_CLICKED'
   | 'LEAST_CLICKED'
   | 'LEAST_SOLD'
   | 'COLLECTION'
   | 'CATEGORY'
-  | 'MANUAL';
+  | 'MANUAL'
+  | 'CAMPAIGN';
 
 export type DealsMode = 'DISCOUNT_FIELDS' | 'RIBBON' | 'OFFER_ENGINE';
 
 export interface HomeSectionProductCarouselConfig {
   kind: 'PRODUCT_CAROUSEL';
   source: HomeSectionProductSource;
-  limit?: number; // default 16
+  limit?: number;
 
-  // COLLECTION source
   collection?: string;
-
-  // CATEGORY source
   categoryId?: string;
-
-  // MANUAL source
   productIds?: string[];
 
-  // DEALS source
   dealsMode?: DealsMode;
 
-  // Optional safety so “least clicked/sold” doesn’t pick brand new items
-  minAgeDays?: number; // e.g. 14
+  // ✅ add
+  offerIds?: string[];
+
+  campaignKey?: CampaignKey;
+  campaignImageUrl?: string | null;
+
+  minAgeDays?: number;
 }
 
 export interface HomeSectionRow {
   id: string;
+
   title: string;
   subtitle?: string | null;
 
   type: HomeSectionType;
+
   enabled: boolean;
   position: number;
 
-  startAt?: IsoDateString;
-  endAt?: IsoDateString;
+  startAt?: IsoDateString | null;
+  endAt?: IsoDateString | null;
 
   isLocked?: boolean;
 
-  config?: HomeSectionProductCarouselConfig | null;
+  /**
+   * IMPORTANT:
+   * DB stores JSON, so this must accept unknown/any JSON.
+   * We validate/narrow via getCfg() before using it.
+   */
+  config?: unknown | null;
+
+  // optional banner (resolved by API)
+  bannerUrl?: string | null;
+
+  // if you added it
+  mediaId?: string | null;
 
   createdAt?: string;
   updatedAt?: string;

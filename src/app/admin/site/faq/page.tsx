@@ -2,7 +2,7 @@
 
 import type { FAQInboxItem, FAQItem, FAQSettingsDTO } from '@/types/faqSettings';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import s from '../home/SiteEditor.module.scss';
+import s from '../home/HomeClient.module.scss';
 
 type Tab = 'faqs' | 'inbox';
 

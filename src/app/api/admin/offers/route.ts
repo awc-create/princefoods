@@ -1,3 +1,4 @@
+// src/app/api/admin/offers/route.ts
 import { createOffer, getOffers } from '@/lib/offers-store';
 import { requireAdmin } from '@/lib/route-ctx';
 import type { OfferAdminForm } from '@/types/offers';
@@ -21,7 +22,6 @@ export async function GET() {
     return authFail(e);
   }
 }
-
 export async function POST(req: Request) {
   try {
     await requireAdmin();

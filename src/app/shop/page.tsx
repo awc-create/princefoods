@@ -1,4 +1,5 @@
 // src/app/shop/page.tsx
+import { prisma } from '@/lib/prisma';
 import type { Product } from '@/types/product';
 import { Suspense } from 'react';
 import ShopClient from './ShopClient';
@@ -8,13 +9,11 @@ export const metadata = {
   description: 'Browse products from Prince Foods.'
 };
 
-// Helps ensure runtime fetching and avoids accidental static export
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 function ShopFallback() {
-  // Simple skeleton; keep inline so we don’t need extra CSS
   return (
     <div style={{ padding: '24px' }}>
       <div
@@ -58,94 +57,63 @@ function ShopFallback() {
   );
 }
 
-interface ProductsApiShape {
-  ok?: boolean;
-  products?: unknown;
-  pageCount?: unknown;
-  priceBounds?: unknown;
-}
-
-const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object';
-
-function toProductArray(v: unknown): Product[] {
-  if (!Array.isArray(v)) return [];
-
-  const out: Product[] = [];
-
-  for (const it of v) {
-    if (!isObj(it)) continue;
-
-    const rec = it as Record<string, unknown>;
-
-    const id = typeof rec.id === 'string' ? rec.id : '';
-    const title =
-      typeof rec.title === 'string' ? rec.title : typeof rec.name === 'string' ? rec.name : '';
-
-    const price = typeof rec.price === 'number' && Number.isFinite(rec.price) ? rec.price : 0;
-
-    const description = typeof rec.description === 'string' ? rec.description : undefined;
-
-    const imageUrl =
-      typeof rec.imageUrl === 'string' ? rec.imageUrl : rec.imageUrl === null ? null : null;
-
-    if (!id || !title) continue;
-
-    // Construct a safe Product object (no casting, no spreading unknown)
-    const p: Product = {
-      id,
-      title,
-      price,
-      imageUrl,
-      description
-    } as Product;
-
-    out.push(p);
-  }
-
-  return out;
-}
-
-function toPriceBounds(v: unknown): { min: number; max: number } | null {
-  if (!isObj(v)) return null;
-  const min = typeof v.min === 'number' ? v.min : NaN;
-  const max = typeof v.max === 'number' ? v.max : NaN;
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
-  return { min, max };
-}
-
-function baseUrl() {
-  const site = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
-  const vercel = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL.replace(/\/$/, '')}`
-    : '';
-  return site ?? vercel ?? 'http://localhost:3000';
-}
-
 async function getInitialData(): Promise<{
   initialProducts: Product[];
   initialPageCount: number;
   initialPriceBounds: { min: number; max: number } | null;
 }> {
-  try {
-    const url = `${baseUrl()}/api/products?page=1&sort=newest`;
+  // must match your API default page size (looks like 12)
+  const limit = 12;
+  const page = 1;
+  const skip = (page - 1) * limit;
 
-    const res = await fetch(url, { cache: 'no-store' });
-    const json = (await res.json().catch(() => ({}))) as ProductsApiShape;
+  const [total, rows, agg] = await Promise.all([
+    prisma.product.count({ where: { visible: true } }),
+    prisma.product.findMany({
+      where: { visible: true },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip,
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        price: true,
+        productImageUrl: true,
+        ribbon: true,
+        discountMode: true,
+        discountValue: true
+      }
+    }),
+    prisma.product.aggregate({
+      where: { visible: true, price: { not: null } },
+      _min: { price: true },
+      _max: { price: true }
+    })
+  ]);
 
-    if (!res.ok || !json?.ok) {
-      return { initialProducts: [], initialPageCount: 1, initialPriceBounds: null };
-    }
+  const initialProducts: Product[] = rows.map((p) => ({
+    id: p.id,
+    title: p.name,
+    description: p.description ?? undefined,
+    price: typeof p.price === 'number' ? p.price : 0,
+    imageUrl: p.productImageUrl ?? null,
+    ribbon: p.ribbon ?? null,
+    discountMode: p.discountMode ?? null,
+    discountValue: typeof p.discountValue === 'number' ? p.discountValue : null
+  }));
 
-    const initialProducts = toProductArray(json.products);
-    const initialPageCount =
-      typeof json.pageCount === 'number' && Number.isFinite(json.pageCount) ? json.pageCount : 1;
+  const pageCount = Math.max(1, Math.ceil(total / limit));
 
-    const initialPriceBounds = toPriceBounds(json.priceBounds);
+  const min = typeof agg._min.price === 'number' ? agg._min.price : null;
+  const max = typeof agg._max.price === 'number' ? agg._max.price : null;
 
-    return { initialProducts, initialPageCount, initialPriceBounds };
-  } catch {
-    return { initialProducts: [], initialPageCount: 1, initialPriceBounds: null };
-  }
+  const initialPriceBounds =
+    min != null && max != null && Number.isFinite(min) && Number.isFinite(max)
+      ? { min, max }
+      : null;
+
+  return { initialProducts, initialPageCount: pageCount, initialPriceBounds };
 }
 
 export default async function ShopPage() {

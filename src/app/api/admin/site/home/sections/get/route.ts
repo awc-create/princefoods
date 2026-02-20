@@ -1,10 +1,12 @@
+// src/app/api/admin/site/home/sections/get/route.ts
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
-import type { HomeSectionsSettings } from '@/types/homeSettings';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
 interface SessionUserWithRole {
@@ -12,11 +14,6 @@ interface SessionUserWithRole {
 }
 const hasRole = (u: unknown): u is SessionUserWithRole =>
   !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
-
-const DEFAULT: HomeSectionsSettings = {
-  enabled: false, // ✅ default OFF
-  sections: []
-};
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -28,20 +25,23 @@ export async function GET() {
   }
 
   try {
-    const row = await prisma.homeSettings.findUnique({
-      where: { id: 1 }
+    const rows = await prisma.homeSection.findMany({
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      include: {
+        media: {
+          select: { id: true, url: true }
+        }
+      }
     });
 
-    const cfg = (row?.sections ?? null) as HomeSectionsSettings | null;
-    if (!cfg || typeof cfg !== 'object') {
-      return NextResponse.json({ ok: true, data: DEFAULT });
-    }
-
-    return NextResponse.json({ ok: true, data: cfg });
+    return NextResponse.json(
+      { ok: true, data: rows },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : 'Failed to load' },
-      { status: 500 }
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
     );
   }
 }

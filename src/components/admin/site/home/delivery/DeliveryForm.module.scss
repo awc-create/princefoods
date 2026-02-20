@@ -1,0 +1,71 @@
+/* src/components/admin/site/home/delivery/DeliveryForm.module.scss */
+.stack {
+  display: grid;
+  gap: 12px;
+}
+
+.grid3 {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 980px) {
+  .grid3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.input {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.95rem;
+  background: #fff;
+  width: 100%;
+}
+
+.card {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.rowRight {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.secondary {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.danger {
+  border: 1px solid #fecaca;
+  background: #fff5f5;
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.empty {
+  color: #6b7280;
+}

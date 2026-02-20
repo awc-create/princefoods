@@ -1,3 +1,4 @@
+// src/components/shop/ProductCard.tsx
 'use client';
 
 import { useCart } from '@/lib/cart-store';
@@ -6,6 +7,11 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import s from './ProductCard.module.scss';
+
+type DealMeta =
+  | { mode: 'PERCENT_OFF'; percent: number }
+  | { mode: 'AMOUNT_OFF'; amountPence: number }
+  | null;
 
 const normalizeImage = (src?: string | null): string =>
   !src || !src.trim()
@@ -37,12 +43,34 @@ function uniqBadges(input: string[]) {
   return out;
 }
 
+function computeDealPrice(price: number, deal: DealMeta): { hasDiscount: boolean; now: number } {
+  if (!deal || !Number.isFinite(price)) return { hasDiscount: false, now: price };
+
+  if (deal.mode === 'PERCENT_OFF') {
+    const pct = Math.max(0, Math.min(100, Math.trunc(deal.percent)));
+    if (pct <= 0) return { hasDiscount: false, now: price };
+    const now = Math.max(0, price * (1 - pct / 100));
+    return { hasDiscount: now < price, now };
+  }
+
+  if (deal.mode === 'AMOUNT_OFF') {
+    const offPence = Math.max(0, Math.trunc(deal.amountPence));
+    if (offPence <= 0) return { hasDiscount: false, now: price };
+    const now = Math.max(0, price - offPence / 100);
+    return { hasDiscount: now < price, now };
+  }
+
+  return { hasDiscount: false, now: price };
+}
+
 export default function ProductCard({
   product,
-  promoBadges = []
+  promoBadges = [],
+  deal = null
 }: {
   product: Product;
   promoBadges?: string[];
+  deal?: DealMeta;
 }) {
   const [qty, setQty] = useState(1);
   const add = useCart((st) => st.add);
@@ -50,7 +78,14 @@ export default function ProductCard({
 
   const img = normalizeImage(product.imageUrl);
 
+  // show up to 2 pills
   const badges = useMemo(() => uniqBadges(promoBadges).slice(0, 2), [promoBadges]);
+
+  // compute crossed price + new price for %/£ off (from offers system)
+  const { hasDiscount, now } = useMemo(
+    () => computeDealPrice(product.price, deal ?? null),
+    [product.price, deal]
+  );
 
   const change = (v: number) => setQty((n) => Math.max(1, n + v));
   const set = (v: number) => setQty(Math.max(1, v || 1));
@@ -88,7 +123,6 @@ export default function ProductCard({
           priority={false}
         />
 
-        {/* ✅ promo pills */}
         {badges.length > 0 && (
           <div className={s.badges} aria-hidden>
             {badges.map((b, idx) => (
@@ -111,7 +145,16 @@ export default function ProductCard({
         </h3>
 
         <div className={s.priceRow}>
-          <span className={s.price}>£{product.price.toFixed(2)}</span>
+          {hasDiscount ? (
+            <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
+              <span style={{ textDecoration: 'line-through', opacity: 0.6, fontSize: 12 }}>
+                £{product.price.toFixed(2)}
+              </span>
+              <span className={s.price}>£{now.toFixed(2)}</span>
+            </div>
+          ) : (
+            <span className={s.price}>£{product.price.toFixed(2)}</span>
+          )}
         </div>
 
         <div className={s.buyRow} role="group" aria-label="Add to cart controls">

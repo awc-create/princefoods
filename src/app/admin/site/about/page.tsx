@@ -3,7 +3,7 @@
 import ImageUploader from '@/components/image/ImageUploader';
 import type { AboutSettingsDTO, StatItem, ValueCard } from '@/types/aboutSettings';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import s from '../home/SiteEditor.module.scss'; // reuse Home editor styles
+import s from '../home/HomeClient.module.scss'; // reuse Home editor styles
 
 type Tab = 'hero' | 'story' | 'stats' | 'values' | 'cta';
 

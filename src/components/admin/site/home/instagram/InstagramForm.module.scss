@@ -1,0 +1,42 @@
+/* src/components/admin/site/home/instagram/InstagramForm.module.scss */
+.grid2 {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 980px) {
+  .grid2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.input {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.95rem;
+  background: #fff;
+  width: 100%;
+}
+
+.hint {
+  grid-column: 1 / -1;
+  border: 1px dashed #e5e7eb;
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.hintTitle {
+  font-weight: 900;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.hintText {
+  color: #6b7280;
+  font-weight: 650;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}

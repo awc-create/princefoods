@@ -8,11 +8,22 @@ import type { Product } from '@/types/product';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import styles from './Shop.module.scss';
 
+type DealMeta =
+  | { mode: 'PERCENT_OFF'; percent: number }
+  | { mode: 'AMOUNT_OFF'; amountPence: number }
+  | null;
+
 interface ApiResponse {
   ok?: boolean;
   products?: Product[];
   pageCount?: number;
   priceBounds?: { min: number; max: number };
+}
+
+interface BadgesResponse {
+  ok?: boolean;
+  badges?: Record<string, string[]>;
+  deals?: Record<string, DealMeta>;
 }
 
 export default function ShopClient({
@@ -29,7 +40,6 @@ export default function ShopClient({
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState(initialPageCount);
 
-  // ✅ bounds for the slider
   const [priceBounds, setPriceBounds] = useState<{ min: number; max: number } | null>(
     initialPriceBounds
   );
@@ -38,11 +48,14 @@ export default function ShopClient({
   const [maxPrice, setMaxPrice] = useState<number | null>(null);
   const [sort, setSort] = useState<string>('newest');
 
-  // ✅ used to control "No products found" messaging
   const [loading, setLoading] = useState(false);
   const [hasFetched, setHasFetched] = useState(false);
 
-  // ✅ prevent duplicate fetch on mount (since we already have SSR data)
+  // ✅ offer badges + deal meta for price display
+  const [badgesById, setBadgesById] = useState<Record<string, string[]>>({});
+  const [dealsById, setDealsById] = useState<Record<string, DealMeta>>({});
+
+  // ✅ prevent duplicate fetch on mount only IF SSR gave products
   const didMountRef = useRef(false);
 
   const params = useMemo(() => {
@@ -55,13 +68,14 @@ export default function ShopClient({
     return p.toString();
   }, [selectedSlug, minPrice, maxPrice, page, sort]);
 
+  // Fetch products when filters/sort/page changes
   useEffect(() => {
     let cancelled = false;
 
-    // ✅ skip first run because SSR already provided initialProducts
+    // ✅ only skip the mount fetch if SSR already gave us products
     if (!didMountRef.current) {
       didMountRef.current = true;
-      return;
+      if (initialProducts.length > 0) return;
     }
 
     (async () => {
@@ -75,7 +89,6 @@ export default function ShopClient({
         setProducts(list);
         setPageCount(Number(data.pageCount ?? 1));
 
-        // ✅ update slider bounds whenever we fetch (collection changes should affect bounds)
         setPriceBounds(
           data.priceBounds &&
             Number.isFinite(data.priceBounds.min) &&
@@ -99,7 +112,45 @@ export default function ShopClient({
     return () => {
       cancelled = true;
     };
-  }, [params]);
+  }, [params, initialProducts.length]);
+
+  // Fetch offer badges + best deal meta whenever the visible product list changes
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const ids = products.map((p) => p.id).filter(Boolean);
+
+      if (!ids.length) {
+        setBadgesById({});
+        setDealsById({});
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/offers/badges', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productIds: ids })
+        });
+
+        const data = (await res.json().catch(() => ({}))) as BadgesResponse;
+        if (cancelled) return;
+
+        setBadgesById(data.badges ?? {});
+        setDealsById(data.deals ?? {});
+      } catch {
+        if (!cancelled) {
+          setBadgesById({});
+          setDealsById({});
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [products]);
 
   return (
     <div className={styles.wrapper}>
@@ -109,8 +160,6 @@ export default function ShopClient({
           onSelect={(slug) => {
             setSelectedSlug(slug);
             setPage(1);
-
-            // ✅ clear price filter when switching category (optional but usually expected)
             setMinPrice(null);
             setMaxPrice(null);
           }}
@@ -147,14 +196,17 @@ export default function ShopClient({
             </label>
           </div>
 
-          {/* ✅ no "Loading products..." text */}
           <div className={styles.productGrid} aria-busy={loading}>
             {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard
+                key={product.id}
+                product={product}
+                promoBadges={badgesById[product.id] ?? []}
+                deal={dealsById[product.id] ?? null}
+              />
             ))}
           </div>
 
-          {/* ✅ Only show after at least one fetch OR if SSR gave empty list */}
           {!loading && (hasFetched || initialProducts.length === 0) && products.length === 0 && (
             <p style={{ color: 'var(--text-muted)' }}>No products found.</p>
           )}

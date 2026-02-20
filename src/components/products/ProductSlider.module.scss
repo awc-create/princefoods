@@ -2,14 +2,22 @@
 .sliderWrapper {
   padding: 2.2rem var(--gutter) 2.6rem;
   background: var(--color-bg);
+}
 
-  .heading {
-    font-size: clamp(1.35rem, 1rem + 2vw, 2.1rem);
-    color: var(--primary);
-    text-align: center;
-    margin-bottom: 1.1rem;
-    font-weight: 800;
-  }
+.heading {
+  font-size: clamp(1.35rem, 1rem + 2vw, 2.1rem);
+  color: var(--primary);
+  text-align: center;
+  margin-bottom: 1.1rem;
+  font-weight: 800;
+}
+
+.subheading {
+  margin: 0 auto 1.1rem;
+  text-align: center;
+  opacity: 0.75;
+  font-weight: 600;
+  max-width: 70ch;
 }
 
 .carousel {
@@ -118,14 +126,13 @@
 /* --- Image section --- */
 .imageSection {
   position: relative;
-  aspect-ratio: 1 / 1; /* square hero look */
+  aspect-ratio: 1 / 1;
   background: linear-gradient(180deg, #ffffff 0%, #f6f8fa 100%);
   display: grid;
   place-items: center;
   overflow: hidden;
   padding: 0.35rem;
 
-  /* inner soft frame */
   &::before {
     content: '';
     position: absolute;
@@ -138,7 +145,6 @@
     z-index: 1;
   }
 
-  /* subtle vignette for depth */
   &::after {
     content: '';
     position: absolute;
@@ -166,6 +172,48 @@
   filter: brightness(1.05) drop-shadow(0 6px 12px rgba(0, 0, 0, 0.12));
 }
 
+/* ✅ clickable overlay */
+.imageLink {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: block;
+}
+
+/* ✅ badge stack */
+.badgeStack {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: calc(100% - 20px);
+}
+
+.badge {
+  background: #111827;
+  color: #fff;
+  font-weight: 900;
+  font-size: 0.78rem;
+  padding: 6px 10px;
+  border-radius: 999px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+  white-space: nowrap;
+}
+
+.badgeSoft {
+  background: #374151;
+  color: #fff;
+  font-weight: 900;
+  font-size: 0.78rem;
+  padding: 6px 10px;
+  border-radius: 999px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14);
+  white-space: nowrap;
+}
+
 /* --- Product details --- */
 .details {
   padding: 0.55rem 0.9rem 0.55rem;
@@ -173,26 +221,48 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
 
-  .name {
-    font-weight: 700;
-    letter-spacing: 0.2px;
-    font-size: clamp(0.94rem, 0.88rem + 0.22vw, 1.05rem);
-    color: var(--pf-text, #1b2430);
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    overflow: hidden;
-    min-height: 2.2em;
-  }
+.name {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  font-size: clamp(0.94rem, 0.88rem + 0.22vw, 1.05rem);
+  color: var(--pf-text, #1b2430);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  min-height: 2.2em;
+}
 
-  .price {
-    margin-top: 0.1rem;
-    font-size: 1rem;
-    font-weight: 800;
-    color: var(--pf-price, #0f172a);
-  }
+.price {
+  margin-top: 0.1rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--pf-price, #0f172a);
+}
+
+/* ✅ deal price layout */
+.priceDealRow {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 0.1rem;
+}
+
+.priceNow {
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.priceWas {
+  font-size: 0.95rem;
+  font-weight: 800;
+  opacity: 0.55;
+  text-decoration: line-through;
 }
 
 /* --- Bottom mini-card (actions) --- */
@@ -216,7 +286,6 @@
     transform 0.14s ease;
 }
 
-/* show on hover/focus; always on touch */
 .card:hover .bottomCard,
 .card:focus-within .bottomCard,
 .bottomCard:hover {
@@ -289,26 +358,6 @@
   }
 }
 
-.btnGhost {
-  background: #eef1f5;
-  color: #1a2331;
-  border: 0;
-  padding: 0.55rem 1rem;
-  border-radius: 12px;
-  font-size: 0.9rem;
-  font-weight: 800;
-  cursor: pointer;
-  transition:
-    background 0.14s ease,
-    transform 0.14s ease;
-
-  &:hover {
-    background: #e6eaf0;
-    transform: translateY(-1px);
-  }
-}
-
-/* phones */
 @media (max-width: 520px) {
   .track {
     gap: 0.7rem;

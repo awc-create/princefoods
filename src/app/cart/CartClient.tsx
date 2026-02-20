@@ -19,17 +19,21 @@ export default function CartClient() {
     refreshOffers,
     displayQty,
     freeQty,
-    offerNames
+    offerNames,
+    offerDiscountForLine
   } = useCart();
 
-  // ✅ keep offers/freeQty in sync on this page too
   useEffect(() => {
     void refreshOffers();
-  }, [refreshOffers, items.length]); // lightweight trigger
+  }, [refreshOffers, items.length]);
 
   const hasOffersApplied = (offers.applied?.length ?? 0) > 0;
   const hasOffersAutoAdd = (offers.autoAdd?.length ?? 0) > 0;
   const hasAnyOffer = hasOffersApplied || hasOffersAutoAdd;
+
+  const paidSubtotal = Math.max(0, Math.trunc(subtotal()));
+  const offerDiscount = Math.max(0, Math.trunc(offers.discountPence ?? 0));
+  const totalAfterOffers = Math.max(0, paidSubtotal - offerDiscount);
 
   if (items.length === 0) {
     return (
@@ -56,10 +60,20 @@ export default function CartClient() {
               const shownQty = Math.max(1, Math.trunc(displayQty(it.id)));
 
               const unit = Math.max(0, Math.trunc(it.unitPrice));
+
               const paidTotal = unit * paidQty;
+              const fullTotal = unit * (paidQty + free);
+
+              const lineOfferDiscount = Math.max(0, Math.trunc(offerDiscountForLine(it.id) ?? 0));
+              const discountedNow = Math.max(0, paidTotal - lineOfferDiscount);
 
               const names = offerNames(it.id);
               const showOfferNames = names.length > 0;
+
+              // Was/Now rules:
+              const showWasBogof = free > 0 && fullTotal > paidTotal; // paid + free
+              const showWasDiscount =
+                free === 0 && lineOfferDiscount > 0 && discountedNow < paidTotal;
 
               return (
                 <li key={it.id} className={styles.line}>
@@ -78,23 +92,29 @@ export default function CartClient() {
 
                     <div className={styles.price}>{penceToGBP(it.unitPrice)}</div>
 
-                    {/* ✅ Offer name(s) (no pill) */}
+                    {/* Offer name(s) */}
                     {showOfferNames ? (
                       <div className={styles.offerText} title={names.join(', ')}>
                         Offer: <strong>{names.join(' • ')}</strong>
                       </div>
                     ) : null}
 
-                    {/* ✅ Free items hint */}
+                    {/* Free items hint */}
                     {free > 0 ? (
                       <div className={styles.freeHint}>
                         Includes <strong>{free}</strong> free item{free === 1 ? '' : 's'}
                       </div>
                     ) : null}
+
+                    {/* Per-line discount hint (for %/£ off lines + BOGOF discount lines if present) */}
+                    {lineOfferDiscount > 0 ? (
+                      <div className={styles.offerText}>
+                        Offer applied: <strong>-{penceToGBP(lineOfferDiscount)}</strong>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className={styles.qtyRow}>
-                    {/* ✅ buttons change PAID qty, but we DISPLAY paid+free */}
                     <button
                       onClick={() => updateQty(it.id, paidQty - 1)}
                       aria-label="Decrease"
@@ -116,8 +136,30 @@ export default function CartClient() {
                     </button>
                   </div>
 
-                  {/* ✅ price stays PAID only */}
-                  <div className={styles.lineTotal}>{penceToGBP(paidTotal)}</div>
+                  {/* ✅ Line total: show Was/Now */}
+                  <div className={styles.lineTotal}>
+                    {showWasBogof ? (
+                      <div style={{ display: 'grid', justifyItems: 'end', gap: 2 }}>
+                        <span
+                          style={{ textDecoration: 'line-through', opacity: 0.65, fontSize: 12 }}
+                        >
+                          Was {penceToGBP(fullTotal)}
+                        </span>
+                        <span>Now {penceToGBP(paidTotal)}</span>
+                      </div>
+                    ) : showWasDiscount ? (
+                      <div style={{ display: 'grid', justifyItems: 'end', gap: 2 }}>
+                        <span
+                          style={{ textDecoration: 'line-through', opacity: 0.65, fontSize: 12 }}
+                        >
+                          Was {penceToGBP(paidTotal)}
+                        </span>
+                        <span>Now {penceToGBP(discountedNow)}</span>
+                      </div>
+                    ) : (
+                      penceToGBP(paidTotal)
+                    )}
+                  </div>
 
                   <button
                     className={styles.remove}
@@ -141,10 +183,21 @@ export default function CartClient() {
 
           <div className={styles.row}>
             <span>Subtotal</span>
-            <span>{penceToGBP(subtotal())}</span>
+            <span>{penceToGBP(paidSubtotal)}</span>
           </div>
 
-          {/* ✅ OFFERS (now from store, same as drawer/checkout behaviour) */}
+          {offerDiscount > 0 && (
+            <div className={styles.row}>
+              <span>Offers</span>
+              <span>-{penceToGBP(offerDiscount)}</span>
+            </div>
+          )}
+
+          <div className={styles.row} style={{ fontWeight: 700 }}>
+            <span>Total</span>
+            <span>{penceToGBP(totalAfterOffers)}</span>
+          </div>
+
           {hasAnyOffer ? (
             <div style={{ marginTop: 8 }}>
               <p className={styles.muted}>

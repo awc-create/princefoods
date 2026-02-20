@@ -23,9 +23,54 @@ export interface CartLine {
   freeQty?: number; // default 0
 }
 
+type OfferReason = 'FREE' | 'DISCOUNT';
+
+interface OfferLineDiscount {
+  productId?: string | null;
+  sku?: string | null;
+  name: string;
+  qty: number;
+  amountPence: number;
+  reason?: OfferReason;
+}
+
+interface OfferLineParticipant {
+  productId?: string | null;
+  sku?: string | null;
+  name: string;
+  qty: number;
+  role?: 'BUY' | 'GET' | 'ELIGIBLE' | 'FREE';
+}
+
+interface OfferAppliedCard {
+  offerId: string;
+  name: string;
+  kind: string;
+  discountPence: number;
+  meta?: {
+    lineDiscounts?: OfferLineDiscount[];
+    lineParticipants?: OfferLineParticipant[];
+    groups?: number;
+    freeCount?: number;
+    samePool?: boolean;
+    bxgyLines?: {
+      productId?: string | null;
+      sku?: string | null;
+      name: string;
+      paidQty: number;
+      groups: number;
+      freeQty: number;
+      totalQty: number;
+      unitPricePence: number;
+      discountPence: number;
+    }[];
+  } | null;
+}
+
 interface OffersSnapshot {
   discountPence: number;
-  applied: { offerId: string; name: string; kind: string; discountPence: number }[];
+  applied: OfferAppliedCard[];
+  eligible?: OfferAppliedCard[]; // optional (some routes include it)
   autoAdd: {
     reasonOfferId: string;
     productId?: string | null;
@@ -38,7 +83,9 @@ interface OffersSnapshot {
 interface OffersQuoteApiResp {
   result?: {
     discountTotalPence?: number;
+    discountPence?: number;
     applied?: OffersSnapshot['applied'];
+    eligible?: OffersSnapshot['eligible'];
     autoAdd?: OffersSnapshot['autoAdd'];
   };
 }
@@ -60,7 +107,8 @@ export interface CartState {
   displayQty: (id: string) => number; // paid + free
   paidQty: (id: string) => number; // paid only
   freeQty: (id: string) => number; // free only
-  offerNames: (id: string) => string[]; // ✅ per-line offer names (from autoAdd -> applied)
+  offerNames: (id: string) => string[]; // ✅ per-line offer names (from participants/discounts/autoAdd)
+  offerDiscountForLine: (id: string) => number; // ✅ per-line discount total (for Was/Now + "Offer applied")
   subtotal: () => number; // paid only
   count: () => number; // paid + free (matches UI)
 
@@ -88,6 +136,11 @@ const normProductId = (v: unknown): string | null => {
 };
 
 const normName = (v: unknown) => normStr(v).replace(/\s+/g, ' ');
+
+function safeInt(n: unknown, fallback = 0) {
+  const v = typeof n === 'number' ? n : Number(n);
+  return Number.isFinite(v) ? Math.trunc(v) : fallback;
+}
 
 // Stable line id (CRITICAL for merging)
 function buildLineId(input: {
@@ -182,13 +235,23 @@ async function fetchOffersQuote(
   const json = (await res.json()) as OffersQuoteApiResp;
 
   if (!res.ok || !json?.result) {
-    return { discountPence: 0, applied: [], autoAdd: [] } satisfies OffersSnapshot;
+    return { discountPence: 0, applied: [], eligible: [], autoAdd: [] } satisfies OffersSnapshot;
   }
 
+  const applied = Array.isArray(json.result.applied) ? json.result.applied : [];
+  const eligible = Array.isArray(json.result.eligible) ? json.result.eligible : [];
+  const autoAdd = Array.isArray(json.result.autoAdd) ? json.result.autoAdd : [];
+
+  const discount =
+    Math.max(0, Math.trunc(json.result.discountTotalPence ?? 0)) ||
+    Math.max(0, Math.trunc(json.result.discountPence ?? 0)) ||
+    applied.reduce((s, a) => s + Math.max(0, safeInt(a.discountPence, 0)), 0);
+
   return {
-    discountPence: Math.max(0, Math.trunc(json.result.discountTotalPence ?? 0)),
-    applied: Array.isArray(json.result.applied) ? json.result.applied : [],
-    autoAdd: Array.isArray(json.result.autoAdd) ? json.result.autoAdd : []
+    discountPence: discount,
+    applied,
+    eligible,
+    autoAdd
   } satisfies OffersSnapshot;
 }
 
@@ -200,7 +263,7 @@ const creator: StateCreator<CartState> = (set, get) => ({
   items: [],
   isOpen: false,
 
-  offers: { discountPence: 0, applied: [], autoAdd: [] },
+  offers: { discountPence: 0, applied: [], eligible: [], autoAdd: [] },
 
   open: () => set({ isOpen: true }),
   close: () => set({ isOpen: false }),
@@ -260,7 +323,8 @@ const creator: StateCreator<CartState> = (set, get) => ({
     void get().refreshOffers();
   },
 
-  clear: () => set({ items: [], offers: { discountPence: 0, applied: [], autoAdd: [] } }),
+  clear: () =>
+    set({ items: [], offers: { discountPence: 0, applied: [], eligible: [], autoAdd: [] } }),
 
   paidQty: (id) => {
     const it = get().items.find((x) => x.id === id);
@@ -278,7 +342,7 @@ const creator: StateCreator<CartState> = (set, get) => ({
     return Math.max(1, Math.trunc(it.quantity)) + Math.max(0, Math.trunc(it.freeQty ?? 0));
   },
 
-  // ✅ Offer names for THIS item (derived from autoAdd + applied lookup)
+  // ✅ Offer names for THIS item (participants/discounts/autoAdd -> applied/eligible)
   offerNames: (id) => {
     const state = get();
     const it = state.items.find((x) => x.id === id);
@@ -290,31 +354,101 @@ const creator: StateCreator<CartState> = (set, get) => ({
       name: it.name
     });
 
-    // build offerId -> offerName map
-    const offerIdToName = new Map<string, string>();
-    for (const a of state.offers.applied ?? []) {
-      const nm = String(a.name ?? '').trim();
-      if (!nm) continue;
-      offerIdToName.set(String(a.offerId), nm);
-    }
+    const pool = [
+      ...(Array.isArray(state.offers.applied) ? state.offers.applied : []),
+      ...(Array.isArray(state.offers.eligible) ? state.offers.eligible! : [])
+    ];
 
-    // find which offers auto-added free items for this product
+    // de-dupe offers by offerId
+    const seen = new Set<string>();
+    const offers = pool.filter((o) => {
+      const oid = String(o.offerId ?? '').trim();
+      if (!oid) return false;
+      if (seen.has(oid)) return false;
+      seen.add(oid);
+      return true;
+    });
+
     const names: string[] = [];
-    for (const aa of state.offers.autoAdd ?? []) {
-      const aaKey = itemKeyOf({
-        productId: aa.productId ?? null,
-        sku: aa.sku ?? null,
-        name: aa.name
-      });
 
-      if (aaKey !== key) continue;
+    for (const o of offers) {
+      const offerName = String(o.name ?? '').trim();
+      if (!offerName) continue;
 
-      const nm = offerIdToName.get(String(aa.reasonOfferId)) ?? '';
-      if (nm) names.push(nm);
+      // 1) participants
+      const parts = o.meta?.lineParticipants ?? [];
+      for (const p of parts) {
+        const k = itemKeyOf({ productId: p.productId ?? null, sku: p.sku ?? null, name: p.name });
+        if (k === key) {
+          names.push(offerName);
+          break;
+        }
+      }
+
+      // 2) discounts
+      if (!names.includes(offerName)) {
+        const dsc = o.meta?.lineDiscounts ?? [];
+        for (const d of dsc) {
+          const k = itemKeyOf({ productId: d.productId ?? null, sku: d.sku ?? null, name: d.name });
+          if (k === key) {
+            names.push(offerName);
+            break;
+          }
+        }
+      }
+
+      // 3) autoAdd (matches this item + this offer)
+      if (!names.includes(offerName)) {
+        for (const aa of state.offers.autoAdd ?? []) {
+          const aaKey = itemKeyOf({
+            productId: aa.productId ?? null,
+            sku: aa.sku ?? null,
+            name: aa.name
+          });
+
+          if (aaKey !== key) continue;
+          if (String(aa.reasonOfferId) !== String(o.offerId)) continue;
+
+          names.push(offerName);
+          break;
+        }
+      }
     }
 
-    // unique + stable
     return Array.from(new Set(names.map((x) => x.trim()).filter(Boolean)));
+  },
+
+  // ✅ per-line discount total (from applied meta.lineDiscounts)
+  offerDiscountForLine: (id) => {
+    const state = get();
+    const it = state.items.find((x) => x.id === id);
+    if (!it) return 0;
+
+    const key = itemKeyOf({
+      productId: it.productId ?? null,
+      sku: it.sku ?? null,
+      name: it.name
+    });
+
+    const applied = Array.isArray(state.offers.applied) ? state.offers.applied : [];
+
+    let total = 0;
+
+    for (const a of applied) {
+      const lineDiscounts = a.meta?.lineDiscounts ?? [];
+      for (const d of lineDiscounts) {
+        const dk = itemKeyOf({
+          productId: d.productId ?? null,
+          sku: d.sku ?? null,
+          name: d.name
+        });
+
+        if (dk !== key) continue;
+        total += Math.max(0, safeInt(d.amountPence, 0));
+      }
+    }
+
+    return Math.max(0, total);
   },
 
   // subtotal should be PAID only (correct money)
@@ -333,7 +467,7 @@ const creator: StateCreator<CartState> = (set, get) => ({
     const snapshot = get().items;
 
     if (!snapshot.length) {
-      set({ offers: { discountPence: 0, applied: [], autoAdd: [] } });
+      set({ offers: { discountPence: 0, applied: [], eligible: [], autoAdd: [] } });
       return;
     }
 
@@ -349,7 +483,7 @@ const creator: StateCreator<CartState> = (set, get) => ({
     try {
       snap = await fetchOffersQuote(quoteLines);
     } catch {
-      snap = { discountPence: 0, applied: [], autoAdd: [] };
+      snap = { discountPence: 0, applied: [], eligible: [], autoAdd: [] };
     }
 
     // Build freeQty map from autoAdd results
@@ -384,7 +518,11 @@ export const useCart = create<CartState>()(
       const state = persisted as Partial<CartState> | undefined;
 
       if (!state || typeof state !== 'object') {
-        return { items: [], isOpen: false, offers: { discountPence: 0, applied: [], autoAdd: [] } };
+        return {
+          items: [],
+          isOpen: false,
+          offers: { discountPence: 0, applied: [], eligible: [], autoAdd: [] }
+        };
       }
 
       const rawItems = Array.isArray(state.items) ? state.items : [];
@@ -400,7 +538,7 @@ export const useCart = create<CartState>()(
       return {
         items: merged,
         isOpen: Boolean(state.isOpen),
-        offers: { discountPence: 0, applied: [], autoAdd: [] }
+        offers: { discountPence: 0, applied: [], eligible: [], autoAdd: [] }
       };
     }
   })
