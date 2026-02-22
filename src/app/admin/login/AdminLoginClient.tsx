@@ -1,16 +1,20 @@
-// src/app/admin/login/AdminLoginClient.tsx
 'use client';
 
-import { signIn, useSession } from 'next-auth/react';
+import { getSession, signIn, signOut, useSession } from 'next-auth/react';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styles from './Login.module.scss';
 
-/** Normalise callback URLs for the admin area. */
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+
 function safeAdminCallbackUrl(raw?: string | null) {
   if (!raw) return '/admin';
   return raw.startsWith('/admin/login') ? '/admin' : raw;
+}
+
+function isStaff(role?: unknown): role is 'HEAD' | 'STAFF' {
+  return role === 'HEAD' || role === 'STAFF';
 }
 
 export default function AdminLoginClient() {
@@ -25,7 +29,15 @@ export default function AdminLoginClient() {
   const router = useRouter();
 
   const rawCb = sp?.get('callbackUrl') ?? null;
-  const callbackUrl = safeAdminCallbackUrl(rawCb);
+
+  const callbackUrl = useMemo(() => {
+    if (!rawCb) return '/admin';
+    try {
+      return safeAdminCallbackUrl(decodeURIComponent(rawCb));
+    } catch {
+      return safeAdminCallbackUrl(rawCb);
+    }
+  }, [rawCb]);
 
   // Clean bad callback in address bar
   useEffect(() => {
@@ -33,7 +45,7 @@ export default function AdminLoginClient() {
     try {
       const target = decodeURIComponent(rawCb);
       if (target.startsWith('/admin/login')) {
-        const clean = window.location.pathname;
+        const clean = window.location.pathname; // keep /admin/login
         window.history.replaceState({}, '', clean);
       }
     } catch {
@@ -53,10 +65,15 @@ export default function AdminLoginClient() {
     e.preventDefault();
     setErr(null);
     setPending(true);
+
     try {
-      // ✅ Use the ADMIN provider
-      const res = await signIn('admin-credentials', {
-        email,
+      /**
+       * ✅ Use the SAME working provider as /login:
+       * - avoids admin-credentials-specific rejects
+       * - we enforce staff access AFTER sign-in
+       */
+      const res = await signIn('credentials', {
+        email: email.trim(),
         password,
         redirect: false,
         callbackUrl
@@ -69,7 +86,18 @@ export default function AdminLoginClient() {
       }
 
       if (res.error) {
-        setErr('Invalid admin credentials or insufficient role.');
+        setErr('Invalid email or password.');
+        setPending(false);
+        return;
+      }
+
+      // Pull fresh session and enforce staff-only
+      const session = await getSession();
+      const role = (session?.user as { role?: Role } | undefined)?.role;
+
+      if (!isStaff(role)) {
+        await signOut({ redirect: false });
+        setErr('Access denied. Staff accounts only.');
         setPending(false);
         return;
       }
@@ -124,6 +152,7 @@ export default function AdminLoginClient() {
             </span>
             <input
               id="email"
+              name="email"
               type="email"
               placeholder="admin@prince-v.com"
               value={email}
@@ -155,6 +184,7 @@ export default function AdminLoginClient() {
             </span>
             <input
               id="password"
+              name="password"
               type={showPw ? 'text' : 'password'}
               placeholder="••••••••"
               value={password}

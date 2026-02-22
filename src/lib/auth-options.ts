@@ -23,8 +23,11 @@ function isAdapterUser(u: NextAuthUser | AdapterUser): u is AdapterUser {
 }
 
 async function checkPassword(email: string, password: string) {
-  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  const user = await prisma.user.findUnique({
+    where: { email: email.toLowerCase() }
+  });
   if (!user || !user.password) return null;
+
   const ok = await bcrypt.compare(password, user.password);
   return ok ? user : null;
 }
@@ -35,14 +38,13 @@ export const authOptions: NextAuthOptions = {
 
   cookies: {
     sessionToken: {
-      // Use the non-__Secure cookie name locally (HTTP). Use __Secure-* only on HTTPS (prod).
       name:
         process.env.NODE_ENV === 'production'
           ? '__Secure-next-auth.session-token'
           : 'next-auth.session-token',
       options: {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production', // 🔑 only secure in prod
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
         ...(process.env.AUTH_COOKIE_DOMAIN ? { domain: process.env.AUTH_COOKIE_DOMAIN } : {})
@@ -51,7 +53,6 @@ export const authOptions: NextAuthOptions = {
   },
 
   providers: [
-    // Google OAuth (optional)
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
       ? [
           Google({
@@ -79,7 +80,7 @@ export const authOptions: NextAuthOptions = {
           where: { identifier: email, expires: { gt: new Date() } }
         });
         if (pending) {
-          // if you want to surface a specific error, you can:
+          // If you ever want to surface a specific error:
           // throw new Error('EmailNotVerified');
           return null;
         }
@@ -117,11 +118,14 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       const t = token as AppJWT;
+
       if (user) {
         if (isAdapterUser(user)) t.id = user.id;
+
         const maybeRole = (user as Partial<{ role: Role }>).role;
         if (maybeRole) t.role = maybeRole;
       }
+
       // Backfill from DB if needed
       if ((!t.role || !t.id) && token.email) {
         const db = await prisma.user.findUnique({
@@ -133,6 +137,7 @@ export const authOptions: NextAuthOptions = {
           t.role = (t.role ?? db.role) as Role;
         }
       }
+
       return t;
     },
 
@@ -156,6 +161,7 @@ export const authOptions: NextAuthOptions = {
           const last = u.lastName ?? (parts.length > 1 ? parts.slice(1).join(' ') : null);
           const fullName =
             first && last ? `${first} ${last}` : (first ?? u.name ?? user.name ?? '');
+
           await prisma.user.update({
             where: { id: u.id },
             data: {
@@ -178,10 +184,12 @@ export const authOptions: NextAuthOptions = {
           .update({ where: { id: user.id }, data: { role: 'VIEWER' } })
           .catch(() => {});
       }
+
       // kick off your custom verification flow via Resend
       const base =
         process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com';
       const url = `${base}/api/auth/send-verify`;
+
       fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
