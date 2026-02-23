@@ -1,3 +1,4 @@
+import { readJsonOrText } from '@/lib/http/response-body';
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
@@ -345,13 +346,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     const latencyMs = Date.now() - started;
     const httpStatus = res.status;
 
-    let parsed: unknown;
-    try {
-      parsed = await res.json();
-    } catch {
-      const text = await res.text().catch(() => '');
-      parsed = { nonJson: true, body: text };
-    }
+    const parsed = await readJsonOrText(res);
 
     const wrapped = toPrismaInputJsonValue({
       source: 'apc',

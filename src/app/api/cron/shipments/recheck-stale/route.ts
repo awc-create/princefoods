@@ -1,4 +1,5 @@
 // src/app/api/cron/shipments/recheck-stale/route.ts
+import { readJsonOrText } from '@/lib/http/response-body';
 import { prisma } from '@/lib/prisma';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -202,13 +203,7 @@ export async function POST(req: NextRequest) {
 
         const httpStatus = res.status;
 
-        let parsed: unknown;
-        try {
-          parsed = await res.json();
-        } catch {
-          const text = await res.text().catch(() => '');
-          parsed = { nonJson: true, body: text };
-        }
+        const parsed = await readJsonOrText(res);
 
         const wrapped = toSafeJson({
           source: 'apc',
