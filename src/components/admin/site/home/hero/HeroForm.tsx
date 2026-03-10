@@ -98,11 +98,13 @@ export default function HeroForm({
         <div className={s.uploaderSmall}>
           <ImageUploader
             label="Upload hero images"
-            endpoint="siteImage"
-            images={images}
-            setImages={(urls: string[]) =>
+            files={images}
+            setFiles={(urls: string[]) =>
               onChange({ ...value, images: urls, imageUrl: urls[0] ?? '' })
             }
+            pathSegments={['pages', 'home', 'hero']}
+            itemName={value.title || 'home-hero'}
+            accept="image/*"
           />
         </div>
 

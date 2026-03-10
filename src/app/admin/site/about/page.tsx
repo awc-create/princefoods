@@ -299,11 +299,13 @@ export default function AboutEditor() {
                     <ImageUploader
                       label="Hero Image"
                       single
-                      endpoint="siteImage"
-                      images={data.hero.imageUrl ? [data.hero.imageUrl] : []}
-                      setImages={(urls: string[]) =>
+                      files={data.hero.imageUrl ? [data.hero.imageUrl] : []}
+                      setFiles={(urls: string[]) =>
                         setPatch({ hero: { ...data.hero, imageUrl: urls[0] ?? '' } })
                       }
+                      pathSegments={['site', 'about', 'hero']}
+                      itemName={data.hero.title || 'about-hero'}
+                      accept="image/*"
                     />
                   </div>
                   <Field label="Image URL (card under header)">

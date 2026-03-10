@@ -740,18 +740,25 @@ export default function ShowcaseSectionsBuilder() {
 
                               <div className={s.mediaUploader}>
                                 <ImageUploader
-                                  endpoint="siteImage"
                                   single
-                                  images={
+                                  pathSegments={[
+                                    'pages',
+                                    'home',
+                                    'showcase',
+                                    String(cfg?.campaignKey ?? row.id)
+                                  ]}
+                                  itemName="main-image"
+                                  files={
                                     (cfg as ShowcaseCarouselConfig | null)?.campaignImageUrl
                                       ? [(cfg as ShowcaseCarouselConfig).campaignImageUrl as string]
                                       : []
                                   }
-                                  setImages={(urls) =>
+                                  setFiles={(urls) =>
                                     updateConfig(row.id, {
                                       campaignImageUrl: urls?.[0] ?? null
                                     })
                                   }
+                                  accept="image/*"
                                 />
                               </div>
                             </div>

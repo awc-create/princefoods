@@ -1,5 +1,7 @@
+// CreateOfferModal.tsx
 'use client';
 
+import { urlFrom } from '@/lib/url';
 import { useEffect, useMemo, useState } from 'react';
 import OfferRuleBuilder from './OfferRuleBuilder';
 import OfferTargetPicker, { type PickerOption as TargetPickerOption } from './OfferTargetPicker';
@@ -111,7 +113,7 @@ export default function CreateOfferModal({
     setCustomerLoading(true);
 
     try {
-      const url = new URL('/api/admin/options/customers', window.location.origin);
+      const url = urlFrom('/api/admin/options/customers');
       url.searchParams.set('q', q);
       url.searchParams.set('take', '200');
 

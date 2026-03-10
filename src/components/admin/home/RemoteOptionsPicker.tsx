@@ -1,5 +1,6 @@
 'use client';
 
+import { urlFrom } from '@/lib/url';
 import { useEffect, useMemo, useState } from 'react';
 import s from './RemoteOptionsPicker.module.scss';
 
@@ -73,7 +74,7 @@ export function RemoteOptionsPicker({
       setError(null);
 
       try {
-        const url = new URL(endpoint, window.location.origin);
+        const url = urlFrom(endpoint);
         if (q.trim()) url.searchParams.set('q', q.trim());
 
         const res = await fetch(url.toString(), {
