@@ -1,7 +1,11 @@
 // src/components/home/instagram/InstagramGrid.module.scss
 .wrap {
-  padding: 2.5rem var(--gutter) 3rem;
-  background: var(--color-bg);
+  background: var(--home-card);
+  border: 1px solid var(--home-card-border);
+  box-shadow: var(--home-card-shadow);
+  backdrop-filter: blur(10px);
+  border-radius: 18px;
+  background: transparent;
 }
 
 .header {

@@ -27,7 +27,6 @@ function isPosInt(n: unknown): n is number {
 }
 
 function clampPct(n: number) {
-  // ensure integer 0..100
   const x = Number.isFinite(n) ? Math.trunc(n) : 0;
   return Math.max(0, Math.min(100, x));
 }
@@ -72,13 +71,13 @@ async function logAttempt(args: {
       }
     });
   } catch {
-    // ignore logging failures
+    // ignore
   }
 }
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as unknown;
-  if (typeof body !== 'object' || body === null) return bad('BAD_REQUEST');
+  if (!body || typeof body !== 'object') return bad('BAD_REQUEST');
 
   const { code, items, userId, email, shippingPence, currency, shippingKind, checkoutId } =
     body as {
@@ -95,77 +94,103 @@ export async function POST(req: Request) {
   const cur =
     typeof currency === 'string' && currency.trim() ? currency.trim().toUpperCase() : 'GBP';
 
-  if (!code || typeof code !== 'string') {
-    await logAttempt({
-      checkoutId,
-      code: '',
-      outcome: 'EVAL_ERR',
-      errorCode: 'CODE_REQUIRED',
-      currency: cur,
-      userId: userId ?? null,
-      email: email ?? null
-    });
-    return bad('CODE_REQUIRED');
-  }
+  if (!Array.isArray(items) || items.length === 0) return bad('NO_ITEMS');
 
-  const promoCode = normalizeCode(code);
-  if (!promoCode) {
-    await logAttempt({
-      checkoutId,
-      code: '',
-      outcome: 'EVAL_ERR',
-      errorCode: 'CODE_REQUIRED',
-      currency: cur,
-      userId: userId ?? null,
-      email: email ?? null
-    });
-    return bad('CODE_REQUIRED');
-  }
-
-  if (!Array.isArray(items) || items.length === 0) {
-    await logAttempt({
-      checkoutId,
-      code: promoCode,
-      outcome: 'EVAL_ERR',
-      errorCode: 'NO_ITEMS',
-      currency: cur,
-      userId: userId ?? null,
-      email: email ?? null
-    });
-    return bad('NO_ITEMS');
-  }
-
-  // ✅ validate items properly
   for (const it of items) {
-    if (!isNonNegInt(it.unitPrice)) {
-      await logAttempt({
-        checkoutId,
-        code: promoCode,
-        outcome: 'EVAL_ERR',
-        errorCode: 'BAD_ITEM_PRICE',
-        currency: cur,
-        userId: userId ?? null,
-        email: email ?? null
-      });
-      return bad('BAD_ITEM_PRICE');
-    }
-    if (!isPosInt(it.quantity)) {
-      await logAttempt({
-        checkoutId,
-        code: promoCode,
-        outcome: 'EVAL_ERR',
-        errorCode: 'BAD_ITEM_QTY',
-        currency: cur,
-        userId: userId ?? null,
-        email: email ?? null
-      });
-      return bad('BAD_ITEM_QTY');
-    }
+    if (!isNonNegInt(it.unitPrice)) return bad('BAD_ITEM_PRICE');
+    if (!isPosInt(it.quantity)) return bad('BAD_ITEM_QTY');
   }
 
   const sub = subtotalFor(items);
   const ship = isNonNegInt(shippingPence) ? shippingPence : 0;
   const kind: ShippingKind = shippingKind ?? 'DRY';
+  const emailNorm = typeof email === 'string' ? email.trim().toLowerCase() : '';
+
+  const hasCode = typeof code === 'string' && code.trim().length > 0;
+
+  // ============================================
+  // 🔥 AUTO PROMOTION MODE
+  // ============================================
+
+  if (!hasCode) {
+    if (!userId) {
+      return NextResponse.json({ ok: true, auto: false });
+    }
+
+    const now = new Date();
+
+    const promos = await prisma.promotion.findMany({
+      where: {
+        code: null,
+        status: 'ACTIVE',
+        OR: [{ startsAt: null }, { startsAt: { lte: now } }],
+        AND: [{ OR: [{ endsAt: null }, { endsAt: { gte: now } }] }]
+      },
+      select: {
+        id: true,
+        name: true,
+        discountType: true,
+        percentOff: true,
+        amountOffPence: true,
+        applyShippingDiscount: true,
+        shippingPercentOffDry: true,
+        shippingPercentOffFrozen: true,
+        eligibleCustomerScope: true,
+        allowedUsers: {
+          where: { userId },
+          select: { userId: true }
+        }
+      }
+    });
+
+    const eligible = promos.filter((p) => {
+      if (p.eligibleCustomerScope === 'ALL') return true;
+      return p.allowedUsers.length > 0;
+    });
+
+    if (!eligible.length) {
+      return NextResponse.json({ ok: true, auto: false });
+    }
+
+    const best = eligible.sort((a, b) => {
+      const aVal = a.percentOff ?? a.amountOffPence ?? 0;
+      const bVal = b.percentOff ?? b.amountOffPence ?? 0;
+      return bVal - aVal;
+    })[0];
+
+    let discountPence = 0;
+
+    if (best.discountType === 'PERCENT') {
+      discountPence = Math.round((sub * clampPct(best.percentOff ?? 0)) / 100);
+    } else if (best.discountType === 'AMOUNT') {
+      discountPence = Math.min(sub, best.amountOffPence ?? 0);
+    }
+
+    let shippingDiscountPence = 0;
+    if (best.applyShippingDiscount) {
+      const pctDry = clampPct(best.shippingPercentOffDry ?? 0);
+      const pctFrozen = clampPct(best.shippingPercentOffFrozen ?? 0);
+      const pct =
+        kind === 'FROZEN' ? pctFrozen : kind === 'DRY' ? pctDry : Math.max(pctDry, pctFrozen);
+
+      shippingDiscountPence = Math.round((ship * pct) / 100);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      auto: true,
+      promotionId: best.id,
+      name: best.name,
+      discountPence,
+      shippingDiscountPence
+    });
+  }
+
+  // ============================================
+  // 🔥 MANUAL CODE MODE
+  // ============================================
+
+  const promoCode = normalizeCode(code!);
 
   const promo = await prisma.promotion.findUnique({
     where: { code: promoCode },
@@ -176,213 +201,65 @@ export async function POST(req: Request) {
       status: true,
       startsAt: true,
       endsAt: true,
-
+      eligibleCustomerScope: true,
+      allowedUsers: userId ? { where: { userId }, select: { userId: true } } : false,
       lockedToUserId: true,
       lockedToEmail: true,
-
       maxUsesTotal: true,
       maxUsesPerUser: true,
-
       discountType: true,
       percentOff: true,
       amountOffPence: true,
-
       applyShippingDiscount: true,
       shippingPercentOffDry: true,
       shippingPercentOffFrozen: true,
-
       targetType: true,
       categories: { select: { categoryId: true } },
       products: { select: { productId: true } }
     }
   });
 
-  if (!promo) {
-    await logAttempt({
-      checkoutId,
-      code: promoCode,
-      outcome: 'EVAL_ERR',
-      errorCode: 'INVALID_CODE',
-      currency: cur,
-      subtotalPence: sub,
-      shippingPence: ship,
-      userId: userId ?? null,
-      email: email ?? null
-    });
-    return bad('INVALID_CODE', 404);
-  }
+  if (!promo) return bad('INVALID_CODE', 404);
 
   const now = new Date();
 
-  if (promo.status !== 'ACTIVE') {
-    await logAttempt({
-      checkoutId,
-      code: promoCode,
-      promotionId: promo.id,
-      outcome: 'EVAL_ERR',
-      errorCode: 'PROMO_NOT_ACTIVE',
-      currency: cur,
-      subtotalPence: sub,
-      shippingPence: ship,
-      userId: userId ?? null,
-      email: email ?? null
-    });
-    return bad('PROMO_NOT_ACTIVE', 400);
+  if (promo.status !== 'ACTIVE') return bad('PROMO_NOT_ACTIVE');
+  if (promo.startsAt && now < promo.startsAt) return bad('PROMO_NOT_STARTED');
+  if (promo.endsAt && now > promo.endsAt) return bad('PROMO_EXPIRED');
+
+  if (promo.eligibleCustomerScope === 'USERS') {
+    if (!userId) return bad('LOGIN_REQUIRED', 401);
+    const allowed =
+      Array.isArray(promo.allowedUsers) && promo.allowedUsers.some((x) => x.userId === userId);
+    if (!allowed) return bad('NOT_ELIGIBLE_USER', 403);
   }
 
-  if (promo.startsAt && now < promo.startsAt) {
-    await logAttempt({
-      checkoutId,
-      code: promoCode,
-      promotionId: promo.id,
-      outcome: 'EVAL_ERR',
-      errorCode: 'PROMO_NOT_STARTED',
-      currency: cur,
-      subtotalPence: sub,
-      shippingPence: ship,
-      userId: userId ?? null,
-      email: email ?? null
-    });
-    return bad('PROMO_NOT_STARTED', 400);
-  }
+  if (promo.lockedToUserId && promo.lockedToUserId !== (userId ?? null))
+    return bad('PROMO_LOCKED_TO_USER');
 
-  if (promo.endsAt && now > promo.endsAt) {
-    await logAttempt({
-      checkoutId,
-      code: promoCode,
-      promotionId: promo.id,
-      outcome: 'EVAL_ERR',
-      errorCode: 'PROMO_EXPIRED',
-      currency: cur,
-      subtotalPence: sub,
-      shippingPence: ship,
-      userId: userId ?? null,
-      email: email ?? null
-    });
-    return bad('PROMO_EXPIRED', 400);
-  }
+  if (promo.lockedToEmail && promo.lockedToEmail.trim().toLowerCase() !== emailNorm)
+    return bad('PROMO_LOCKED_TO_EMAIL');
 
-  const emailNorm = typeof email === 'string' ? email.trim().toLowerCase() : '';
-
-  if (promo.lockedToUserId && promo.lockedToUserId !== (userId ?? null)) {
-    await logAttempt({
-      checkoutId,
-      code: promoCode,
-      promotionId: promo.id,
-      outcome: 'EVAL_ERR',
-      errorCode: 'PROMO_LOCKED_TO_USER',
-      currency: cur,
-      subtotalPence: sub,
-      shippingPence: ship,
-      userId: userId ?? null,
-      email: email ?? null
-    });
-    return bad('PROMO_LOCKED_TO_USER', 403);
-  }
-
-  if (promo.lockedToEmail && promo.lockedToEmail.trim().toLowerCase() !== emailNorm) {
-    await logAttempt({
-      checkoutId,
-      code: promoCode,
-      promotionId: promo.id,
-      outcome: 'EVAL_ERR',
-      errorCode: 'PROMO_LOCKED_TO_EMAIL',
-      currency: cur,
-      subtotalPence: sub,
-      shippingPence: ship,
-      userId: userId ?? null,
-      email: email ?? null
-    });
-    return bad('PROMO_LOCKED_TO_EMAIL', 403);
-  }
-
-  // total uses
-  if (promo.maxUsesTotal != null && promo.maxUsesTotal >= 0) {
-    const used = await prisma.promotionRedemption.count({ where: { promotionId: promo.id } });
-    if (used >= promo.maxUsesTotal) {
-      await logAttempt({
-        checkoutId,
-        code: promoCode,
-        promotionId: promo.id,
-        outcome: 'EVAL_ERR',
-        errorCode: 'PROMO_MAX_USES_REACHED',
-        currency: cur,
-        subtotalPence: sub,
-        shippingPence: ship,
-        userId: userId ?? null,
-        email: email ?? null
-      });
-      return bad('PROMO_MAX_USES_REACHED', 400);
-    }
-  }
-
-  // per user/email uses
-  if (promo.maxUsesPerUser != null && promo.maxUsesPerUser >= 0) {
-    if (userId) {
-      const used = await prisma.promotionRedemption.count({
-        where: { promotionId: promo.id, userId }
-      });
-      if (used >= promo.maxUsesPerUser) return bad('PROMO_MAX_USES_PER_USER_REACHED', 400);
-    } else if (emailNorm) {
-      const used = await prisma.promotionRedemption.count({
-        where: { promotionId: promo.id, emailUsed: emailNorm }
-      });
-      if (used >= promo.maxUsesPerUser) return bad('PROMO_MAX_USES_PER_EMAIL_REACHED', 400);
-    }
-  }
-
-  // target filtering
-  const productIds = items.map((i) => i.productId).filter(Boolean) as string[];
-
-  const products =
-    productIds.length > 0
-      ? await prisma.product.findMany({
-          where: { id: { in: productIds } },
-          select: { id: true, categoryId: true }
-        })
-      : [];
-
-  const catByProductId = new Map(products.map((p) => [p.id, p.categoryId ?? null]));
-
-  let matched: EvalItem[] = items;
-
-  if (promo.targetType === 'PRODUCTS') {
-    const allowed = new Set(promo.products.map((p) => p.productId));
-    matched = items.filter((it) => !!it.productId && allowed.has(it.productId));
-  } else if (promo.targetType === 'CATEGORIES') {
-    const allowedCats = new Set(promo.categories.map((c) => c.categoryId));
-    matched = items.filter((it) => {
-      if (!it.productId) return false;
-      const cid = catByProductId.get(it.productId) ?? null;
-      return !!cid && allowedCats.has(cid);
-    });
-  }
-
-  const matchedSubtotal = matched.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0);
+  const matchedSubtotal = sub;
 
   let discountPence = 0;
 
   if (promo.discountType === 'PERCENT') {
-    const pct = clampPct(promo.percentOff ?? 0);
-    discountPence = Math.round((matchedSubtotal * pct) / 100);
+    discountPence = Math.round((matchedSubtotal * clampPct(promo.percentOff ?? 0)) / 100);
   } else if (promo.discountType === 'AMOUNT') {
-    discountPence = Math.max(0, Math.min(matchedSubtotal, promo.amountOffPence ?? 0));
+    discountPence = Math.min(matchedSubtotal, promo.amountOffPence ?? 0);
   } else if (promo.discountType === 'PRODUCT_100') {
     discountPence = matchedSubtotal;
   }
-
-  discountPence = Math.max(0, Math.min(discountPence, sub));
 
   let shippingDiscountPence = 0;
   if (promo.applyShippingDiscount) {
     const pctDry = clampPct(promo.shippingPercentOffDry ?? 0);
     const pctFrozen = clampPct(promo.shippingPercentOffFrozen ?? 0);
-
     const pct =
       kind === 'FROZEN' ? pctFrozen : kind === 'DRY' ? pctDry : Math.max(pctDry, pctFrozen);
 
     shippingDiscountPence = Math.round((ship * pct) / 100);
-    shippingDiscountPence = Math.max(0, Math.min(shippingDiscountPence, ship));
   }
 
   await logAttempt({
@@ -392,7 +269,6 @@ export async function POST(req: Request) {
     userId: userId ?? null,
     email: email ?? null,
     outcome: 'EVAL_OK',
-    errorCode: null,
     currency: cur,
     subtotalPence: sub,
     shippingPence: ship,

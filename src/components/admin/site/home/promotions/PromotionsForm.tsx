@@ -1,147 +1,139 @@
 'use client';
 
-// src/components/admin/site/home/promotions/PromotionsForm.tsx
+import { RemoteOptionsPicker } from '@/components/admin/home/RemoteOptionsPicker';
 import ImageUploader from '@/components/image/ImageUploader';
-import type { Promotion, PromotionTemplateKey } from '@/types/homeSettings';
+import type { HomePromotionBannerSettings } from '@/types/homeSettings';
 import Field from '../_shared/Field';
 import s from './PromotionsForm.module.scss';
-
-const TEMPLATE_TEXT: Record<PromotionTemplateKey, string> = {
-  onam: 'Celebrate Onam with traditional flavours.',
-  vishu: 'Vishu specials—fresh starts & fresh flavours.',
-  diwali: 'Diwali sweets & snacks—light up your table.',
-  pongal: 'Pongal pantry picks for the harvest festival.',
-  ramadan_eid: 'Ramadan & Eid essentials.',
-  easter: 'Easter treats and springtime bakes.',
-  christmas: 'Christmas cakes, spices & gifting.',
-  new_year: 'New Year party snacks & spice up 2025.',
-  summer_bbq: 'Summer BBQ marinades and grills.',
-  back_to_uni: 'Back-to-Uni quick meals & snacks.'
-};
 
 export default function PromotionsForm({
   value,
   onChange
 }: {
-  value: Promotion[];
-  onChange: (v: Promotion[]) => void;
+  value: HomePromotionBannerSettings;
+  onChange: (v: HomePromotionBannerSettings) => void;
 }) {
-  const addTemplate = (key: PromotionTemplateKey) => {
-    const promo: Promotion = {
-      key,
-      title: key.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()),
-      message: TEMPLATE_TEXT[key],
-      imageUrl: '',
-      ctaLabel: 'Shop Now',
-      ctaHref: '/shop',
-      active: true
-    };
-
-    onChange([promo, ...value]);
-  };
-
-  const update = (idx: number, patch: Partial<Promotion>) => {
-    onChange(value.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
-  };
-
-  const remove = (idx: number) => {
-    onChange(value.filter((_, i) => i !== idx));
-  };
+  const patch = (next: Partial<HomePromotionBannerSettings>) =>
+    onChange({
+      ...value,
+      ...next
+    });
 
   return (
     <div className={s.stack}>
-      {/* Template Buttons */}
-      <div className={s.templateBar}>
-        {(Object.keys(TEMPLATE_TEXT) as PromotionTemplateKey[]).map((k) => (
-          <button key={k} type="button" className={s.templateBtn} onClick={() => addTemplate(k)}>
-            + {k.replace(/_/g, ' ')}
-          </button>
-        ))}
-      </div>
+      <div className={s.card}>
+        <div className={s.grid3}>
+          <Field label="Banner Enabled">
+            <select
+              className={s.input}
+              value={value.enabled ? '1' : '0'}
+              onChange={(e) => patch({ enabled: e.target.value === '1' })}
+            >
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </select>
+          </Field>
 
-      {value.length === 0 && (
-        <div className={s.empty}>No promotions yet. Choose a template above.</div>
-      )}
+          <Field label="Start At (optional)">
+            <input
+              className={s.input}
+              value={value.startAt ?? ''}
+              onChange={(e) => patch({ startAt: e.target.value || null })}
+              placeholder="YYYY-MM-DD or ISO"
+            />
+          </Field>
 
-      {value.map((p, idx) => (
-        <div key={idx} className={s.card}>
-          <div className={s.grid3}>
-            <Field label="Title">
-              <input
-                className={s.input}
-                value={p.title}
-                onChange={(e) => update(idx, { title: e.target.value })}
-              />
-            </Field>
-
-            <Field label="Message">
-              <input
-                className={s.input}
-                value={p.message}
-                onChange={(e) => update(idx, { message: e.target.value })}
-              />
-            </Field>
-
-            <Field label="Active">
-              <select
-                className={s.input}
-                value={p.active ? '1' : '0'}
-                onChange={(e) => update(idx, { active: e.target.value === '1' })}
-              >
-                <option value="1">Yes</option>
-                <option value="0">No</option>
-              </select>
-            </Field>
-          </div>
-
-          {/* Image */}
-          <div className={s.stack}>
-            <div className={s.uploaderSmall}>
-              <ImageUploader
-                label="Promotion Image"
-                single
-                endpoint="siteImage"
-                images={p.imageUrl ? [p.imageUrl] : []}
-                setImages={(urls: string[]) => update(idx, { imageUrl: urls[0] ?? '' })}
-              />
-            </div>
-
-            <Field label="Image URL">
-              <input
-                className={s.input}
-                value={p.imageUrl}
-                onChange={(e) => update(idx, { imageUrl: e.target.value })}
-                placeholder="/assets/... or https://..."
-              />
-            </Field>
-          </div>
-
-          {/* CTA */}
-          <div className={s.grid2}>
-            <Field label="CTA Label">
-              <input
-                className={s.input}
-                value={p.ctaLabel}
-                onChange={(e) => update(idx, { ctaLabel: e.target.value })}
-              />
-            </Field>
-
-            <Field label="CTA Link">
-              <input
-                className={s.input}
-                value={p.ctaHref}
-                onChange={(e) => update(idx, { ctaHref: e.target.value })}
-              />
-            </Field>
-          </div>
-
-          <div className={s.rowRight}>
-            <button type="button" className={s.danger} onClick={() => remove(idx)}>
-              Delete
-            </button>
-          </div>
+          <Field label="End At (optional)">
+            <input
+              className={s.input}
+              value={value.endAt ?? ''}
+              onChange={(e) => patch({ endAt: e.target.value || null })}
+              placeholder="YYYY-MM-DD or ISO"
+            />
+          </Field>
         </div>
-      ))}
+
+        <div className={s.stack}>
+          <RemoteOptionsPicker
+            label="Selected promotions"
+            placeholder="Search promotions by name or code…"
+            endpoint="/api/admin/options/promotions"
+            multiple
+            value={Array.isArray(value.promotionIds) ? value.promotionIds : []}
+            onChange={(next) =>
+              patch({
+                promotionIds: Array.isArray(next) ? next : []
+              })
+            }
+          />
+        </div>
+
+        <div className={s.grid2}>
+          <Field label="Override Title (optional)">
+            <input
+              className={s.input}
+              value={value.title ?? ''}
+              onChange={(e) => patch({ title: e.target.value })}
+              placeholder="Special offers this week"
+            />
+          </Field>
+
+          <Field label="Override Message (optional)">
+            <input
+              className={s.input}
+              value={value.message ?? ''}
+              onChange={(e) => patch({ message: e.target.value })}
+              placeholder="Save on selected favourites while stocks last."
+            />
+          </Field>
+        </div>
+
+        <div className={s.grid2}>
+          <Field label="CTA Label (optional)">
+            <input
+              className={s.input}
+              value={value.ctaLabel ?? ''}
+              onChange={(e) => patch({ ctaLabel: e.target.value })}
+              placeholder="Shop deals"
+            />
+          </Field>
+
+          <Field label="CTA Link (optional)">
+            <input
+              className={s.input}
+              value={value.ctaHref ?? ''}
+              onChange={(e) => patch({ ctaHref: e.target.value })}
+              placeholder="/shop"
+            />
+          </Field>
+        </div>
+
+        <div className={s.stack}>
+          <div className={s.uploaderSmall}>
+            <ImageUploader
+              label="Background Image (optional)"
+              single
+              pathSegments={['pages', 'home', 'promotions']}
+              itemName="banner"
+              files={value.backgroundImageUrl ? [value.backgroundImageUrl] : []}
+              setFiles={(urls: string[]) =>
+                patch({
+                  backgroundImageUrl: urls?.[0] ?? null
+                })
+              }
+            />
+          </div>
+
+          <Field label="Background Image URL">
+            <input
+              className={s.input}
+              value={value.backgroundImageUrl ?? ''}
+              onChange={(e) => patch({ backgroundImageUrl: e.target.value || null })}
+              placeholder="/assets/... or https://..."
+            />
+          </Field>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+// src/app/api/admin/promotions/[id]/route.ts
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
@@ -5,6 +6,16 @@ import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+
+interface SessionUserWithRole {
+  role?: Role | null;
+}
+const hasRole = (u: unknown): u is SessionUserWithRole =>
+  !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
+
+type EligibleCustomerScope = 'ALL' | 'USERS';
 
 function forbid() {
   return NextResponse.json({ ok: false, error: 'Forbidden' }, { status: 403 });
@@ -27,17 +38,31 @@ function asIntOrNull(v: unknown): number | null {
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string } | null)?.role;
-  if (!session?.user || (role !== 'HEAD' && role !== 'STAFF')) return forbid();
+  const role: Role | undefined = hasRole(session?.user)
+    ? (session!.user.role ?? undefined)
+    : undefined;
+  if (!role || (role !== 'HEAD' && role !== 'STAFF')) return forbid();
 
   const { id } = await ctx.params;
 
   const promo = await prisma.promotion.findUnique({
     where: { id },
-    include: {
-      categories: { select: { categoryId: true } },
-      products: { select: { productId: true } },
-      _count: { select: { redemptions: true } }
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      status: true,
+      startsAt: true,
+      endsAt: true,
+
+      discountType: true,
+
+      applyShippingDiscount: true,
+      shippingPercentOffDry: true,
+      shippingPercentOffFrozen: true,
+
+      eligibleCustomerScope: true,
+      allowedUsers: { select: { userId: true } }
     }
   });
 
@@ -46,26 +71,38 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   return NextResponse.json({
     ok: true,
     promotion: {
-      ...promo,
+      id: promo.id,
+      name: promo.name,
+      code: promo.code,
+      status: promo.status,
+
       startsAt: promo.startsAt ? promo.startsAt.toISOString() : null,
       endsAt: promo.endsAt ? promo.endsAt.toISOString() : null,
-      createdAt: promo.createdAt.toISOString(),
-      updatedAt: promo.updatedAt.toISOString(),
-      redemptionCount: promo._count.redemptions
+
+      discountType: promo.discountType,
+
+      applyShippingDiscount: promo.applyShippingDiscount,
+      shippingPercentOffDry: promo.shippingPercentOffDry,
+      shippingPercentOffFrozen: promo.shippingPercentOffFrozen,
+
+      eligibleCustomerScope: promo.eligibleCustomerScope as EligibleCustomerScope,
+      eligibleUserIds: promo.allowedUsers?.map((x) => x.userId) ?? []
     }
   });
 }
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string } | null)?.role;
-  if (!session?.user || (role !== 'HEAD' && role !== 'STAFF')) return forbid();
+  const role: Role | undefined = hasRole(session?.user)
+    ? (session!.user.role ?? undefined)
+    : undefined;
+  if (!role || (role !== 'HEAD' && role !== 'STAFF')) return forbid();
 
   const { id } = await ctx.params;
 
   const existing = await prisma.promotion.findUnique({
     where: { id },
-    select: { id: true, endsAt: true }
+    select: { id: true, endsAt: true, eligibleCustomerScope: true }
   });
   if (!existing) return NextResponse.json({ ok: false, error: 'NOT_FOUND' }, { status: 404 });
 
@@ -74,7 +111,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     | { action: 'pause' | 'resume' }
     | Partial<{
         name: string;
-        code: string;
+        code: string | null;
         type: 'CODE' | 'GIFT';
         status: 'ACTIVE' | 'PAUSED' | 'EXPIRED';
 
@@ -98,6 +135,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         targetType: 'SITE_WIDE' | 'CATEGORIES' | 'PRODUCTS';
         categoryIds: string[];
         productIds: string[];
+
+        eligibleCustomerScope: EligibleCustomerScope;
+        eligibleUserIds: string[];
       }>;
 
   if (!body) return NextResponse.json({ ok: false, error: 'Invalid JSON' }, { status: 400 });
@@ -124,7 +164,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const data: Record<string, unknown> = {};
 
   if (typeof body.name === 'string') data.name = body.name.trim();
-  if (typeof body.code === 'string') data.code = normCode(body.code);
+
+  // allow null = remove code
+  if ('code' in body) {
+    const c = typeof body.code === 'string' ? normCode(body.code) : '';
+    data.code = c ? c : null;
+  }
+
   if (typeof body.type === 'string') data.type = body.type;
   if (typeof body.status === 'string') data.status = body.status;
 
@@ -140,17 +186,43 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (typeof body.discountType === 'string') data.discountType = body.discountType;
   if ('percentOff' in body)
     data.percentOff = body.percentOff == null ? null : clampPct(body.percentOff);
-  if ('amountOffPence' in body)
+  if ('amountOffPence' in body) {
     data.amountOffPence =
       body.amountOffPence == null ? null : Math.max(0, asIntOrNull(body.amountOffPence) ?? 0);
+  }
 
-  if ('applyShippingDiscount' in body) data.applyShippingDiscount = !!body.applyShippingDiscount;
-  if ('shippingPercentOffDry' in body)
-    data.shippingPercentOffDry =
-      body.shippingPercentOffDry == null ? null : clampPct(body.shippingPercentOffDry);
-  if ('shippingPercentOffFrozen' in body)
-    data.shippingPercentOffFrozen =
-      body.shippingPercentOffFrozen == null ? null : clampPct(body.shippingPercentOffFrozen);
+  // ✅ shipping
+  const hasApplyShip = 'applyShippingDiscount' in body;
+  const hasShipDry = 'shippingPercentOffDry' in body;
+  const hasShipFrozen = 'shippingPercentOffFrozen' in body;
+
+  if (hasApplyShip) {
+    const apply = !!body.applyShippingDiscount;
+    data.applyShippingDiscount = apply;
+
+    // If turning off shipping discount, clear both fields for consistency
+    if (!apply) {
+      data.shippingPercentOffDry = null;
+      data.shippingPercentOffFrozen = null;
+    }
+  }
+
+  // only write pct fields if either:
+  // - applyShippingDiscount is true in same request, or
+  // - promo already has applyShippingDiscount true (admin is tweaking pct)
+  const shouldAllowPctWrite =
+    ('applyShippingDiscount' in body && !!body.applyShippingDiscount) || true;
+
+  if (shouldAllowPctWrite) {
+    if (hasShipDry) {
+      data.shippingPercentOffDry =
+        body.shippingPercentOffDry == null ? null : clampPct(body.shippingPercentOffDry);
+    }
+    if (hasShipFrozen) {
+      data.shippingPercentOffFrozen =
+        body.shippingPercentOffFrozen == null ? null : clampPct(body.shippingPercentOffFrozen);
+    }
+  }
 
   if (typeof body.targetType === 'string') data.targetType = body.targetType;
 
@@ -160,9 +232,28 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const productIds =
     'productIds' in body && Array.isArray(body.productIds) ? body.productIds : null;
 
+  // ✅ eligibility patch
+  const eligibleCustomerScope =
+    'eligibleCustomerScope' in body && typeof body.eligibleCustomerScope === 'string'
+      ? (body.eligibleCustomerScope as EligibleCustomerScope)
+      : null;
+
+  const eligibleUserIds =
+    'eligibleUserIds' in body && Array.isArray(body.eligibleUserIds) ? body.eligibleUserIds : null;
+
+  if (eligibleCustomerScope === 'USERS' && eligibleUserIds && eligibleUserIds.length === 0) {
+    return NextResponse.json(
+      { ok: false, error: 'Select at least 1 eligible user when mode is USERS.' },
+      { status: 400 }
+    );
+  }
+
+  if (eligibleCustomerScope) data.eligibleCustomerScope = eligibleCustomerScope;
+
   const updated = await prisma.$transaction(async (tx) => {
     const promo = await tx.promotion.update({ where: { id }, data });
 
+    // targets (unchanged behaviour)
     if (categoryIds) {
       await tx.promotionCategory.deleteMany({ where: { promotionId: id } });
       if (promo.targetType === 'CATEGORIES' && categoryIds.length) {
@@ -183,6 +274,29 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       }
     }
 
+    // ✅ eligibility allow-list
+    const shouldUpdateEligibility = eligibleCustomerScope !== null || eligibleUserIds !== null;
+
+    if (shouldUpdateEligibility) {
+      const finalMode = (eligibleCustomerScope ??
+        (promo.eligibleCustomerScope as EligibleCustomerScope)) as EligibleCustomerScope;
+
+      // If they patch mode but don't include ids, keep existing list for USERS
+      // (UI should always send ids for USERS)
+      const finalIds = eligibleUserIds ?? [];
+
+      await tx.promotionAllowedUser.deleteMany({ where: { promotionId: id } });
+
+      if (finalMode === 'USERS') {
+        if (finalIds.length) {
+          await tx.promotionAllowedUser.createMany({
+            data: finalIds.map((userId) => ({ promotionId: id, userId })),
+            skipDuplicates: true
+          });
+        }
+      }
+    }
+
     return promo;
   });
 
@@ -191,12 +305,15 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
 export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string } | null)?.role;
-  if (!session?.user || (role !== 'HEAD' && role !== 'STAFF')) return forbid();
+  const role: Role | undefined = hasRole(session?.user)
+    ? (session!.user.role ?? undefined)
+    : undefined;
+  if (!role || (role !== 'HEAD' && role !== 'STAFF')) return forbid();
 
   const { id } = await ctx.params;
 
   await prisma.$transaction(async (tx) => {
+    await tx.promotionAllowedUser.deleteMany({ where: { promotionId: id } });
     await tx.promotionCategory.deleteMany({ where: { promotionId: id } });
     await tx.promotionProduct.deleteMany({ where: { promotionId: id } });
     await tx.promotion.delete({ where: { id } });

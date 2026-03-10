@@ -1,6 +1,5 @@
 // src/types/homeSettings.ts
 
-// ISO string (or null) for optional time windows
 export type IsoDateString = string | null;
 
 /* =========================================================
@@ -51,6 +50,58 @@ export interface Promotion {
 }
 
 /* =========================================================
+   Home Promotion Banner
+========================================================= */
+
+export type HomePromotionBannerMode = 'SELECTED_PROMOTIONS';
+
+export interface HomePromotionBannerSettings {
+  enabled: boolean;
+  mode: HomePromotionBannerMode;
+
+  promotionIds: string[];
+
+  startAt?: IsoDateString;
+  endAt?: IsoDateString;
+
+  title?: string;
+  message?: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+
+  backgroundImageUrl?: string | null;
+}
+
+/* =========================================================
+   Celebration Sections
+========================================================= */
+
+export interface CelebrationSection {
+  id: string;
+  key: CampaignKey;
+  enabled: boolean;
+
+  title: string;
+  description: string;
+
+  imageUrl?: string | null;
+
+  promotionIds: string[];
+  offerIds: string[];
+  categoryIds: string[];
+  productIds: string[];
+
+  ctaLabel?: string;
+  ctaHref?: string;
+
+  badge?: string | null;
+  backgroundColor?: string | null;
+
+  startAt?: IsoDateString;
+  endAt?: IsoDateString;
+}
+
+/* =========================================================
    Hero
 ========================================================= */
 
@@ -66,10 +117,7 @@ export interface HeroSettings {
 
   floatingTag?: string;
 
-  /** Preferred slider images */
   images?: string[];
-
-  /** Legacy fallback */
   imageUrl?: string;
 
   overrideStart?: IsoDateString;
@@ -85,7 +133,7 @@ export interface HeroSettings {
 ========================================================= */
 
 export interface DeliveryCard {
-  id: string; // 'gb', 'ni', or custom like 'd_...'
+  id: string;
   title: string;
   freeThreshold: number;
   frozenFee: number;
@@ -161,7 +209,16 @@ export interface HomeSettingsDTO {
   hero: HeroSettings;
   delivery: DeliverySettings;
   instagram: InstagramSettings;
+
+  /** legacy campaign templates if you still use them elsewhere */
   promotions: Promotion[];
+
+  /** slim homepage promo strip */
+  promotionBanner: HomePromotionBannerSettings;
+
+  /** full celebration / holiday blocks */
+  celebrationSections: CelebrationSection[];
+
   productShowcase: ProductShowcaseSettings;
   reviews: ReviewsSettings;
 }

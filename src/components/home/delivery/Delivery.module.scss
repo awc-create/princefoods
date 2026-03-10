@@ -1,10 +1,10 @@
 .deliveryWrapper {
-  background: var(--color-bg-light);
-  /* remove the top seam */
-  border-top: none;
-  border-bottom: 1px solid var(--border);
-  padding: 0 var(--gutter) 2.5rem;
-  margin-top: 0;
+  background: var(--home-card);
+  border: 1px solid var(--home-card-border);
+  box-shadow: var(--home-card-shadow);
+  backdrop-filter: blur(10px);
+  border-radius: 18px;
+  padding: 3rem var(--gutter);
 }
 
 .container {

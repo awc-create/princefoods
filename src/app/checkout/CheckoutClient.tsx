@@ -10,7 +10,7 @@ import styles from './checkout.module.scss';
 
 // ✅ components
 import AddressStep from '@/components/checkout/AddressStep';
-import OrderSummary from '@/components/checkout/OrderSummary';
+import OrderSummary from '@/components/checkout/order-summary/OrderSummary';
 import PaymentStep from '@/components/checkout/PaymentStep';
 
 import type { Addr, AddrTouched, Role, Step } from '@/components/checkout/types';
@@ -305,6 +305,10 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     autoAdd: []
   });
 
+  // ✅ customer discount (server-quoted)
+  const [customerDiscountPence, setCustomerDiscountPence] = useState(0);
+  const [customerShippingDiscountPence, setCustomerShippingDiscountPence] = useState(0);
+
   const promoCartKey = useMemo(() => {
     return items
       .map((i) => `${i.productId ?? ''}:${i.id}:${i.quantity}:${Math.trunc(i.unitPrice)}`)
@@ -324,6 +328,11 @@ export default function CheckoutClient({ email }: { email: string | null }) {
   useEffect(() => {
     setOffersSnap({ discountPence: 0, applied: [], eligible: [], autoAdd: [] });
   }, [promoCartKey]);
+
+  useEffect(() => {
+    setCustomerDiscountPence(0);
+    setCustomerShippingDiscountPence(0);
+  }, [promoCartKey, mounted, sessionUserId]);
 
   const liveSubtotal = mounted ? subtotal() : 0;
   const tax = 0;
@@ -742,15 +751,30 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     }
   }
 
-  async function payWithStripe(orderId: string) {
-    const res = await fetch('/api/stripe/checkout', {
+  // ✅ Start LIVE Stripe Checkout using your existing live route
+  async function payWithStripeLive(orderId: string) {
+    const res = await fetch('/api/checkout/create-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orderId })
     });
 
-    const j = (await res.json()) as { ok?: boolean; url?: string; error?: string };
-    if (!res.ok || !j?.url) throw new Error(j?.error ?? 'Stripe init failed');
+    const j = (await res.json()) as { id?: string; url?: string; error?: string };
+    if (!res.ok || !j?.url) throw new Error(j?.error ?? 'Stripe LIVE init failed');
+
+    window.location.href = j.url;
+  }
+
+  // ✅ Start TEST Stripe Checkout (admin only)
+  async function payWithStripeTest(orderId: string) {
+    const res = await fetch('/api/admin/checkout/create-session-test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId })
+    });
+
+    const j = (await res.json()) as { id?: string; url?: string; error?: string };
+    if (!res.ok || !j?.url) throw new Error(j?.error ?? 'Stripe TEST init failed');
 
     window.location.href = j.url;
   }
@@ -788,6 +812,7 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     }
   }
 
+  // ✅ PaymentStep "Pay securely" (LIVE): place order then redirect to LIVE Stripe Checkout
   async function placeOrderAndPayWithStripe() {
     setErr(null);
 
@@ -806,13 +831,48 @@ export default function CheckoutClient({ email }: { email: string | null }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(makeOrderBody())
       });
+
       const json = (await res.json()) as { orderId?: string; displayId?: string; error?: string };
+
       if (!res.ok || !json?.orderId) throw new Error(json?.error ?? 'Could not place order.');
 
-      clear();
-      await payWithStripe(json.orderId);
+      // ❌ DO NOT clear here
+      await payWithStripeLive(json.orderId);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not start Stripe Checkout.');
+    } finally {
+      setPlacing(false);
+    }
+  }
+
+  // ✅ PaymentStep "Pay with Test Stripe (admin)" (TEST): place order then redirect to TEST Stripe Checkout
+  async function placeOrderAndPayWithStripeTest() {
+    setErr(null);
+
+    touchCourierRequired();
+    if (!formValid) {
+      setErr(shippingErr ?? 'Please complete all required delivery details.');
+      return;
+    }
+
+    setPlacing(true);
+    try {
+      await maybeSaveAddressToAccount();
+
+      const res = await fetch('/api/checkout/place-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(makeOrderBody())
+      });
+
+      const json = (await res.json()) as { orderId?: string; displayId?: string; error?: string };
+
+      if (!res.ok || !json?.orderId) throw new Error(json?.error ?? 'Could not place order.');
+
+      // ❌ DO NOT clear here
+      await payWithStripeTest(json.orderId);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not start Stripe TEST Checkout.');
     } finally {
       setPlacing(false);
     }
@@ -916,8 +976,87 @@ export default function CheckoutClient({ email }: { email: string | null }) {
   // ✅ When using offers, show a "was" subtotal including free value
   const subtotalShown = useOffers ? liveSubtotal + offersFreeValuePence : liveSubtotal;
 
+  // ✅ Quote customer discount live (so summary reflects Adnan’s 50% etc)
+  useEffect(() => {
+    if (!mounted) return;
+
+    // Only logged-in users can have customer discounts
+    if (!sessionUserId) {
+      setCustomerDiscountPence(0);
+      setCustomerShippingDiscountPence(0);
+      return;
+    }
+
+    const subtotalPence = Math.max(0, Math.trunc(liveSubtotal));
+    const shippingPenceBase = Math.max(0, Math.trunc(shippingPence));
+
+    const itemDiscountAlreadyAppliedPence = useOffers
+      ? Math.max(0, Math.trunc(offerDiscountTotal))
+      : Math.max(0, Math.trunc(promoSnap.discountPence));
+
+    const promoShippingDiscountAlreadyAppliedPence = Math.max(
+      0,
+      Math.trunc(promoSnap.shippingDiscountPence)
+    );
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const res = await fetch('/api/customer-discount/quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subtotalPence,
+            shippingPence: shippingPenceBase,
+            itemDiscountAlreadyAppliedPence,
+            promoShippingDiscountAlreadyAppliedPence,
+            shippingKind
+          })
+        });
+
+        const json = (await res.json()) as
+          | {
+              ok: true;
+              customerDiscountPence: number;
+              customerShippingDiscountPence: number;
+            }
+          | { ok: false; error: string };
+
+        if (!res.ok || !json.ok) {
+          setCustomerDiscountPence(0);
+          setCustomerShippingDiscountPence(0);
+          return;
+        }
+
+        setCustomerDiscountPence(Math.max(0, Math.trunc(json.customerDiscountPence ?? 0)));
+        setCustomerShippingDiscountPence(
+          Math.max(0, Math.trunc(json.customerShippingDiscountPence ?? 0))
+        );
+      } catch {
+        setCustomerDiscountPence(0);
+        setCustomerShippingDiscountPence(0);
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    mounted,
+    sessionUserId,
+    liveSubtotal,
+    shippingPence,
+    shippingKind,
+    useOffers,
+    offerDiscountTotal,
+    promoSnap.discountPence,
+    promoSnap.shippingDiscountPence
+  ]);
+
+  const customerDiscountTotal = Math.max(
+    0,
+    Math.trunc(customerDiscountPence) + Math.trunc(customerShippingDiscountPence)
+  );
+
   // ✅ Show discount effect in the UI grand total WITHOUT double-discounting
-  const grand = subtotalShown + shippingPence - discountShown + tax;
+  const grand = subtotalShown + shippingPence - discountShown - customerDiscountTotal + tax;
 
   return (
     <main className={styles.shell}>
@@ -937,6 +1076,7 @@ export default function CheckoutClient({ email }: { email: string | null }) {
         >
           1. Address
         </button>
+
         <button
           type="button"
           className={`${styles.stepTab} ${step === 'payment' ? styles.stepActive : ''}`}
@@ -1047,10 +1187,12 @@ export default function CheckoutClient({ email }: { email: string | null }) {
               mounted={mounted}
               err={err ?? (shippingErr ? `Shipping: ${shippingErr}` : null)}
               onEditAddress={() => goStep('address')}
-              onPlaceOrder={placeOrder}
+              onPlaceOrder={placeOrder} // ✅ used when total is £0
               isAdmin={isAdmin}
-              onPayWithStripe={placeOrderAndPayWithStripe}
-              onPlaceTestOrder={placeTestOrder}
+              onPayWithStripe={placeOrderAndPayWithStripe} // ✅ LIVE
+              onPayWithStripeTest={placeOrderAndPayWithStripeTest} // ✅ TEST (admin only)
+              onPlaceTestOrder={placeTestOrder} // ✅ skips payment
+              grandTotalPence={grand} // ✅ important
             />
           )}
         </section>
@@ -1086,6 +1228,8 @@ export default function CheckoutClient({ email }: { email: string | null }) {
           useOffers={useOffers}
           offerDiscountTotal={offerDiscountTotal}
           promoDiscountTotal={promoDiscountTotal}
+          customerDiscountPence={customerDiscountPence}
+          customerShippingDiscountPence={customerShippingDiscountPence}
         />
       </div>
 

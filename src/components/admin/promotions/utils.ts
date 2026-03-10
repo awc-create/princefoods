@@ -1,6 +1,8 @@
+// src/components/admin/promotions/utils.ts
 import type {
   DiscountType,
   PromoKindUI,
+  PromotionApplyMode,
   PromotionRow,
   PromotionStatus,
   UsageAttemptRow
@@ -51,6 +53,7 @@ export function discountLabel(p: PromotionRow) {
   return '—';
 }
 
+/** ✅ expects a PromotionRow */
 export function targetLabel(p: PromotionRow) {
   if (p.targetType === 'SITE_WIDE') return 'All products';
   if (p.targetType === 'CATEGORIES') return 'Categories';
@@ -64,10 +67,21 @@ export function statusPillClass(s: PromotionStatus, styles: Record<string, strin
   return styles.pillExpired;
 }
 
+/**
+ * ✅ mapping from UI tab -> discount type
+ * Customer discount = AUTO + PERCENT (editable %)
+ */
 export function kindToDiscountType(kind: PromoKindUI): DiscountType {
   if (kind === 'PERCENT_OFF') return 'PERCENT';
   if (kind === 'AMOUNT_OFF') return 'AMOUNT';
+  if (kind === 'CUSTOMER_DISCOUNT') return 'PERCENT';
+  // FREE_SHIPPING doesn't need a product discount; API requires something, so use safe default:
   return 'AMOUNT';
+}
+
+/** ✅ mapping from UI tab -> apply mode */
+export function kindToApplyMode(kind: PromoKindUI): PromotionApplyMode {
+  return kind === 'CUSTOMER_DISCOUNT' ? 'AUTO' : 'CODE';
 }
 
 export function isoToDateInput(iso: string | null | undefined) {

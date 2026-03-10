@@ -143,6 +143,7 @@ export default function CreateProductPage() {
         <div className={styles.section}>
           <h2>Images</h2>
           <ProductImageUpload
+            productName={form.name}
             images={form.productImageUrls}
             setImages={(urls: string[]) => update('productImageUrls', urls)}
           />

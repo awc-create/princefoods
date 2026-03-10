@@ -1,6 +1,6 @@
 // src/lib/shipping/apc-client.ts
-
 export type ApcEnv = 'training' | 'live';
+export type ApcMode = 'live' | 'test';
 
 export class ApcNotConfiguredError extends Error {
   constructor(message: string) {
@@ -17,42 +17,40 @@ interface ApcConfig {
   timeoutMs: number;
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null;
-}
-
-function _getStr(o: unknown, k: string): string | null {
-  if (!isRecord(o)) return null;
-  const v = o[k];
-  return typeof v === 'string' ? v : null;
+function pickEnv(raw: string | undefined): ApcEnv {
+  const v = (raw ?? 'training').toLowerCase();
+  return v === 'live' ? 'live' : 'training';
 }
 
 /**
  * Read APC config from env.
- * IMPORTANT: Returns null if not configured. Does NOT throw at import-time.
- * This prevents Next build / Docker builds from failing during "collecting page data".
+ * mode="live" uses APC_* vars
+ * mode="test" uses APC_*_TEST vars
+ *
+ * IMPORTANT: Returns null if not configured.
  */
-export function getApcConfig(): ApcConfig | null {
-  const envRaw = (process.env.APC_ENV ?? 'training').toLowerCase();
-  const env: ApcEnv = envRaw === 'live' ? 'live' : 'training';
+export function getApcConfig(mode: ApcMode = 'live'): ApcConfig | null {
+  const isTest = mode === 'test';
 
-  const base =
-    env === 'live' ? (process.env.APC_LIVE_BASE ?? null) : (process.env.APC_TRAINING_BASE ?? null);
+  const env = pickEnv(isTest ? process.env.APC_ENV_TEST : process.env.APC_ENV);
 
-  const username = process.env.APC_USERNAME ?? null;
-  const password = process.env.APC_PASSWORD ?? null;
+  const trainingBase =
+    (isTest ? process.env.APC_TRAINING_BASE_TEST : process.env.APC_TRAINING_BASE) ?? null;
+  const liveBase = (isTest ? process.env.APC_LIVE_BASE_TEST : process.env.APC_LIVE_BASE) ?? null;
 
-  // If any are missing, treat as "not configured"
+  const base = env === 'live' ? liveBase : trainingBase;
+
+  const username = (isTest ? process.env.APC_USERNAME_TEST : process.env.APC_USERNAME) ?? null;
+  const password = (isTest ? process.env.APC_PASSWORD_TEST : process.env.APC_PASSWORD) ?? null;
+
   if (!base || !username || !password) return null;
 
-  const timeoutMs = Number(process.env.APC_TIMEOUT_MS ?? 25_000);
-
-  // normalize: no trailing slash
-  const baseUrl = base.replace(/\/+$/, '');
+  const timeoutRaw = (process.env.APC_TIMEOUT_MS ?? '').trim();
+  const timeoutMs = Number(timeoutRaw || '25000');
 
   return {
     env,
-    baseUrl,
+    baseUrl: base.replace(/\/+$/, ''),
     username,
     password,
     timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : 25_000
@@ -62,7 +60,6 @@ export function getApcConfig(): ApcConfig | null {
 /**
  * APC expects:
  *   remote-user: Basic <base64(email:password)>
- * NOT Authorization.
  */
 function remoteUserHeaderValue(username: string, password: string) {
   const token = Buffer.from(`${username}:${password}`, 'utf8').toString('base64');
@@ -98,17 +95,13 @@ function safeJsonParse(text: string): unknown {
   }
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null;
+}
+
 function extractApcMessage(parsed: unknown): string | null {
-  // APC sometimes returns nested messages in different shapes
   if (!isRecord(parsed)) return null;
 
-  const orders = parsed['Orders'];
-  const svc = parsed['ServiceAvailability'];
-  const messages = parsed['Messages'];
-
-  // Above line won't work for nested object (Messages is object). We'll safely handle below.
-
-  // helper to read Description from { Messages: { Description } }
   const descFrom = (root: unknown): string | null => {
     if (!isRecord(root)) return null;
     const msgObj = root['Messages'];
@@ -119,9 +112,8 @@ function extractApcMessage(parsed: unknown): string | null {
 
   return (
     descFrom(parsed) ??
-    descFrom(orders) ??
-    descFrom(svc) ??
-    (typeof (messages as unknown) === 'string' ? (messages as string) : null) ??
+    descFrom(parsed['Orders']) ??
+    descFrom(parsed['ServiceAvailability']) ??
     null
   );
 }
@@ -131,18 +123,18 @@ function extractApcMessage(parsed: unknown): string | null {
  */
 export async function apcFetchText(
   path: string,
-  init?: RequestInit
+  init?: RequestInit,
+  mode: ApcMode = 'live'
 ): Promise<{ status: number; ok: boolean; contentType: string; text: string }> {
-  const cfg = getApcConfig();
+  const cfg = getApcConfig(mode);
   if (!cfg) {
     throw new ApcNotConfiguredError(
-      'APC is not configured (missing APC_TRAINING_BASE/APC_LIVE_BASE and/or APC_USERNAME/APC_PASSWORD).'
+      `APC is not configured for mode="${mode}" (missing base/username/password).`
     );
   }
 
   const url = `${cfg.baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
 
-  // RequestInit["signal"] can be AbortSignal | null in TS DOM types
   const { signal, clear } = withTimeout(cfg.timeoutMs, init?.signal ?? undefined);
 
   try {
@@ -171,8 +163,12 @@ export async function apcFetchText(
 /**
  * Fetch JSON from APC. Throws with a meaningful APC error message if possible.
  */
-export async function apcFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const out = await apcFetchText(path, init);
+export async function apcFetch<T>(
+  path: string,
+  init?: RequestInit,
+  mode: ApcMode = 'live'
+): Promise<T> {
+  const out = await apcFetchText(path, init, mode);
 
   const parsed = out.text ? safeJsonParse(out.text) : null;
 
@@ -182,4 +178,10 @@ export async function apcFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   return parsed as T;
+}
+
+/** Utility for routes: read the mode from header */
+export function apcModeFromRequest(req: Request): ApcMode {
+  const h = (req.headers.get('x-apc-env') ?? '').toLowerCase().trim();
+  return h === 'test' ? 'test' : 'live';
 }

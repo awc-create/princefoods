@@ -1,0 +1,395 @@
+.themeDefault {
+  --celebration-text: var(--text-dark);
+  --celebration-text-soft: var(--text-muted);
+
+  --celebration-badge-bg: rgba(39, 35, 58, 0.05);
+  --celebration-badge-border: rgba(39, 35, 58, 0.07);
+  --celebration-badge-text: #7b5a1b;
+
+  --celebration-cta-bg: #27233a;
+  --celebration-cta-text: #ffffff;
+  --celebration-cta-shadow: rgba(39, 35, 58, 0.1);
+  --celebration-cta-shadow-strong: rgba(39, 35, 58, 0.14);
+
+  --celebration-accent: rgba(39, 35, 58, 0.08);
+  --celebration-accent-soft: rgba(39, 35, 58, 0.04);
+  --celebration-shadow-glow: rgba(39, 35, 58, 0.12);
+  --celebration-divider: rgba(17, 24, 39, 0.07);
+
+  --celebration-frame-radius: 220px 220px 24px 24px;
+  --celebration-frame-radius-mobile: 140px 140px 18px 18px;
+  --celebration-frame-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.8) 0%,
+    rgba(248, 248, 246, 0.9) 100%
+  );
+  --celebration-frame-border: rgba(17, 24, 39, 0.07);
+  --celebration-frame-shadow: rgba(17, 24, 39, 0.08);
+  --celebration-frame-overlay: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.12),
+    rgba(255, 255, 255, 0)
+  );
+  --celebration-image-radius: 180px 180px 18px 18px;
+  --celebration-image-position: center 35%;
+}
+
+.themeRamadan {
+  --celebration-text: var(--text-dark);
+  --celebration-text-soft: var(--text-muted);
+
+  --celebration-badge-bg: rgba(31, 90, 67, 0.07);
+  --celebration-badge-border: rgba(31, 90, 67, 0.1);
+  --celebration-badge-text: #8c6e2b;
+
+  --celebration-cta-bg: #1f5a43;
+  --celebration-cta-text: #ffffff;
+  --celebration-cta-shadow: rgba(31, 90, 67, 0.12);
+  --celebration-cta-shadow-strong: rgba(31, 90, 67, 0.18);
+
+  --celebration-accent: rgba(31, 90, 67, 0.08);
+  --celebration-accent-soft: rgba(31, 90, 67, 0.04);
+  --celebration-shadow-glow: rgba(31, 90, 67, 0.12);
+  --celebration-divider: rgba(17, 24, 39, 0.07);
+
+  --celebration-frame-radius: 48% 48% 22px 22px / 16% 16% 22px 22px;
+  --celebration-frame-radius-mobile: 42% 42% 18px 18px / 14% 14% 18px 18px;
+  --celebration-frame-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(244, 248, 243, 0.95) 100%
+  );
+  --celebration-frame-border: rgba(31, 90, 67, 0.1);
+  --celebration-frame-shadow: rgba(31, 90, 67, 0.08);
+  --celebration-frame-overlay: linear-gradient(
+    180deg,
+    rgba(255, 248, 220, 0.1),
+    rgba(255, 255, 255, 0)
+  );
+  --celebration-image-radius: 44% 44% 18px 18px / 14% 14% 18px 18px;
+  --celebration-image-position: center 34%;
+}
+
+.themeDiwali {
+  --celebration-text: var(--text-dark);
+  --celebration-text-soft: var(--text-muted);
+
+  --celebration-badge-bg: rgba(177, 91, 24, 0.07);
+  --celebration-badge-border: rgba(177, 91, 24, 0.1);
+  --celebration-badge-text: #b15b18;
+
+  --celebration-cta-bg: #8f2d1f;
+  --celebration-cta-text: #ffffff;
+  --celebration-cta-shadow: rgba(143, 45, 31, 0.12);
+  --celebration-cta-shadow-strong: rgba(143, 45, 31, 0.18);
+
+  --celebration-accent: rgba(177, 91, 24, 0.08);
+  --celebration-accent-soft: rgba(177, 91, 24, 0.04);
+  --celebration-shadow-glow: rgba(177, 91, 24, 0.12);
+  --celebration-divider: rgba(17, 24, 39, 0.07);
+
+  --celebration-frame-radius: 34% 34% 20px 20px / 18% 18% 20px 20px;
+  --celebration-frame-radius-mobile: 28% 28% 16px 16px / 16% 16% 16px 16px;
+  --celebration-frame-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.8) 0%,
+    rgba(255, 247, 240, 0.95) 100%
+  );
+  --celebration-frame-border: rgba(177, 91, 24, 0.1);
+  --celebration-frame-shadow: rgba(143, 45, 31, 0.08);
+  --celebration-frame-overlay: linear-gradient(
+    180deg,
+    rgba(255, 214, 170, 0.08),
+    rgba(255, 255, 255, 0)
+  );
+  --celebration-image-radius: 28% 28% 16px 16px / 14% 14% 16px 16px;
+  --celebration-image-position: center 36%;
+}
+
+.themeChristmas {
+  --celebration-text: var(--text-dark);
+  --celebration-text-soft: var(--text-muted);
+
+  --celebration-badge-bg: rgba(33, 79, 52, 0.07);
+  --celebration-badge-border: rgba(33, 79, 52, 0.1);
+  --celebration-badge-text: #9b2134;
+
+  --celebration-cta-bg: #214f34;
+  --celebration-cta-text: #ffffff;
+  --celebration-cta-shadow: rgba(33, 79, 52, 0.12);
+  --celebration-cta-shadow-strong: rgba(33, 79, 52, 0.18);
+
+  --celebration-accent: rgba(155, 33, 52, 0.07);
+  --celebration-accent-soft: rgba(33, 79, 52, 0.04);
+  --celebration-shadow-glow: rgba(33, 79, 52, 0.12);
+  --celebration-divider: rgba(17, 24, 39, 0.07);
+
+  --celebration-frame-radius: 180px 180px 24px 24px;
+  --celebration-frame-radius-mobile: 120px 120px 18px 18px;
+  --celebration-frame-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.8) 0%,
+    rgba(244, 248, 245, 0.95) 100%
+  );
+  --celebration-frame-border: rgba(33, 79, 52, 0.1);
+  --celebration-frame-shadow: rgba(33, 79, 52, 0.08);
+  --celebration-frame-overlay: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.1),
+    rgba(255, 255, 255, 0)
+  );
+  --celebration-image-radius: 150px 150px 18px 18px;
+  --celebration-image-position: center 34%;
+}
+
+.themeOnam {
+  --celebration-text: var(--text-dark);
+  --celebration-text-soft: var(--text-muted);
+
+  --celebration-badge-bg: rgba(157, 111, 21, 0.07);
+  --celebration-badge-border: rgba(157, 111, 21, 0.1);
+  --celebration-badge-text: #9d6f15;
+
+  --celebration-cta-bg: #7a5316;
+  --celebration-cta-text: #ffffff;
+  --celebration-cta-shadow: rgba(122, 83, 22, 0.12);
+  --celebration-cta-shadow-strong: rgba(122, 83, 22, 0.18);
+
+  --celebration-accent: rgba(157, 111, 21, 0.08);
+  --celebration-accent-soft: rgba(157, 111, 21, 0.04);
+  --celebration-shadow-glow: rgba(157, 111, 21, 0.12);
+  --celebration-divider: rgba(17, 24, 39, 0.07);
+
+  --celebration-frame-radius: 38% 38% 22px 22px / 14% 14% 22px 22px;
+  --celebration-frame-radius-mobile: 32% 32% 18px 18px / 12% 12% 18px 18px;
+  --celebration-frame-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.8) 0%,
+    rgba(249, 246, 238, 0.95) 100%
+  );
+  --celebration-frame-border: rgba(122, 83, 22, 0.1);
+  --celebration-frame-shadow: rgba(122, 83, 22, 0.08);
+  --celebration-frame-overlay: linear-gradient(
+    180deg,
+    rgba(255, 241, 204, 0.08),
+    rgba(255, 255, 255, 0)
+  );
+  --celebration-image-radius: 32% 32% 18px 18px / 12% 12% 18px 18px;
+  --celebration-image-position: center 36%;
+}
+
+.themeVishu {
+  --celebration-text: var(--text-dark);
+  --celebration-text-soft: var(--text-muted);
+
+  --celebration-badge-bg: rgba(79, 90, 39, 0.07);
+  --celebration-badge-border: rgba(79, 90, 39, 0.1);
+  --celebration-badge-text: #8c6a11;
+
+  --celebration-cta-bg: #4f5a27;
+  --celebration-cta-text: #ffffff;
+  --celebration-cta-shadow: rgba(79, 90, 39, 0.12);
+  --celebration-cta-shadow-strong: rgba(79, 90, 39, 0.18);
+
+  --celebration-accent: rgba(79, 90, 39, 0.08);
+  --celebration-accent-soft: rgba(79, 90, 39, 0.04);
+  --celebration-shadow-glow: rgba(79, 90, 39, 0.12);
+  --celebration-divider: rgba(17, 24, 39, 0.07);
+
+  --celebration-frame-radius: 44% 44% 20px 20px / 18% 18% 20px 20px;
+  --celebration-frame-radius-mobile: 38% 38% 16px 16px / 14% 14% 16px 16px;
+  --celebration-frame-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.8) 0%,
+    rgba(247, 248, 241, 0.95) 100%
+  );
+  --celebration-frame-border: rgba(79, 90, 39, 0.1);
+  --celebration-frame-shadow: rgba(79, 90, 39, 0.08);
+  --celebration-frame-overlay: linear-gradient(
+    180deg,
+    rgba(246, 244, 214, 0.08),
+    rgba(255, 255, 255, 0)
+  );
+  --celebration-image-radius: 38% 38% 16px 16px / 14% 14% 16px 16px;
+  --celebration-image-position: center 35%;
+}
+
+.themePongal {
+  --celebration-text: var(--text-dark);
+  --celebration-text-soft: var(--text-muted);
+
+  --celebration-badge-bg: rgba(138, 78, 34, 0.07);
+  --celebration-badge-border: rgba(138, 78, 34, 0.1);
+  --celebration-badge-text: #b5681f;
+
+  --celebration-cta-bg: #8a4e22;
+  --celebration-cta-text: #ffffff;
+  --celebration-cta-shadow: rgba(138, 78, 34, 0.12);
+  --celebration-cta-shadow-strong: rgba(138, 78, 34, 0.18);
+
+  --celebration-accent: rgba(181, 104, 31, 0.08);
+  --celebration-accent-soft: rgba(181, 104, 31, 0.04);
+  --celebration-shadow-glow: rgba(181, 104, 31, 0.12);
+  --celebration-divider: rgba(17, 24, 39, 0.07);
+
+  --celebration-frame-radius: 30% 30% 24px 24px / 22% 22% 24px 24px;
+  --celebration-frame-radius-mobile: 26% 26% 18px 18px / 18% 18% 18px 18px;
+  --celebration-frame-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.8) 0%,
+    rgba(250, 245, 241, 0.95) 100%
+  );
+  --celebration-frame-border: rgba(138, 78, 34, 0.1);
+  --celebration-frame-shadow: rgba(138, 78, 34, 0.08);
+  --celebration-frame-overlay: linear-gradient(
+    180deg,
+    rgba(255, 224, 192, 0.08),
+    rgba(255, 255, 255, 0)
+  );
+  --celebration-image-radius: 24% 24% 18px 18px / 18% 18% 18px 18px;
+  --celebration-image-position: center 36%;
+}
+
+.themeEaster {
+  --celebration-text: var(--text-dark);
+  --celebration-text-soft: var(--text-muted);
+
+  --celebration-badge-bg: rgba(86, 97, 65, 0.07);
+  --celebration-badge-border: rgba(86, 97, 65, 0.1);
+  --celebration-badge-text: #8d6a3a;
+
+  --celebration-cta-bg: #566141;
+  --celebration-cta-text: #ffffff;
+  --celebration-cta-shadow: rgba(86, 97, 65, 0.12);
+  --celebration-cta-shadow-strong: rgba(86, 97, 65, 0.18);
+
+  --celebration-accent: rgba(141, 106, 58, 0.08);
+  --celebration-accent-soft: rgba(141, 106, 58, 0.04);
+  --celebration-shadow-glow: rgba(141, 106, 58, 0.12);
+  --celebration-divider: rgba(17, 24, 39, 0.07);
+
+  --celebration-frame-radius: 46% 46% 28% 28% / 26% 26% 18% 18%;
+  --celebration-frame-radius-mobile: 42% 42% 24% 24% / 22% 22% 16% 16%;
+  --celebration-frame-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.82) 0%,
+    rgba(248, 248, 243, 0.95) 100%
+  );
+  --celebration-frame-border: rgba(86, 97, 65, 0.1);
+  --celebration-frame-shadow: rgba(86, 97, 65, 0.08);
+  --celebration-frame-overlay: linear-gradient(
+    180deg,
+    rgba(255, 252, 241, 0.08),
+    rgba(255, 255, 255, 0)
+  );
+  --celebration-image-radius: 40% 40% 24% 24% / 24% 24% 16% 16%;
+  --celebration-image-position: center 34%;
+}
+
+.themeNewYear {
+  --celebration-text: var(--text-dark);
+  --celebration-text-soft: var(--text-muted);
+
+  --celebration-badge-bg: rgba(65, 52, 122, 0.07);
+  --celebration-badge-border: rgba(65, 52, 122, 0.1);
+  --celebration-badge-text: #8f6bbf;
+
+  --celebration-cta-bg: #41347a;
+  --celebration-cta-text: #ffffff;
+  --celebration-cta-shadow: rgba(65, 52, 122, 0.12);
+  --celebration-cta-shadow-strong: rgba(65, 52, 122, 0.18);
+
+  --celebration-accent: rgba(143, 107, 191, 0.08);
+  --celebration-accent-soft: rgba(143, 107, 191, 0.04);
+  --celebration-shadow-glow: rgba(143, 107, 191, 0.12);
+  --celebration-divider: rgba(17, 24, 39, 0.07);
+
+  --celebration-frame-radius: 160px 160px 18px 18px;
+  --celebration-frame-radius-mobile: 110px 110px 16px 16px;
+  --celebration-frame-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.82) 0%,
+    rgba(247, 246, 252, 0.95) 100%
+  );
+  --celebration-frame-border: rgba(65, 52, 122, 0.1);
+  --celebration-frame-shadow: rgba(65, 52, 122, 0.08);
+  --celebration-frame-overlay: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0)
+  );
+  --celebration-image-radius: 130px 130px 14px 14px;
+  --celebration-image-position: center 34%;
+}
+
+.themeSummer {
+  --celebration-text: var(--text-dark);
+  --celebration-text-soft: var(--text-muted);
+
+  --celebration-badge-bg: rgba(79, 91, 44, 0.07);
+  --celebration-badge-border: rgba(79, 91, 44, 0.1);
+  --celebration-badge-text: #a76a1d;
+
+  --celebration-cta-bg: #4f5b2c;
+  --celebration-cta-text: #ffffff;
+  --celebration-cta-shadow: rgba(79, 91, 44, 0.12);
+  --celebration-cta-shadow-strong: rgba(79, 91, 44, 0.18);
+
+  --celebration-accent: rgba(167, 106, 29, 0.08);
+  --celebration-accent-soft: rgba(167, 106, 29, 0.04);
+  --celebration-shadow-glow: rgba(167, 106, 29, 0.12);
+  --celebration-divider: rgba(17, 24, 39, 0.07);
+
+  --celebration-frame-radius: 28% 28% 18px 18px / 24% 24% 18px 18px;
+  --celebration-frame-radius-mobile: 24% 24% 16px 16px / 20% 20% 16px 16px;
+  --celebration-frame-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.82) 0%,
+    rgba(249, 248, 241, 0.95) 100%
+  );
+  --celebration-frame-border: rgba(79, 91, 44, 0.1);
+  --celebration-frame-shadow: rgba(79, 91, 44, 0.08);
+  --celebration-frame-overlay: linear-gradient(
+    180deg,
+    rgba(255, 249, 220, 0.08),
+    rgba(255, 255, 255, 0)
+  );
+  --celebration-image-radius: 22% 22% 14px 14px / 18% 18% 14px 14px;
+  --celebration-image-position: center 35%;
+}
+
+.themeUni {
+  --celebration-text: var(--text-dark);
+  --celebration-text-soft: var(--text-muted);
+
+  --celebration-badge-bg: rgba(51, 71, 101, 0.07);
+  --celebration-badge-border: rgba(51, 71, 101, 0.1);
+  --celebration-badge-text: #6d7fb0;
+
+  --celebration-cta-bg: #334765;
+  --celebration-cta-text: #ffffff;
+  --celebration-cta-shadow: rgba(51, 71, 101, 0.12);
+  --celebration-cta-shadow-strong: rgba(51, 71, 101, 0.18);
+
+  --celebration-accent: rgba(109, 127, 176, 0.08);
+  --celebration-accent-soft: rgba(109, 127, 176, 0.04);
+  --celebration-shadow-glow: rgba(109, 127, 176, 0.12);
+  --celebration-divider: rgba(17, 24, 39, 0.07);
+
+  --celebration-frame-radius: 24px 72px 24px 72px;
+  --celebration-frame-radius-mobile: 18px 52px 18px 52px;
+  --celebration-frame-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.82) 0%,
+    rgba(246, 248, 251, 0.95) 100%
+  );
+  --celebration-frame-border: rgba(51, 71, 101, 0.1);
+  --celebration-frame-shadow: rgba(51, 71, 101, 0.08);
+  --celebration-frame-overlay: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0)
+  );
+  --celebration-image-radius: 16px 56px 16px 56px;
+  --celebration-image-position: center 34%;
+}

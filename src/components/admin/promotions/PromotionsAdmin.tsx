@@ -1,7 +1,7 @@
-// src/components/admin/promotions/PromotionsAdmin.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+
 import styles from './promotions.module.scss';
 
 import type {
@@ -25,6 +25,12 @@ import PromotionsTable from './PromotionsTable';
 import UsagePanel from './UsagePanel';
 import { discountLabel, targetLabel } from './utils';
 
+type CustomerOptionsResponse =
+  | { ok: true; options: PickerOption[] }
+  | { ok: true; customers: Array<{ id: string; name: string | null; email: string }> }
+  | { ok: false; error: string }
+  | { error?: string };
+
 export default function PromotionsAdmin() {
   const [tab, setTab] = useState<'promos' | 'usage'>('promos');
 
@@ -40,11 +46,16 @@ export default function PromotionsAdmin() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  // picker options
+  // category/product picker options
   const [optsLoading, setOptsLoading] = useState(false);
   const [optsErr, setOptsErr] = useState<string | null>(null);
   const [categoryOptions, setCategoryOptions] = useState<PickerOption[]>([]);
   const [productOptions, setProductOptions] = useState<PickerOption[]>([]);
+
+  // customer picker options (separate endpoint)
+  const [custLoading, setCustLoading] = useState(false);
+  const [custErr, setCustErr] = useState<string | null>(null);
+  const [customerOptions, setCustomerOptions] = useState<PickerOption[]>([]);
 
   // edit modal
   const [editId, setEditId] = useState<string | null>(null);
@@ -82,7 +93,7 @@ export default function PromotionsAdmin() {
     }
   }
 
-  async function loadOptions() {
+  async function loadCategoryProductOptions() {
     setOptsErr(null);
     setOptsLoading(true);
 
@@ -98,7 +109,9 @@ export default function PromotionsAdmin() {
       }
 
       const ok = json as OptionsApiOk;
+
       setCategoryOptions((ok.categories ?? []).map((c) => ({ id: c.id, label: c.name })));
+
       setProductOptions(
         (ok.products ?? []).map((p) => ({
           id: p.id,
@@ -113,6 +126,62 @@ export default function PromotionsAdmin() {
     } finally {
       setOptsLoading(false);
     }
+  }
+
+  // customers come from /api/admin/options/customers
+  async function loadCustomerOptions() {
+    setCustErr(null);
+    setCustLoading(true);
+
+    try {
+      const res = await fetch('/api/admin/options/customers', { cache: 'no-store' });
+      const json = (await res.json()) as CustomerOptionsResponse;
+
+      if (!res.ok) {
+        const msg =
+          ('error' in json && typeof json.error === 'string' ? json.error : undefined) ??
+          'Failed to load customers.';
+        setCustErr(msg);
+        setCustomerOptions([]);
+        return;
+      }
+
+      // 1) { ok:true, options: PickerOption[] }
+      if ('ok' in json && json.ok === true && 'options' in json && Array.isArray(json.options)) {
+        setCustomerOptions(json.options);
+        return;
+      }
+
+      // 2) { ok:true, customers: [...] }
+      if (
+        'ok' in json &&
+        json.ok === true &&
+        'customers' in json &&
+        Array.isArray(json.customers)
+      ) {
+        setCustomerOptions(
+          json.customers.map((c) => ({
+            id: c.id,
+            label: c.name?.trim() ? c.name.trim() : c.email,
+            meta: c.email
+          }))
+        );
+        return;
+      }
+
+      // fallback
+      setCustomerOptions([]);
+    } catch (e) {
+      setCustErr(e instanceof Error ? e.message : 'Failed to load customers.');
+      setCustomerOptions([]);
+    } finally {
+      setCustLoading(false);
+    }
+  }
+
+  // combined helper - used by create modal
+  async function loadAllPickerOptions() {
+    await Promise.all([loadCategoryProductOptions(), loadCustomerOptions()]);
   }
 
   async function loadUsage() {
@@ -154,7 +223,7 @@ export default function PromotionsAdmin() {
         if (!query) return true;
         const blob = [
           r.name,
-          r.code,
+          r.code ?? '',
           r.status,
           r.type,
           r.discountType,
@@ -178,16 +247,30 @@ export default function PromotionsAdmin() {
         body: JSON.stringify(body)
       });
 
-      const json = (await res.json()) as { ok: boolean; error?: string };
+      const json = (await res.json()) as
+        | { ok: true; promotion: { id: string; code: string | null; name: string } }
+        | { ok: false; error?: string };
+
       if (!res.ok || !json.ok) {
-        setCreateError(json.error ?? 'Failed to create promotion.');
-        return;
+        setCreateError(
+          !json.ok ? (json.error ?? 'Failed to create promotion.') : 'Failed to create.'
+        );
+        throw new Error(!json.ok ? (json.error ?? 'Failed') : 'Failed');
       }
 
       setCreateOpen(false);
       await loadPromos();
+
+      return {
+        id: json.promotion.id,
+        code: json.promotion.code ?? null,
+        name: json.promotion.name
+      };
     } catch (e) {
-      setCreateError(e instanceof Error ? e.message : 'Failed to create promotion.');
+      // ensure modal sees createError too
+      if (!createError)
+        setCreateError(e instanceof Error ? e.message : 'Failed to create promotion.');
+      throw e;
     } finally {
       setCreating(false);
     }
@@ -220,7 +303,7 @@ export default function PromotionsAdmin() {
   }
 
   async function deletePromo(p: PromotionRow) {
-    const yes = window.confirm(`Delete promo "${p.code}"? This cannot be undone.`);
+    const yes = window.confirm(`Delete promo "${p.code ?? ''}"? This cannot be undone.`);
     if (!yes) return;
 
     setErr(null);
@@ -234,7 +317,7 @@ export default function PromotionsAdmin() {
     }
   }
 
-  async function openEdit(id: string) {
+  function openEdit(id: string) {
     setEditErr(null);
     setEditId(id);
     setEditOpen(true);
@@ -286,6 +369,10 @@ export default function PromotionsAdmin() {
       setEditErr(e instanceof Error ? e.message : 'Failed to save.');
     }
   }
+
+  // unify picker-loading UI for modals
+  const combinedOptionsLoading = optsLoading || custLoading;
+  const combinedOptionsError = optsErr ?? custErr;
 
   return (
     <div className={styles.page}>
@@ -383,9 +470,9 @@ export default function PromotionsAdmin() {
             onClose={() => setCreateOpen(false)}
             categoryOptions={categoryOptions}
             productOptions={productOptions}
-            optionsLoading={optsLoading}
-            optionsError={optsErr}
-            onRequestOptions={loadOptions}
+            optionsLoading={combinedOptionsLoading}
+            optionsError={combinedOptionsError}
+            onRequestOptions={loadAllPickerOptions}
             onCreate={createPromo}
             creating={creating}
             createError={createError}
@@ -395,11 +482,15 @@ export default function PromotionsAdmin() {
             id={editId}
             open={editOpen}
             onClose={closeEdit}
-            onLoad={loadEdit}
+            onLoad={(x) => void loadEdit(x)}
             loading={editLoading}
             error={editErr}
             promotion={editData}
-            onSave={saveEdit}
+            onSave={(pid, patch) => void saveEdit(pid, patch)}
+            customerOptions={customerOptions}
+            optionsLoading={combinedOptionsLoading}
+            optionsError={combinedOptionsError}
+            onRequestOptions={loadCustomerOptions}
           />
         </>
       )}

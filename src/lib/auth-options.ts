@@ -32,9 +32,17 @@ async function checkPassword(email: string, password: string) {
   return ok ? user : null;
 }
 
+// ✅ IMPORTANT: only set cookie domain in production real domains.
+// For localhost/admin.localhost, DO NOT set Domain=... or browser may drop it.
+const cookieDomain =
+  process.env.NODE_ENV === 'production' && process.env.AUTH_COOKIE_DOMAIN
+    ? process.env.AUTH_COOKIE_DOMAIN
+    : undefined;
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   session: { strategy: 'jwt' },
+  debug: process.env.NEXTAUTH_DEBUG === 'true',
 
   cookies: {
     sessionToken: {
@@ -47,7 +55,34 @@ export const authOptions: NextAuthOptions = {
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
-        ...(process.env.AUTH_COOKIE_DOMAIN ? { domain: process.env.AUTH_COOKIE_DOMAIN } : {})
+        ...(cookieDomain ? { domain: cookieDomain } : {})
+      }
+    },
+
+    callbackUrl: {
+      name:
+        process.env.NODE_ENV === 'production'
+          ? '__Secure-next-auth.callback-url'
+          : 'next-auth.callback-url',
+      options: {
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        ...(cookieDomain ? { domain: cookieDomain } : {})
+      }
+    },
+
+    csrfToken: {
+      name:
+        process.env.NODE_ENV === 'production'
+          ? '__Host-next-auth.csrf-token'
+          : 'next-auth.csrf-token',
+      options: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/'
+        // ✅ DO NOT set domain here (especially not for localhost)
       }
     }
   },
@@ -63,7 +98,6 @@ export const authOptions: NextAuthOptions = {
         ]
       : []),
 
-    // PUBLIC: customers — block if a live verification token exists
     Credentials({
       id: 'credentials',
       name: 'Email & Password',
@@ -75,15 +109,10 @@ export const authOptions: NextAuthOptions = {
         const email = parsed.data.email.toLowerCase();
         const { password } = parsed.data;
 
-        // If there is an active VerificationToken for this email, prevent sign-in
         const pending = await prisma.verificationToken.findFirst({
           where: { identifier: email, expires: { gt: new Date() } }
         });
-        if (pending) {
-          // If you ever want to surface a specific error:
-          // throw new Error('EmailNotVerified');
-          return null;
-        }
+        if (pending) return null;
 
         const user = await checkPassword(email, password);
         if (!user) return null;
@@ -92,7 +121,6 @@ export const authOptions: NextAuthOptions = {
       }
     }),
 
-    // ADMIN: HEAD/STAFF only
     Credentials({
       id: 'admin-credentials',
       name: 'Admin Email & Password',
@@ -121,12 +149,10 @@ export const authOptions: NextAuthOptions = {
 
       if (user) {
         if (isAdapterUser(user)) t.id = user.id;
-
         const maybeRole = (user as Partial<{ role: Role }>).role;
         if (maybeRole) t.role = maybeRole;
       }
 
-      // Backfill from DB if needed
       if ((!t.role || !t.id) && token.email) {
         const db = await prisma.user.findUnique({
           where: { email: String(token.email).toLowerCase() },
@@ -149,59 +175,29 @@ export const authOptions: NextAuthOptions = {
         if (t.role) u.role = t.role;
       }
       return session;
-    },
-
-    async signIn({ user, account }) {
-      if (account?.provider === 'google' && isAdapterUser(user)) {
-        // Optional: light profile refresh
-        const u = await prisma.user.findUnique({ where: { id: user.id } });
-        if (u) {
-          const parts = (user.name ?? '').trim().split(/\s+/);
-          const first = u.firstName ?? parts[0] ?? null;
-          const last = u.lastName ?? (parts.length > 1 ? parts.slice(1).join(' ') : null);
-          const fullName =
-            first && last ? `${first} ${last}` : (first ?? u.name ?? user.name ?? '');
-
-          await prisma.user.update({
-            where: { id: u.id },
-            data: {
-              firstName: first ?? undefined,
-              lastName: last ?? undefined,
-              name: fullName || u.name || undefined
-            }
-          });
-        }
-      }
-      return true;
-    }
-  },
-
-  events: {
-    async createUser({ user }) {
-      // make sure newly created users default to VIEWER
-      if (isAdapterUser(user)) {
-        await prisma.user
-          .update({ where: { id: user.id }, data: { role: 'VIEWER' } })
-          .catch(() => {});
-      }
-
-      // kick off your custom verification flow via Resend
-      const base =
-        process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com';
-      const url = `${base}/api/auth/send-verify`;
-
-      fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, name: user.name })
-      }).catch(() => {});
     }
   },
 
   pages: {
-    signIn: '/login',
-    error: '/login'
+    signIn: '/admin/login',
+    error: '/admin/login'
   },
 
   secret: process.env.NEXTAUTH_SECRET
 };
+
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id?: string;
+      role?: 'HEAD' | 'STAFF' | 'VIEWER';
+    } & DefaultSession['user'];
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT {
+    id?: string;
+    role?: 'HEAD' | 'STAFF' | 'VIEWER';
+  }
+}

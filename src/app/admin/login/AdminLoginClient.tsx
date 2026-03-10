@@ -67,11 +67,8 @@ export default function AdminLoginClient() {
     setPending(true);
 
     try {
-      /**
-       * ✅ Use the SAME working provider as /login:
-       * - avoids admin-credentials-specific rejects
-       * - we enforce staff access AFTER sign-in
-       */
+      console.log('[ADMIN LOGIN] submitting', { email: email.trim(), callbackUrl });
+
       const res = await signIn('credentials', {
         email: email.trim(),
         password,
@@ -79,33 +76,39 @@ export default function AdminLoginClient() {
         callbackUrl
       });
 
+      console.log('[ADMIN LOGIN] signIn result', res);
+
       if (!res) {
         setErr('Unexpected error. Try again.');
-        setPending(false);
         return;
       }
 
       if (res.error) {
         setErr('Invalid email or password.');
-        setPending(false);
         return;
       }
 
-      // Pull fresh session and enforce staff-only
+      // ✅ proves whether cookie/session actually exists
       const session = await getSession();
+      console.log('[ADMIN LOGIN] session after signIn', session);
+
       const role = (session?.user as { role?: Role } | undefined)?.role;
 
       if (!isStaff(role)) {
         await signOut({ redirect: false });
         setErr('Access denied. Staff accounts only.');
-        setPending(false);
         return;
       }
 
-      router.replace(res.url ?? callbackUrl);
-      router.refresh();
-    } catch {
+      const target = res.url ?? callbackUrl;
+      console.log('[ADMIN LOGIN] redirecting to', target);
+
+      // ✅ most reliable across subdomain/dev setups
+      window.location.assign(target);
+    } catch (e) {
+      console.error('[ADMIN LOGIN] failed', e);
       setErr('Unexpected error. Please try again.');
+    } finally {
       setPending(false);
     }
   }

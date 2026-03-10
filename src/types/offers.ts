@@ -1,10 +1,22 @@
 // src/types/offers.ts
 
 export type OfferMode = 'AUTO' | 'CODE' | 'BOTH';
+
+// UI status includes DRAFT for admin, but Prisma OfferStatus is ACTIVE/PAUSED/EXPIRED.
+// We store DRAFT as PAUSED in DB.
 export type OfferStatus = 'ACTIVE' | 'PAUSED' | 'EXPIRED';
 
 export type OfferStackingMode = 'BEST_DISCOUNT_WINS' | 'HIGHEST_PRIORITY_WINS' | 'STACK_ALLOWED';
+
+/**
+ * IMPORTANT:
+ * This is NOT eligibility.
+ * This is placement / where it shows (badge/product/cart/all).
+ * Prisma enum: ALL | BADGE_ONLY | PRODUCT_PAGE | CART_ONLY
+ */
 export type OfferVisibility = 'ALL' | 'BADGE_ONLY' | 'PRODUCT_PAGE' | 'CART_ONLY';
+
+export type OfferEmailScope = 'ALL_CUSTOMERS' | 'SELECTED_USERS';
 
 export type OfferTargetRule =
   | { type: 'ALL_PRODUCTS' }
@@ -84,16 +96,18 @@ export interface OfferAdminForm {
   id?: string;
 
   name: string;
-
-  mode: OfferMode;
+  mode: 'AUTO' | 'CODE' | 'BOTH';
   code: string | null;
 
-  status: OfferStatus;
-
+  status: 'ACTIVE' | 'PAUSED' | 'DRAFT';
   startsAt: string | null;
   endsAt: string | null;
 
-  stackingMode: OfferStackingMode;
+  stackingMode:
+    | 'BEST_DISCOUNT_WINS'
+    | 'HIGHEST_PRIORITY_WINS'
+    | 'STACK_ALLOWED'
+    | 'HIGHEST_PRIORITY_WINS';
   priority: number;
 
   maxDiscountPerOrderPence: number | null;
@@ -102,12 +116,30 @@ export interface OfferAdminForm {
   visibility: OfferVisibility;
 
   exclusions: Record<string, unknown>;
-
   payload: OfferPayload;
+
+  // banner defaults
+  bannerEnabled: boolean;
+  bannerTitle: string | null;
+  bannerMessage: string | null;
+  bannerCtaLabel: string | null;
+  bannerCtaHref: string | null;
+  bannerStartsAt: string | null;
+  bannerEndsAt: string | null;
+
+  // email defaults saved on offer
+  emailEnabled: boolean;
+  emailSubject: string | null;
+  emailMessage: string | null;
+
+  // ✅ Manual blast settings (admin-only, not stored on Offer table)
+  blastEnabled?: boolean;
+  blastScope?: OfferEmailScope;
+  blastUserIds?: string[];
 }
 
 /* =========================================================
-   ✅ NEW: Engine meta types (so UI can show item-level usage)
+   Engine meta types (unchanged)
    ========================================================= */
 
 export type OfferLineDiscountReason = 'FREE' | 'DISCOUNT';
@@ -131,11 +163,6 @@ export interface OfferLineParticipant {
   role: OfferLineParticipantRole;
 }
 
-/**
- * What each applied offer can return as "meta" for UI.
- * - lineDiscounts: which items became free / discounted
- * - lineParticipants: which items were considered "part of" the offer
- */
 export interface OfferAppliedMeta {
   groups?: number;
   freeCount?: number;
@@ -144,7 +171,6 @@ export interface OfferAppliedMeta {
   lineDiscounts?: OfferLineDiscount[];
   lineParticipants?: OfferLineParticipant[];
 
-  // allow extra future fields
   [k: string]: unknown;
 }
 
@@ -156,8 +182,8 @@ export interface OfferDbRow {
   code: string | null;
 
   status: OfferStatus;
-  startsAt: string | null; // ISO string
-  endsAt: string | null; // ISO string
+  startsAt: string | null; // ISO
+  endsAt: string | null; // ISO
 
   stackingMode: OfferStackingMode;
   priority: number;

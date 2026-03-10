@@ -1,3 +1,4 @@
+// src/app/api/healthz/apc/route.ts
 import { NextResponse } from 'next/server';
 
 type ApcHealthStatus = 'UP' | 'DEGRADED' | 'DOWN';

@@ -1,9 +1,7 @@
-// src/components/checkout/PaymentStep.tsx (FULL)
-// ✅ looks filled (Standard delivery card), no express, no emptiness
-
+// src/components/checkout/PaymentStep.tsx
 'use client';
 
-import styles from '@/app/checkout/checkout.module.scss';
+import styles from './PaymentStep.module.scss';
 import type { Delivery } from './types';
 
 export default function PaymentStep({
@@ -17,7 +15,9 @@ export default function PaymentStep({
   onPlaceOrder,
   isAdmin,
   onPayWithStripe,
-  onPlaceTestOrder
+  onPayWithStripeTest,
+  onPlaceTestOrder,
+  grandTotalPence
 }: {
   delivery: Delivery;
   setDelivery: (d: Delivery) => void;
@@ -26,16 +26,54 @@ export default function PaymentStep({
   mounted: boolean;
   err: string | null;
   onEditAddress: () => void;
-  onPlaceOrder: () => void;
+
+  onPlaceOrder: () => Promise<void> | void;
+
   isAdmin: boolean;
-  onPayWithStripe: () => void;
-  onPlaceTestOrder: () => void;
+
+  onPayWithStripe: () => Promise<void> | void;
+  onPayWithStripeTest: () => Promise<void> | void;
+
+  onPlaceTestOrder: () => Promise<void> | void;
+
+  grandTotalPence: number;
 }) {
-  // backend is STANDARD-only; keep compatibility
   void delivery;
   void setDelivery;
 
   const disabled = placing || (mounted ? !formValid : true);
+
+  const totalPence = Math.max(0, Math.trunc(grandTotalPence ?? 0));
+  const isFreeOrder = totalPence <= 0;
+
+  // ✅ isolate click handling (prevents any weird parent/overlay bubbling)
+  const handleLiveClick: React.MouseEventHandler<HTMLButtonElement> = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (disabled) return;
+    void onPayWithStripe();
+  };
+
+  const handleTestClick: React.MouseEventHandler<HTMLButtonElement> = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (disabled) return;
+    void onPayWithStripeTest();
+  };
+
+  const handlePlaceOrder: React.MouseEventHandler<HTMLButtonElement> = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (disabled) return;
+    void onPlaceOrder();
+  };
+
+  const handlePlaceTestOrder: React.MouseEventHandler<HTMLButtonElement> = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (placing || !formValid) return;
+    void onPlaceTestOrder();
+  };
 
   return (
     <>
@@ -52,6 +90,15 @@ export default function PaymentStep({
         <p className={styles.err} role="alert" aria-live="polite">
           {err}
         </p>
+      )}
+
+      {isFreeOrder && (
+        <div className={styles.infoBox} role="status" aria-live="polite">
+          <div className={styles.infoTitle}>No payment required</div>
+          <div className={styles.infoText}>
+            Your discount covers the full order total. You can place the order now without payment.
+          </div>
+        </div>
       )}
 
       <div className={styles.card} style={{ marginTop: 12 }}>
@@ -76,8 +123,12 @@ export default function PaymentStep({
         <div className={styles.summaryRow}>
           <div>
             <div className={styles.summaryTitle}>Payment method</div>
-            <div className={styles.summaryValue}>Card</div>
-            <div className={styles.summaryHint}>You’ll be asked to confirm on the next step.</div>
+            <div className={styles.summaryValue}>{isFreeOrder ? 'None' : 'Card'}</div>
+            <div className={styles.summaryHint}>
+              {isFreeOrder
+                ? 'No payment is required for this order.'
+                : 'You’ll be redirected to Stripe to complete payment.'}
+            </div>
           </div>
 
           <div style={{ textAlign: 'right' }}>
@@ -88,15 +139,58 @@ export default function PaymentStep({
         </div>
       </div>
 
-      <div className={styles.stepActions}>
-        <button
-          className={styles.place}
-          disabled={disabled}
-          onClick={onPlaceOrder}
-          aria-disabled={disabled}
-        >
-          {placing ? 'Placing…' : 'Place order'}
-        </button>
+      <div className={styles.stepActions} style={{ position: 'relative', zIndex: 1 }}>
+        {isFreeOrder ? (
+          <button
+            type="button"
+            className={styles.primaryBtn}
+            disabled={disabled}
+            aria-disabled={disabled}
+            onClick={handlePlaceOrder}
+            title="Places your order without payment (total is £0)."
+            data-testid="pay-free"
+            style={{ pointerEvents: 'auto' }}
+          >
+            {placing ? 'Placing…' : 'Place order'}
+          </button>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gap: 12,
+              position: 'relative',
+              zIndex: 2
+            }}
+          >
+            <button
+              type="button"
+              className={styles.primaryBtn}
+              disabled={disabled}
+              aria-disabled={disabled}
+              onClick={handleLiveClick}
+              title="Redirects to Stripe Checkout (LIVE) to complete payment."
+              data-testid="pay-live"
+              style={{ pointerEvents: 'auto' }}
+            >
+              {placing ? 'Redirecting…' : 'Pay securely'}
+            </button>
+
+            {isAdmin && (
+              <button
+                type="button"
+                className={styles.secondaryBtn}
+                disabled={disabled}
+                aria-disabled={disabled}
+                onClick={handleTestClick}
+                title="Admin-only: Redirects to Stripe Checkout (TEST)."
+                data-testid="pay-test"
+                style={{ pointerEvents: 'auto' }}
+              >
+                {placing ? 'Redirecting…' : 'Pay with Test Stripe (admin)'}
+              </button>
+            )}
+          </div>
+        )}
 
         <p className={styles.muted}>
           Delivery and promo discounts are re-checked on the server before the order is created.
@@ -105,25 +199,13 @@ export default function PaymentStep({
         {isAdmin && (
           <button
             type="button"
-            className={styles.testBtn}
-            onClick={onPayWithStripe}
-            disabled={disabled}
-            aria-disabled={disabled}
-            title="Creates the order, then redirects to Stripe Checkout (test)."
-          >
-            Pay with Stripe (test)
-          </button>
-        )}
-
-        {isAdmin && (
-          <button
-            type="button"
-            className={styles.testBtn}
-            onClick={onPlaceTestOrder}
+            className={styles.secondaryBtn}
+            onClick={handlePlaceTestOrder}
             disabled={placing || !formValid}
             aria-disabled={placing || !formValid}
-            title="Admin-only: writes a paid test order directly."
-            style={{ marginTop: 8 }}
+            title="Admin-only: writes a paid test order directly (skips Stripe)."
+            data-testid="place-test-order"
+            style={{ pointerEvents: 'auto' }}
           >
             Place Test Order (admin only)
           </button>

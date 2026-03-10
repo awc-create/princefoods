@@ -240,6 +240,17 @@ async function logPromoOrderAttempt(args: {
   }
 }
 
+interface CustomerDiscountRecord {
+  id: string;
+  percentOff: number;
+  applyShippingDiscount: boolean;
+  shippingPercentOffDry: number | null;
+  shippingPercentOffFrozen: number | null;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  revokedAt: Date | null;
+}
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -459,6 +470,37 @@ export async function POST(req: Request) {
           ? 'FROZEN'
           : 'DRY';
 
+    // -------- CUSTOMER DISCOUNT (DB) --------
+    const now = new Date();
+    let customerDiscount: CustomerDiscountRecord | null = null;
+
+    if (safeUserId) {
+      customerDiscount = await prisma.customerDiscount.findFirst({
+        where: {
+          userId: safeUserId,
+          revokedAt: null,
+          AND: [
+            { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+            { OR: [{ endsAt: null }, { endsAt: { gte: now } }] }
+          ]
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          percentOff: true,
+          applyShippingDiscount: true,
+          shippingPercentOffDry: true,
+          shippingPercentOffFrozen: true,
+          startsAt: true,
+          endsAt: true,
+          revokedAt: true
+        }
+      });
+    }
+
+    let custItemDiscountPence = 0;
+    let custShippingDiscountPence = 0;
+
     // -------- PROMOTION (DB) evaluation --------
     let promotionId: string | null = null;
     let promotionCode: string | null = null;
@@ -475,16 +517,24 @@ export async function POST(req: Request) {
           status: true,
           startsAt: true,
           endsAt: true,
+
+          // ✅ NEW
+          eligibleCustomerScope: true,
+          allowedUsers: { select: { userId: true } },
+
           lockedToUserId: true,
           lockedToEmail: true,
           maxUsesTotal: true,
           maxUsesPerUser: true,
+
           discountType: true,
           percentOff: true,
           amountOffPence: true,
+
           applyShippingDiscount: true,
           shippingPercentOffDry: true,
           shippingPercentOffFrozen: true,
+
           targetType: true,
           categories: { select: { categoryId: true } },
           products: { select: { productId: true } }
@@ -492,15 +542,17 @@ export async function POST(req: Request) {
       });
 
       if (promo && promo.status === 'ACTIVE') {
-        const now = new Date();
-
         const okTime =
           (!promo.startsAt || now >= promo.startsAt) && (!promo.endsAt || now <= promo.endsAt);
         const okLockUser = !promo.lockedToUserId || promo.lockedToUserId === safeUserId;
         const okLockEmail =
           !promo.lockedToEmail || promo.lockedToEmail.trim().toLowerCase() === emailNorm;
+        const okCustomerScope =
+          promo.eligibleCustomerScope !== 'USERS'
+            ? true
+            : !!safeUserId && promo.allowedUsers.some((x) => x.userId === safeUserId);
 
-        if (okTime && okLockUser && okLockEmail) {
+        if (okTime && okLockUser && okLockEmail && okCustomerScope) {
           // ✅ usage gates
           let okTotalUses = true;
           if (promo.maxUsesTotal != null && promo.maxUsesTotal >= 0) {
@@ -650,19 +702,54 @@ export async function POST(req: Request) {
       promoShippingDiscountPence = 0;
     }
 
+    // ✅ compute discounts used
+    const itemDiscountUsed = useOffers ? offerItemDiscountPence : promoItemDiscountPence;
+
+    // -------- APPLY CUSTOMER DISCOUNT (stacks on top) --------
+    if (customerDiscount) {
+      const pctItem = clampPct(Math.trunc(customerDiscount.percentOff ?? 0));
+
+      // item discount applies to remaining subtotal after offers/promo item discount
+      const remainingSubtotal = Math.max(0, computedSubtotal - itemDiscountUsed);
+
+      custItemDiscountPence = Math.round((remainingSubtotal * pctItem) / 100);
+      custItemDiscountPence = Math.max(0, Math.min(custItemDiscountPence, remainingSubtotal));
+
+      // shipping discount applies to remaining shipping after promo shipping discount
+      if (customerDiscount.applyShippingDiscount) {
+        const pctDry = clampPct(Math.trunc(customerDiscount.shippingPercentOffDry ?? 0));
+        const pctFrozen = clampPct(Math.trunc(customerDiscount.shippingPercentOffFrozen ?? 0));
+
+        const pctShip =
+          kind === 'FROZEN' ? pctFrozen : kind === 'DRY' ? pctDry : Math.max(pctDry, pctFrozen);
+
+        const remainingShipping = Math.max(0, baseShippingTotal - promoShippingDiscountPence);
+
+        custShippingDiscountPence = Math.round((remainingShipping * pctShip) / 100);
+        custShippingDiscountPence = Math.max(
+          0,
+          Math.min(custShippingDiscountPence, remainingShipping)
+        );
+      }
+    }
+
     // ✅ totals (trusted)
-    const shippingAfterDiscount = Math.max(0, baseShippingTotal - promoShippingDiscountPence);
+    const shippingAfterDiscount = Math.max(
+      0,
+      baseShippingTotal - promoShippingDiscountPence - custShippingDiscountPence
+    );
 
     const discountTotal = Math.max(
       0,
-      (useOffers ? offerItemDiscountPence : promoItemDiscountPence) + promoShippingDiscountPence
+      itemDiscountUsed +
+        promoShippingDiscountPence +
+        custItemDiscountPence +
+        custShippingDiscountPence
     );
-
-    const itemDiscountUsed = useOffers ? offerItemDiscountPence : promoItemDiscountPence;
 
     const grandTotal = Math.max(
       0,
-      computedSubtotal + shippingAfterDiscount - itemDiscountUsed + t.tax
+      computedSubtotal + shippingAfterDiscount - itemDiscountUsed - custItemDiscountPence + t.tax
     );
 
     // ✅ Create addresses snapshot
@@ -770,6 +857,42 @@ export async function POST(req: Request) {
         });
 
         await logActivity(created.id, 'PLACED');
+
+        // ✅ Persist customer discount usage (audit trail)
+        if (customerDiscount && (custItemDiscountPence > 0 || custShippingDiscountPence > 0)) {
+          try {
+            await prisma.orderCustomerDiscount.create({
+              data: {
+                orderId: created.id,
+                customerDiscountId: customerDiscount.id,
+                userId: created.userId ?? null,
+
+                percentOff: clampPct(Math.trunc(customerDiscount.percentOff ?? 0)),
+                applyShippingDiscount: customerDiscount.applyShippingDiscount === true,
+                shippingPercentOffDry:
+                  customerDiscount.applyShippingDiscount === true
+                    ? (customerDiscount.shippingPercentOffDry ?? null)
+                    : null,
+                shippingPercentOffFrozen:
+                  customerDiscount.applyShippingDiscount === true
+                    ? (customerDiscount.shippingPercentOffFrozen ?? null)
+                    : null,
+
+                discountPence: Math.max(0, Math.trunc(custItemDiscountPence)),
+                shippingDiscountPence: Math.max(0, Math.trunc(custShippingDiscountPence))
+              }
+            });
+
+            await logActivity(
+              created.id,
+              'NOTE',
+              `Customer discount applied: ${clampPct(Math.trunc(customerDiscount.percentOff ?? 0))}%` +
+                (customerDiscount.applyShippingDiscount ? ' + shipping discount' : '')
+            );
+          } catch (e) {
+            console.warn('[place-order] failed to persist OrderCustomerDiscount (ignored):', e);
+          }
+        }
 
         // ✅ Offers audit trail
         if (useOffers && (offerResult.applied.length || offerResult.autoAdd.length)) {

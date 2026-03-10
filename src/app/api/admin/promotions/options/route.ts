@@ -1,3 +1,4 @@
+// src/app/api/admin/promotions/options/route.ts
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';

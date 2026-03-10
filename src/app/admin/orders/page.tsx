@@ -320,9 +320,10 @@ export default function OrdersPage() {
                       </Link>
                     </span>
 
-                    {/* APC label from list view (modal will fetch address on open) */}
+                    {/* ✅ APC label from list view is LIVE */}
                     <span style={{ marginLeft: 8 }}>
                       <BuyApcLabelButton
+                        mode="live"
                         orderId={order.id}
                         weightGrams={order.totalWeightGrams ?? undefined}
                       />

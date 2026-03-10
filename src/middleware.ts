@@ -7,9 +7,16 @@ import { NextResponse } from 'next/server';
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
 type Token = (JWT & { role?: Role }) | null;
 
-/** Public and admin hosts */
-const PUBLIC_HOSTS = new Set(['prince-v.com', 'www.prince-v.com']);
-const ADMIN_HOSTS = new Set(['admin.prince-v.com']);
+/** Public and admin hosts (no ports) */
+const PUBLIC_HOSTS = new Set([
+  'prince-v.com',
+  'www.prince-v.com',
+  'localhost',
+  '127.0.0.1',
+  'princefoods.localhost' // optional if you use it
+]);
+
+const ADMIN_HOSTS = new Set(['admin.prince-v.com', 'admin.localhost', 'admin.127.0.0.1']);
 
 /** If your real admin app is NOT at /admin, change this to '/app/admin' (or similar) */
 const ADMIN_ROOT_INTERNAL = '/admin';
@@ -19,8 +26,12 @@ const isLoginPath = (p: string) =>
 
 const isFile = (p: string) => /\.[a-zA-Z0-9]+$/.test(p);
 
-function getHost(req: NextRequest) {
-  return req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? req.nextUrl.hostname;
+function getHostNoPort(req: NextRequest) {
+  const raw =
+    req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? req.nextUrl.hostname ?? '';
+
+  // strip port: "admin.localhost:3000" -> "admin.localhost"
+  return raw.split(',')[0]!.trim().replace(/:\d+$/, '');
 }
 
 function redirectToLogin(req: NextRequest, callbackUrl: string) {
@@ -33,7 +44,7 @@ function redirectToLogin(req: NextRequest, callbackUrl: string) {
 
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
-  const host = getHost(req);
+  const host = getHostNoPort(req);
 
   // --- Bypass framework/static/API/auth/health/files/login/signup ---
   if (

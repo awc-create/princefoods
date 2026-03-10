@@ -1,6 +1,7 @@
-// src/lib/email.tsx
 import ApcLabelReadyEmail from '@/emails/ApcLabelReadyEmail';
 import ChatSLAEmail from '@/emails/ChatSLAEmail';
+import OfferEmail from '@/emails/OfferEmail';
+import PromotionCodeEmail from '@/emails/PromotionCodeEmail';
 import TrackingEmail from '@/emails/TrackingEmail';
 import WelcomeEmail from '@/emails/WelcomeEmail';
 import { renderAsync } from '@react-email/render';
@@ -290,6 +291,100 @@ export async function sendEmailChangedNotice(params: {
     html,
     replyTo: DEFAULT_TO,
     tags: [{ name: 'category', value: 'order-email-changed' }]
+  });
+
+  if (error) throw error;
+  return { id: data?.id ?? null };
+}
+
+/**
+ * Promo code email
+ */
+export async function sendPromotionCodeEmail(params: {
+  to: string | string[];
+  name?: string | null;
+  code: string;
+  subject: string;
+  message?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+}) {
+  const recipients = Array.isArray(params.to) ? params.to : [params.to];
+
+  const html = await renderAsync(
+    <PromotionCodeEmail
+      name={params.name ?? null}
+      code={params.code}
+      title={params.subject}
+      message={params.message ?? null}
+      siteUrl={SITE_BASE}
+      validFrom={params.startsAt ?? null}
+      validTo={params.endsAt ?? null}
+      logoUrl={LOGO_URL}
+      supportEmail={DEFAULT_TO}
+      primary="#D62828"
+    />
+  );
+
+  const resend = getResendOrThrow();
+  const { data, error } = await resend.emails.send({
+    from: FROM,
+    to: recipients,
+    subject: params.subject,
+    html,
+    replyTo: process.env.REPLY_TO ?? DEFAULT_TO,
+    tags: [{ name: 'category', value: 'promo-code' }]
+  });
+
+  if (error) throw error;
+  return { id: data?.id ?? null };
+}
+
+export async function sendOfferEmail(params: {
+  to: string | string[];
+  title: string;
+  message?: string | null;
+  offerHeadline: string;
+  sectionTitle?: string | null;
+  products?: Array<{
+    id: string;
+    name: string;
+    href: string;
+    imageUrl?: string | null;
+    pricePence?: number | null;
+    categoryName?: string | null;
+  }>;
+  ctaLabel?: string | null;
+  ctaHref?: string | null;
+  name?: string | null;
+}) {
+  const recipients = Array.isArray(params.to) ? params.to : [params.to];
+
+  const html = await renderAsync(
+    <OfferEmail
+      name={params.name ?? null}
+      title={params.title}
+      message={params.message ?? null}
+      offerHeadline={params.offerHeadline}
+      sectionTitle={params.sectionTitle ?? null}
+      products={params.products ?? []}
+      siteUrl={SITE_BASE}
+      ctaLabel={params.ctaLabel ?? null}
+      ctaHref={params.ctaHref ?? null}
+      logoUrl={LOGO_URL}
+      supportEmail={DEFAULT_TO}
+      primary="#D62828"
+    />
+  );
+
+  const resend = getResendOrThrow();
+  const { data, error } = await resend.emails.send({
+    from: FROM,
+    to: recipients,
+    subject: params.title,
+    html,
+    replyTo: process.env.REPLY_TO ?? DEFAULT_TO,
+    tags: [{ name: 'category', value: 'offer' }]
   });
 
   if (error) throw error;

@@ -1,0 +1,293 @@
+/* src/components/admin/customer-discounts/customer-discounts.module.scss */
+
+.page {
+  padding: 18px;
+}
+
+.topRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.h1 {
+  margin: 0;
+  font-size: 22px;
+}
+.count {
+  opacity: 0.55;
+  font-weight: 600;
+  margin-left: 6px;
+}
+.sub {
+  margin: 6px 0 0;
+  opacity: 0.75;
+}
+
+.topActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.card {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.filters {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.searchWrap {
+  flex: 1;
+}
+.search {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.select {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: white;
+}
+
+.bannerError {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 0, 0, 0.06);
+  border: 1px solid rgba(255, 0, 0, 0.25);
+}
+
+.tableWrap {
+  overflow: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th,
+.table td {
+  padding: 10px 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  text-align: left;
+  vertical-align: top;
+}
+
+.mutedCell {
+  padding: 18px;
+  opacity: 0.7;
+}
+.subtle {
+  opacity: 0.7;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.rowActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.pillActive {
+  background: rgba(0, 200, 0, 0.1);
+}
+.pillUpcoming {
+  background: rgba(255, 180, 0, 0.12);
+}
+.pillExpired {
+  background: rgba(0, 0, 0, 0.06);
+  opacity: 0.8;
+}
+
+/* buttons */
+.primaryBtn,
+.secondaryBtn {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  cursor: pointer;
+}
+
+.primaryBtn {
+  background: #111;
+  color: white;
+  border-color: #111;
+}
+
+.secondaryBtn {
+  background: white;
+}
+
+.secondaryBtnSm,
+.dangerBtnSm {
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  background: white;
+  cursor: pointer;
+}
+
+.dangerBtnSm {
+  border-color: rgba(255, 0, 0, 0.35);
+  background: rgba(255, 0, 0, 0.06);
+}
+
+/* modal */
+/* modal */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 18px;
+  z-index: 50;
+}
+
+/* ✅ lock the modal box and prevent reflow jumps */
+.modal {
+  width: min(820px, 100%);
+  background: white;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+
+  /* ✅ important */
+  max-height: calc(100vh - 36px); /* padding top+bottom = 18+18 */
+  display: flex;
+  flex-direction: column;
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  flex: 0 0 auto;
+}
+
+.modalBody {
+  /* ✅ the body is the only scroll area */
+  overflow: auto;
+  padding: 12px 14px;
+  flex: 1 1 auto;
+  min-height: 0; /* ✅ crucial for flex scroll containers */
+}
+
+.modalFooter {
+  padding: 12px 14px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.formGrid {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+.split2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 740px) {
+  .split2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+.label {
+  font-weight: 700;
+  font-size: 13px;
+}
+.hint {
+  opacity: 0.72;
+  font-size: 12px;
+}
+
+.input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  width: 100%;
+}
+
+.pillInput {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  align-items: center;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.pillIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.75;
+  font-weight: 800;
+}
+
+.checkRow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.checkInline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  opacity: 0.85;
+}
+
+.inlineError {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 0, 0, 0.06);
+  border: 1px solid rgba(255, 0, 0, 0.25);
+}
+
+.cardInset {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.02);
+}

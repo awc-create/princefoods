@@ -1,4 +1,3 @@
-// src/app/admin/offers/offers-client.tsx
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -67,8 +66,25 @@ interface OfferUsageApiOk {
   redemptions: OfferUsageRedemptionRow[];
 }
 
+interface BlastRunResponse {
+  ok?: boolean;
+  done?: boolean;
+  sent?: number;
+  failed?: number;
+  remaining?: number;
+  error?: string;
+}
+
+interface BlastCreateResponse {
+  ok?: boolean;
+  blastId?: string;
+  recipients?: number;
+  run?: BlastRunResponse;
+  error?: string;
+}
+
 /* -------------------------------------------
-   Utils / guards (no any, no overload issues)
+   Utils / guards
 ------------------------------------------- */
 function fmtErr(e: unknown, fallback: string) {
   return e instanceof Error ? e.message : fallback;
@@ -94,11 +110,12 @@ function isOneOk(x: unknown): x is { offer: unknown } {
 }
 
 type OfferRow = OfferAdminForm & { id: string };
+type OfferCreateSubmission = OfferAdminForm & {
+  blastEnabled?: boolean;
+  blastScope?: 'ALL_CUSTOMERS' | 'SELECTED_USERS';
+  blastUserIds?: string[];
+};
 
-/**
- * IMPORTANT: predicate must accept `unknown` so it can be used on `unknown[]`
- * (avoids the TS2769 "No overload matches this call" loop)
- */
 function hasId(value: unknown): value is OfferRow {
   if (!isRecord(value)) return false;
   return typeof value.id === 'string' && value.id.length > 0;
@@ -107,21 +124,17 @@ function hasId(value: unknown): value is OfferRow {
 export default function OffersClient() {
   const [tab, setTab] = useState<'offers' | 'usage'>('offers');
 
-  // offers list
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [rows, setRows] = useState<OfferRow[]>([]);
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | OfferStatus>('ALL');
 
-  // create modal
   const [createOpen, setCreateOpen] = useState(false);
 
-  // edit modal
   const [editOpen, setEditOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
 
-  // usage
   const [usageLoading, setUsageLoading] = useState(false);
   const [usageErr, setUsageErr] = useState<string | null>(null);
   const [usageDays, setUsageDays] = useState('30');
@@ -144,7 +157,6 @@ export default function OffersClient() {
         return;
       }
 
-      // json.offers is unknown[] here, so filter predicate must accept unknown
       const list = (json.offers ?? []).filter(hasId);
       setRows(list);
     } catch (e) {
@@ -210,7 +222,44 @@ export default function OffersClient() {
       });
   }, [rows, q, statusFilter]);
 
-  async function createOffer(body: OfferAdminForm) {
+  async function createOfferBlast(params: {
+    offerId: string;
+    scope: 'ALL_CUSTOMERS' | 'SELECTED_USERS';
+    userIds: string[];
+    subject: string;
+    message: string | null;
+  }) {
+    const res = await fetch(`/api/admin/offers/${params.offerId}/email-blast`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scope: params.scope,
+        userIds: params.userIds,
+        subject: params.subject,
+        message: params.message
+      })
+    });
+
+    const json = (await res.json()) as BlastCreateResponse | ApiErr | unknown;
+
+    if (!res.ok) {
+      throw new Error(readApiError(json) ?? 'Offer created, but email blast failed.');
+    }
+
+    if (!isRecord(json) || json.ok !== true || typeof json.blastId !== 'string') {
+      throw new Error('Offer created, but blast response was invalid.');
+    }
+
+    if (isRecord(json.run) && json.run.ok === false) {
+      throw new Error(
+        typeof json.run.error === 'string' ? json.run.error : 'Offer blast run failed.'
+      );
+    }
+
+    return json as BlastCreateResponse;
+  }
+
+  async function createOffer(body: OfferCreateSubmission) {
     setErr(null);
 
     if (!body?.name?.trim()) {
@@ -219,6 +268,15 @@ export default function OffersClient() {
     }
 
     try {
+      console.log('🟡 [offers-client] createOffer start', body);
+      console.log('🟡 [offers-client] blast flags', {
+        blastEnabled: body.blastEnabled,
+        blastScope: body.blastScope,
+        blastUserIds: body.blastUserIds,
+        emailSubject: body.emailSubject,
+        emailMessage: body.emailMessage
+      });
+
       const res = await fetch('/api/admin/offers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -232,6 +290,39 @@ export default function OffersClient() {
         return;
       }
 
+      const created = (json as { offer: OfferRow }).offer;
+
+      console.log('🟢 [offers-client] offer created', created);
+
+      if (body.blastEnabled) {
+        const subject = (body.emailSubject ?? '').trim();
+
+        if (!subject) {
+          throw new Error('Email subject is required when email-after-create is enabled.');
+        }
+
+        const scope = body.blastScope ?? 'ALL_CUSTOMERS';
+        const userIds = scope === 'SELECTED_USERS' ? (body.blastUserIds ?? []) : [];
+
+        console.log('🟡 [offers-client] creating blast', {
+          offerId: created.id,
+          scope,
+          userIds,
+          subject,
+          message: body.emailMessage ?? null
+        });
+
+        await createOfferBlast({
+          offerId: created.id,
+          scope,
+          userIds,
+          subject,
+          message: body.emailMessage ?? null
+        });
+
+        console.log('🟢 [offers-client] blast created and run');
+      }
+
       setCreateOpen(false);
       await loadOffers();
       window.setTimeout(() => searchRef.current?.focus(), 0);
@@ -243,7 +334,6 @@ export default function OffersClient() {
   async function toggleOffer(o: OfferRow) {
     setErr(null);
 
-    // optimistic
     setRows((prev) =>
       prev.map((x) =>
         x.id === o.id ? { ...x, status: x.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE' } : x

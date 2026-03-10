@@ -323,6 +323,23 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     ? `${order.promotion.code}${order.promotion.name ? ` — ${order.promotion.name}` : ''}`
     : (order.promotionCode ?? null);
 
+  const deliveryPreview = order.shippingAddress
+    ? {
+        name:
+          [order.shippingAddress.firstName ?? '', order.shippingAddress.lastName ?? '']
+            .filter(Boolean)
+            .join(' ')
+            .trim() || 'Customer',
+        phone: order.shippingAddress.phoneE164 ?? null,
+        email: order.contactEmail ?? null,
+        address1: order.shippingAddress.line1 ?? '',
+        address2: order.shippingAddress.line2 ?? '',
+        city: order.shippingAddress.city ?? '',
+        postcode: order.shippingAddress.postcode ?? '',
+        countryCode: (order.shippingAddress.country ?? 'GB').toUpperCase()
+      }
+    : null;
+
   return (
     <div style={{ padding: 24, display: 'grid', gap: 14 }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -405,7 +422,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         }}
       />
 
-      <div style={{ display: 'flex', gap: 8 }}>
+      {/* ✅ Buttons: LIVE + TEST (no switcher) */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <MoreActions
           orderId={order.id}
           contactEmail={order.contactEmail}
@@ -415,27 +433,19 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             order.status !== 'REFUNDED'
           }
         />
+
         <BuyApcLabelButton
+          mode="live"
           orderId={order.id}
           weightGrams={totalWeightGrams || undefined}
-          deliveryPreview={
-            order.shippingAddress
-              ? {
-                  name:
-                    [order.shippingAddress.firstName ?? '', order.shippingAddress.lastName ?? '']
-                      .filter(Boolean)
-                      .join(' ')
-                      .trim() || 'Customer',
-                  phone: order.shippingAddress.phoneE164 ?? null,
-                  email: order.contactEmail ?? null,
-                  address1: order.shippingAddress.line1 ?? '',
-                  address2: order.shippingAddress.line2 ?? '',
-                  city: order.shippingAddress.city ?? '',
-                  postcode: order.shippingAddress.postcode ?? '',
-                  countryCode: (order.shippingAddress.country ?? 'GB').toUpperCase()
-                }
-              : null
-          }
+          deliveryPreview={deliveryPreview}
+        />
+
+        <BuyApcLabelButton
+          mode="test"
+          orderId={order.id}
+          weightGrams={totalWeightGrams || undefined}
+          deliveryPreview={deliveryPreview}
         />
       </div>
 

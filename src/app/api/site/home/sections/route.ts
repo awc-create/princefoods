@@ -1,10 +1,9 @@
 // src/app/api/site/home/sections/route.ts
-import type { CartLine, OfferAdminForm } from '@/lib/offers-engine';
-import { evaluateOffers } from '@/lib/offers-engine';
 import { prisma } from '@/lib/prisma';
 import type { HomeSectionsResolvedDTO } from '@/types/homeResolved';
 import type {
   DealsMode,
+  DealsSelectionMode,
   HomeSectionProductCarouselConfig,
   HomeSectionProductSource
 } from '@/types/homeSections';
@@ -18,12 +17,19 @@ export const revalidate = 0;
 
 type Config = HomeSectionProductCarouselConfig;
 
+interface ExtractedOfferTargets {
+  directProductIds: string[];
+  includesAllProducts: boolean;
+}
+
 function isRecord(x: unknown): x is Record<string, unknown> {
   return !!x && typeof x === 'object' && !Array.isArray(x);
 }
+
 function isString(x: unknown): x is string {
   return typeof x === 'string';
 }
+
 function isNumber(x: unknown): x is number {
   return typeof x === 'number' && Number.isFinite(x);
 }
@@ -77,9 +83,12 @@ function isCampaignKey(x: unknown): x is CampaignKey {
   return isString(x) && (CAMPAIGNS as string[]).includes(x);
 }
 
+function isDealsSelectionMode(x: unknown): x is DealsSelectionMode {
+  return x === 'ALL_ACTIVE' || x === 'SELECTED';
+}
+
 function getCfgFromJson(config: unknown): Config | null {
   if (!isRecord(config)) return null;
-
   if (config.kind !== 'PRODUCT_CAROUSEL') return null;
   if (!isSource(config.source)) return null;
 
@@ -99,10 +108,13 @@ function getCfgFromJson(config: unknown): Config | null {
   }
 
   if (isString(config.dealsMode)) {
-    out.dealsMode = config.dealsMode as Config['dealsMode'];
+    out.dealsMode = config.dealsMode as DealsMode;
   }
 
-  // ✅ NEW: offer restriction IDs (multi-select)
+  if (isDealsSelectionMode(config.dealsSelectionMode)) {
+    out.dealsSelectionMode = config.dealsSelectionMode;
+  }
+
   if (Array.isArray(config.offerIds)) {
     out.offerIds = config.offerIds
       .filter((x): x is string => isString(x) && x.trim().length > 0)
@@ -117,7 +129,6 @@ function getCfgFromJson(config: unknown): Config | null {
     out.minAgeDays = Math.max(0, Math.min(365, config.minAgeDays));
   }
 
-  // clamp limit
   out.limit = Math.max(1, Math.min(48, Number(out.limit ?? 16)));
 
   return out;
@@ -134,67 +145,159 @@ async function idsFrom(
     take,
     select: { id: true }
   });
+
   return rows.map((r) => r.id);
 }
 
-function priceToPence(price: number | null): number {
-  const n = Number(price ?? 0);
-  if (!Number.isFinite(n) || n <= 0) return 0;
-  return Math.round(n * 100);
+function readStringArray(x: unknown): string[] {
+  if (!Array.isArray(x)) return [];
+  return x.filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
 }
 
-async function idsFromOfferEngine(cfg: Config, take: number): Promise<string[]> {
-  const offerIds = Array.isArray(cfg.offerIds) ? cfg.offerIds.filter(Boolean) : [];
-
-  const offersDb = await prisma.offer.findMany({
-    where: {
-      status: 'ACTIVE',
-      ...(offerIds.length ? { id: { in: offerIds } } : {})
-    },
-    orderBy: [{ updatedAt: 'desc' }]
-  });
-
-  const offers = offersDb as unknown as OfferAdminForm[];
-  if (!offers.length) return [];
-
-  const candidates = await prisma.product.findMany({
-    where: { visible: true },
-    orderBy: [{ updatedAt: 'desc' }],
-    take: Math.max(24, Math.min(240, take * 6)),
-    select: {
-      id: true,
-      name: true,
-      price: true,
-      sku: true,
-      categoryId: true,
-      tags: true,
-      collection: true
-    }
-  });
-
-  const now = new Date();
-  const out: string[] = [];
-
-  for (const p of candidates) {
-    const line: CartLine = {
-      productId: p.id,
-      sku: p.sku,
-      name: p.name,
-      unitPricePence: priceToPence(p.price),
-      qty: 1,
-      categoryId: p.categoryId,
-      tags: Array.isArray(p.tags) ? p.tags : [],
-      collection: p.collection
+function extractPoolTargets(pool: unknown): ExtractedOfferTargets {
+  if (!Array.isArray(pool)) {
+    return {
+      directProductIds: [],
+      includesAllProducts: false
     };
+  }
 
-    const res = evaluateOffers(offers, { now, lines: [line] });
-    if (res.applied.length > 0) {
-      out.push(p.id);
-      if (out.length >= take) break;
+  const ids = new Set<string>();
+  let includesAllProducts = false;
+
+  for (const entry of pool) {
+    if (!isRecord(entry)) continue;
+
+    const type = typeof entry.type === 'string' ? entry.type : '';
+
+    if (type === 'PRODUCT_IDS') {
+      for (const id of readStringArray(entry.ids)) {
+        ids.add(id);
+      }
+    }
+
+    if (type === 'ALL_PRODUCTS') {
+      includesAllProducts = true;
     }
   }
 
-  return out;
+  return {
+    directProductIds: [...ids],
+    includesAllProducts
+  };
+}
+
+function extractOfferTargets(payload: unknown): ExtractedOfferTargets {
+  if (!isRecord(payload)) {
+    return {
+      directProductIds: [],
+      includesAllProducts: false
+    };
+  }
+
+  const data = isRecord(payload.data) ? payload.data : null;
+  if (!data) {
+    return {
+      directProductIds: [],
+      includesAllProducts: false
+    };
+  }
+
+  const buy = extractPoolTargets(data.buyPool);
+  const get = extractPoolTargets(data.getPool);
+
+  return {
+    directProductIds: [...new Set([...buy.directProductIds, ...get.directProductIds])],
+    includesAllProducts: buy.includesAllProducts || get.includesAllProducts
+  };
+}
+
+async function idsFromOfferEngine(cfg: Config, take: number): Promise<string[]> {
+  const selectedMode = cfg.dealsSelectionMode === 'SELECTED';
+  const offerIds = Array.isArray(cfg.offerIds) ? cfg.offerIds.filter(Boolean) : [];
+
+  const now = new Date();
+
+  const offers = await prisma.offer.findMany({
+    where: selectedMode
+      ? {
+          id: { in: offerIds.length ? offerIds : ['__none__'] },
+          status: 'ACTIVE'
+        }
+      : {
+          status: 'ACTIVE'
+        },
+    orderBy: [{ updatedAt: 'desc' }],
+    select: {
+      id: true,
+      payload: true,
+      startsAt: true,
+      endsAt: true
+    }
+  });
+
+  const liveOffers = offers.filter((offer) => {
+    if (offer.startsAt && now < offer.startsAt) return false;
+    if (offer.endsAt && now > offer.endsAt) return false;
+    return true;
+  });
+
+  if (!liveOffers.length) return [];
+
+  const directIdSet = new Set<string>();
+  let includesAllProducts = false;
+
+  for (const offer of liveOffers) {
+    const targets = extractOfferTargets(offer.payload);
+
+    for (const id of targets.directProductIds) {
+      directIdSet.add(id);
+    }
+
+    if (targets.includesAllProducts) {
+      includesAllProducts = true;
+    }
+  }
+
+  const directIds = [...directIdSet];
+
+  const directProducts =
+    directIds.length > 0
+      ? await prisma.product.findMany({
+          where: {
+            id: { in: directIds },
+            visible: true
+          },
+          select: { id: true }
+        })
+      : [];
+
+  const directMap = new Set(directProducts.map((p) => p.id));
+  const orderedDirectIds = directIds.filter((id) => directMap.has(id));
+
+  if (orderedDirectIds.length >= take) {
+    return orderedDirectIds.slice(0, take);
+  }
+
+  if (!includesAllProducts) {
+    return orderedDirectIds.slice(0, take);
+  }
+
+  const remaining = take - orderedDirectIds.length;
+
+  const filler = await prisma.product.findMany({
+    where: {
+      visible: true,
+      id: {
+        notIn: orderedDirectIds.length ? orderedDirectIds : ['__none__']
+      }
+    },
+    orderBy: [{ createdAt: 'desc' }],
+    take: remaining,
+    select: { id: true }
+  });
+
+  return [...orderedDirectIds, ...filler.map((p) => p.id)].slice(0, take);
 }
 
 async function resolveSectionProductIds(cfg: Config): Promise<string[]> {
@@ -204,8 +307,6 @@ async function resolveSectionProductIds(cfg: Config): Promise<string[]> {
     cfg.source === 'MOST_CLICKED' || cfg.source === 'LEAST_CLICKED' || cfg.source === 'LEAST_SOLD';
 
   const minAgeDays = needsMinAge ? Math.max(0, Math.min(365, Number(cfg.minAgeDays ?? 14))) : 0;
-
-  // exclude brand-new items from “least” lists
   const cutoff = minAgeDays > 0 ? new Date(Date.now() - minAgeDays * 86400000) : null;
 
   switch (cfg.source) {
@@ -262,7 +363,6 @@ async function resolveSectionProductIds(cfg: Config): Promise<string[]> {
         return idsFrom({ visible: true, discountValue: { gt: 0 } }, { updatedAt: 'desc' }, limit);
       }
 
-      // ✅ OFFER_ENGINE: respects cfg.offerIds (if provided)
       return idsFromOfferEngine(cfg, limit);
     }
 

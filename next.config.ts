@@ -20,7 +20,8 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'ssl.gstatic.com', pathname: '/**' },
       { protocol: 'https', hostname: '*.cdninstagram.com', pathname: '/**' },
       { protocol: 'https', hostname: '*.fbcdn.net', pathname: '/**' },
-      { protocol: 'https', hostname: 'scontent.cdninstagram.com', pathname: '/**' }
+      { protocol: 'https', hostname: 'scontent.cdninstagram.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'prince-foods-media.hel1.your-objectstorage.com' }
     ]
   },
   // ensure bcryptjs and similar native deps get traced into standalone

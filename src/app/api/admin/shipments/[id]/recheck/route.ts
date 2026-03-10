@@ -1,3 +1,4 @@
+// src/app/api/admin/shipments/[id]/recheck/route.ts
 import { readJsonOrText } from '@/lib/http/response-body';
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
@@ -7,21 +8,37 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 type ApcEnv = 'training' | 'live';
+type ApcMode = 'live' | 'test';
 
 // ✅ rate limit: block if shipment updated recently
 const RECHECK_COOLDOWN_MS = Number(process.env.SHIPMENT_RECHECK_COOLDOWN_MS ?? 60_000);
 
-function pickBaseUrl(): { env: ApcEnv; baseUrl: string | null } {
-  const raw = (process.env.APC_ENV ?? 'training').toLowerCase();
+function modeFromReq(req: Request): ApcMode {
+  const h = (req.headers.get('x-apc-env') ?? '').toLowerCase().trim();
+  return h === 'test' ? 'test' : 'live';
+}
+
+function pickBaseUrl(mode: ApcMode): { env: ApcEnv; baseUrl: string | null } {
+  const envRaw = (mode === 'test' ? process.env.APC_ENV_TEST : process.env.APC_ENV) ?? 'training';
+  const raw = envRaw.toLowerCase();
   const env: ApcEnv = raw === 'live' ? 'live' : 'training';
 
-  const training = process.env.APC_TRAINING_BASE ?? '';
-  const live = process.env.APC_LIVE_BASE ?? '';
+  const training =
+    (mode === 'test' ? process.env.APC_TRAINING_BASE_TEST : process.env.APC_TRAINING_BASE) ?? '';
+  const live = (mode === 'test' ? process.env.APC_LIVE_BASE_TEST : process.env.APC_LIVE_BASE) ?? '';
 
   const base = env === 'live' ? live : training;
   const baseUrl = base ? base.replace(/\/$/, '') : null;
 
   return { env, baseUrl };
+}
+
+function pickCreds(mode: ApcMode): { username: string; password: string } {
+  const username =
+    (mode === 'test' ? process.env.APC_USERNAME_TEST : process.env.APC_USERNAME) ?? '';
+  const password =
+    (mode === 'test' ? process.env.APC_PASSWORD_TEST : process.env.APC_PASSWORD) ?? '';
+  return { username, password };
 }
 
 function basicAuthHeader(username: string, password: string): string {
@@ -66,7 +83,6 @@ function toPrismaInputJsonValue(input: unknown): Prisma.InputJsonValue {
       const out: Record<string, Prisma.InputJsonValue> = {};
       for (const [k, val] of Object.entries(obj)) {
         if (val === undefined) continue;
-        // allow nested nulls (prisma will accept inside JSON)
         out[k] = (val === null ? (null as unknown) : walk(val)) as Prisma.InputJsonValue;
       }
       return out as unknown as Prisma.InputJsonValue;
@@ -79,14 +95,7 @@ function toPrismaInputJsonValue(input: unknown): Prisma.InputJsonValue {
   return (out ?? {}) as Prisma.InputJsonValue;
 }
 
-/**
- * Best-effort flatten of strings from unknown trackingEvents shapes,
- * and best-effort date extraction.
- */
-function flattenTracking(trackingEvents: unknown): {
-  textBlob: string;
-  lastEventAt: Date | null;
-} {
+function flattenTracking(trackingEvents: unknown): { textBlob: string; lastEventAt: Date | null } {
   const strings: string[] = [];
   const dates: Date[] = [];
   const seen = new WeakSet<object>();
@@ -165,10 +174,6 @@ type DeliveryIssueType =
   | 'DAMAGED'
   | 'UNKNOWN';
 
-/**
- * Map text signals → DeliveryIssueType.
- * Keep conservative; if unsure return UNKNOWN.
- */
 function detectIssueType(textBlob: string): { issueType: DeliveryIssueType; evidence: string } {
   const t = textBlob.toLowerCase();
   const has = (s: string) => t.includes(s);
@@ -198,17 +203,6 @@ function detectIssueType(textBlob: string): { issueType: DeliveryIssueType; evid
   return { issueType: 'UNKNOWN', evidence: 'No confident match' };
 }
 
-/**
- * Upsert ReturnCase for an order based on tracking signals.
- * Uses your NEW schema:
- * - status: OPEN|RECEIVED|RESOLVED
- * - issueType: DeliveryIssueType
- * - shipmentId: Shipment FK
- * - meta: JSON
- *
- * IMPORTANT:
- * - If case is already RESOLVED, we do not overwrite it.
- */
 async function upsertReturnCaseFromTracking(args: {
   orderId: string;
   shipmentId: string;
@@ -217,7 +211,6 @@ async function upsertReturnCaseFromTracking(args: {
   const { textBlob, lastEventAt } = flattenTracking(args.trackingEvents);
   const detected = detectIssueType(textBlob);
 
-  // only create/open cases when we detect something meaningful (not UNKNOWN)
   if (detected.issueType === 'UNKNOWN') return;
 
   const meta = toPrismaInputJsonValue({
@@ -236,7 +229,7 @@ async function upsertReturnCaseFromTracking(args: {
   const now = new Date();
 
   const rc = await prisma.returnCase.upsert({
-    where: { orderId: args.orderId }, // UNIQUE in your migration
+    where: { orderId: args.orderId },
     create: {
       orderId: args.orderId,
       shipmentId: args.shipmentId,
@@ -248,14 +241,13 @@ async function upsertReturnCaseFromTracking(args: {
     },
     update: {
       shipmentId: args.shipmentId,
-      status: existing?.status ?? 'OPEN', // keep RECEIVED if already received
+      status: existing?.status ?? 'OPEN',
       issueType: detected.issueType,
       lastEventAt: lastEventAt ?? undefined,
       meta
     }
   });
 
-  // activity (only log open the first time or if it changed from not-open)
   if (!existing) {
     await prisma.orderActivity.create({
       data: {
@@ -268,7 +260,7 @@ async function upsertReturnCaseFromTracking(args: {
   }
 }
 
-export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const started = Date.now();
   const { id: shipmentId } = await ctx.params;
 
@@ -289,7 +281,6 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     return NextResponse.json({ ok: false, error: 'Shipment not found' }, { status: 404 });
   }
 
-  // ✅ cooldown rate limit (uses updatedAt as cheap shared state)
   const ageMs = Date.now() - shipment.updatedAt.getTime();
   if (ageMs < RECHECK_COOLDOWN_MS) {
     const retryAfterMs = RECHECK_COOLDOWN_MS - ageMs;
@@ -310,21 +301,20 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     );
   }
 
-  const { env, baseUrl } = pickBaseUrl();
-
-  const username = process.env.APC_USERNAME ?? '';
-  const password = process.env.APC_PASSWORD ?? '';
+  const mode = modeFromReq(req);
+  const { env, baseUrl } = pickBaseUrl(mode);
+  const { username, password } = pickCreds(mode);
 
   if (!baseUrl) {
     return NextResponse.json(
-      { ok: false, error: 'Missing APC base URL (APC_TRAINING_BASE/APC_LIVE_BASE)', env },
+      { ok: false, error: 'Missing APC base URL (training/live)', env, mode },
       { status: 500 }
     );
   }
 
   if (!username || !password) {
     return NextResponse.json(
-      { ok: false, error: 'Missing APC credentials (APC_USERNAME/APC_PASSWORD)', env },
+      { ok: false, error: 'Missing APC credentials', env, mode },
       { status: 500 }
     );
   }
@@ -350,6 +340,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
 
     const wrapped = toPrismaInputJsonValue({
       source: 'apc',
+      mode,
       environment: env,
       fetchedAt: new Date().toISOString(),
       latencyMs,
@@ -366,7 +357,6 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
       }
     });
 
-    // ✅ returns detection (new schema)
     await upsertReturnCaseFromTracking({
       orderId: shipment.orderId,
       shipmentId,
@@ -376,6 +366,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     return NextResponse.json({
       ok: res.ok,
       shipmentId,
+      mode,
       env,
       latencyMs,
       httpStatus
@@ -386,6 +377,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
       {
         ok: false,
         shipmentId,
+        mode,
         env,
         latencyMs,
         error: err instanceof Error ? err.message : 'Unknown error'

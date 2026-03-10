@@ -4,9 +4,11 @@
 import React, { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 
 type ItemType = 'PARCEL' | 'LIQUIDS';
+type ApcMode = 'live' | 'test';
 
 interface Props {
   orderId: string;
+  mode?: ApcMode; // ✅ NEW
   productCode?: string | null;
   weightGrams?: number | null;
   deliveryPreview?: {
@@ -75,10 +77,14 @@ function hasStringError(v: unknown): v is { error: string } {
   return isRecord(v) && typeof (v as { error?: unknown }).error === 'string';
 }
 
-async function postJson(url: string, body?: unknown): Promise<ApiResponse> {
+async function postJson(
+  url: string,
+  body?: unknown,
+  extraHeaders?: Record<string, string>
+): Promise<ApiResponse> {
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(extraHeaders ?? {}) },
     body: JSON.stringify(body ?? {}),
     cache: 'no-store'
   });
@@ -240,6 +246,7 @@ type ServicesApiResponse = { ok: true; services: ApcService[] } | { ok: false; e
 
 export default function BuyApcLabelButton({
   orderId,
+  mode = 'live', // ✅ default
   productCode,
   weightGrams,
   deliveryPreview,
@@ -590,7 +597,7 @@ export default function BuyApcLabelButton({
     try {
       const res = await fetch(`/api/admin/orders/${orderId}/shipments/apc/services`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-apc-env': mode }, // ✅ NEW
         cache: 'no-store',
         body: JSON.stringify({
           collectionDateISO,
@@ -609,7 +616,6 @@ export default function BuyApcLabelButton({
 
       const list = (data.services ?? []).filter((s) => !!s?.ProductCode);
 
-      // Prefer stable ordering: cheaper first if cost numeric, else as returned
       const sorted = [...list].sort((a, b) => {
         const na = Number(a.TotalCost ?? '');
         const nb = Number(b.TotalCost ?? '');
@@ -620,7 +626,6 @@ export default function BuyApcLabelButton({
 
       setServices(sorted);
 
-      // Auto-select first option if none chosen
       if (!codeInput.trim() && sorted.length > 0) {
         setCodeInput(upper(sorted[0].ProductCode));
       }
@@ -745,11 +750,14 @@ export default function BuyApcLabelButton({
           }
         };
 
-        const res = await postJson(`/api/admin/orders/${orderId}/labels/purchase/apc`, payload);
+        const res = await postJson(
+          `/api/admin/orders/${orderId}/labels/purchase/apc`,
+          payload,
+          { 'x-apc-env': mode } // ✅ NEW
+        );
 
         if (res.ok !== true) throw new Error('Unexpected response');
 
-        // ✅ store for “Download label” buttons
         setShipmentId(res.shipment.id);
         setWaybill(res.shipment.waybill);
 
@@ -802,9 +810,9 @@ export default function BuyApcLabelButton({
           fontWeight: 900,
           boxShadow: '0 6px 18px rgba(15,23,42,0.08)'
         }}
-        title="Buy APC label"
+        title={mode === 'test' ? 'Buy APC label (TEST)' : 'Buy APC label (LIVE)'}
       >
-        🚚 Buy APC Label
+        🚚 Buy APC Label {mode === 'test' ? '(TEST)' : '(LIVE)'}
       </button>
 
       {!open ? null : (
@@ -863,7 +871,7 @@ export default function BuyApcLabelButton({
                   id="apc-modal-title"
                   style={{ fontWeight: 950, fontSize: 16, color: '#0f172a' }}
                 >
-                  Buy APC Label
+                  Buy APC Label {mode === 'test' ? '(TEST)' : '(LIVE)'}
                 </div>
                 <div style={{ color: 'rgba(15,23,42,0.60)', fontSize: 13, marginTop: 3 }}>
                   Select a service from APC (recommended). If you already know the code, you can
@@ -913,7 +921,6 @@ export default function BuyApcLabelButton({
                   />
                 </Field>
 
-                {/* ✅ lint-friendly hint */}
                 <Field label="Service (APC Product Code)" hint={serviceHint}>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                     <select
@@ -1382,7 +1389,6 @@ export default function BuyApcLabelButton({
                     </>
                   )}
 
-                  {/* Optional convenience: always points to latest label for order */}
                   <a
                     href={`/api/admin/orders/${orderId}/labels/latest`}
                     target="_blank"

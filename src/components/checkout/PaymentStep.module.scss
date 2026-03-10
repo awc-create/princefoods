@@ -1,0 +1,153 @@
+/* src/components/checkout/PaymentStep.module.scss */
+
+.h3 {
+  margin: 14px 0 8px;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.paymentHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.backBtn {
+  border: 0;
+  background: transparent;
+  color: #b21e2b;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 6px 8px;
+  border-radius: 10px;
+
+  &:hover {
+    background: rgba(178, 30, 43, 0.08);
+  }
+}
+
+/* Panel card */
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+/* Summary layout */
+.summaryRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.summaryTitle {
+  font-weight: 800;
+  color: #111827;
+}
+
+.summaryValue {
+  margin-top: 4px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.summaryHint {
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.divider {
+  height: 1px;
+  background: rgba(15, 23, 42, 0.08);
+  margin: 12px 0;
+}
+
+/* Info box (for £0 totals) */
+.infoBox {
+  margin-top: 10px;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  background: rgba(16, 185, 129, 0.06);
+  border-radius: 14px;
+  padding: 12px 12px;
+}
+
+.infoTitle {
+  font-weight: 900;
+  color: #065f46;
+}
+
+.infoText {
+  margin-top: 4px;
+  color: #065f46;
+  opacity: 0.9;
+  line-height: 1.35;
+}
+
+/* Actions */
+.stepActions {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.primaryBtn {
+  width: 100%;
+  height: 52px;
+  border-radius: 14px;
+  border: 1px solid #111827;
+  background: #111827;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+
+  &:hover {
+    filter: brightness(1.05);
+  }
+
+  &:active {
+    transform: translateY(1px);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+    transform: none;
+  }
+}
+
+.secondaryBtn {
+  width: 100%;
+  height: 46px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  background: #fff;
+  color: #111827;
+  font-weight: 850;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(15, 23, 42, 0.03);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.muted {
+  color: #6b7280;
+  margin-top: 6px;
+  line-height: 1.35;
+}
+
+.err {
+  color: #b21e2b;
+  font-weight: 800;
+  margin-top: 6px;
+}

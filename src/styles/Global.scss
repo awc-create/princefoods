@@ -5,6 +5,20 @@
 
 /* ---------------- Root + Tokens ---------------- */
 :root {
+  --home-surface-top: #0b0b0b;
+  --home-surface-mid: #121212;
+  --home-surface-body: #f6f4ee;
+  --home-surface-body-2: #f2f1eb;
+
+  --home-ambient-1: rgba(255, 255, 255, 0.24);
+  --home-ambient-2: rgba(181, 166, 120, 0.08);
+
+  --home-card: rgba(255, 255, 255, 0.82);
+  --home-card-border: rgba(17, 24, 39, 0.06);
+  --home-card-shadow: 0 10px 30px rgba(17, 24, 39, 0.06);
+
+  --home-section-space: clamp(56px, 6vw, 88px);
+
   /* Core */
   --color-bg: #ffffff;
   --color-text: #333333;
@@ -67,6 +81,13 @@
   --font-size-5: 24px;
   --font-size-6: 28px;
   --font-size-7: 32px;
+
+  --site-bg-top: #0d0d0d;
+  --site-bg-mid: #111111;
+  --site-bg-bottom: #151515;
+
+  --section-surface: rgba(255, 255, 255, 0.04);
+  --section-border: rgba(255, 255, 255, 0.06);
 }
 
 /* Optional Dark Mode Tokens

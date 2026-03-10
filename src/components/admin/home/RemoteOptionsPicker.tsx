@@ -1,7 +1,5 @@
-// src/components/admin/home/RemoteOptionsPicker.tsx
 'use client';
 
-import { urlFrom } from '@/lib/url';
 import { useEffect, useMemo, useState } from 'react';
 import s from './RemoteOptionsPicker.module.scss';
 
@@ -9,6 +7,33 @@ export interface OptionItem {
   id: string;
   label: string;
   meta?: string;
+}
+
+interface RawOptionItem {
+  id?: string;
+  value?: string;
+  label?: string;
+  meta?: string;
+}
+
+function normalizeOptions(input: unknown): OptionItem[] {
+  if (!Array.isArray(input)) return [];
+
+  const out: OptionItem[] = [];
+
+  for (const item of input) {
+    const raw = item as RawOptionItem;
+    const id = typeof raw.id === 'string' ? raw.id : typeof raw.value === 'string' ? raw.value : '';
+
+    const label = typeof raw.label === 'string' ? raw.label : '';
+    const meta = typeof raw.meta === 'string' ? raw.meta : undefined;
+
+    if (!id || !label) continue;
+
+    out.push(meta !== undefined ? { id, label, meta } : { id, label });
+  }
+
+  return out;
 }
 
 export function RemoteOptionsPicker({
@@ -30,8 +55,6 @@ export function RemoteOptionsPicker({
   const [loading, setLoading] = useState(false);
   const [options, setOptions] = useState<OptionItem[]>([]);
   const [error, setError] = useState<string | null>(null);
-
-  // Cache labels for selected chips even if user searches away
   const [cache, setCache] = useState<Record<string, OptionItem>>({});
 
   const selected = useMemo(() => {
@@ -48,19 +71,37 @@ export function RemoteOptionsPicker({
     (async () => {
       setLoading(true);
       setError(null);
+
       try {
-        const url = urlFrom(endpoint);
+        const url = new URL(endpoint, window.location.origin);
         if (q.trim()) url.searchParams.set('q', q.trim());
 
-        const res = await fetch(url.toString(), { signal: ctrl.signal, cache: 'no-store' });
-        const json = (await res.json()) as { options?: OptionItem[]; error?: string };
+        const res = await fetch(url.toString(), {
+          signal: ctrl.signal,
+          cache: 'no-store',
+          credentials: 'same-origin'
+        });
+
+        const text = await res.text();
+
+        let json: { options?: unknown; error?: string } | null = null;
+        try {
+          json = text ? (JSON.parse(text) as { options?: unknown; error?: string }) : null;
+        } catch {
+          json = null;
+        }
 
         if (!mounted) return;
 
-        const nextOptions = Array.isArray(json.options) ? json.options : [];
+        if (!res.ok) {
+          setOptions([]);
+          setError(json?.error ?? `Failed to load options (${res.status})`);
+          return;
+        }
+
+        const nextOptions = normalizeOptions(json?.options);
         setOptions(nextOptions);
 
-        // merge into cache
         if (nextOptions.length) {
           setCache((prev) => {
             const next = { ...prev };
@@ -69,11 +110,16 @@ export function RemoteOptionsPicker({
           });
         }
 
-        if (json.error) setError(json.error);
+        if (json?.error) {
+          setError(json.error);
+        } else {
+          setError(null);
+        }
       } catch (e) {
         if (!mounted) return;
         if (e instanceof DOMException && e.name === 'AbortError') return;
-        setError('Failed to load options');
+
+        setError(e instanceof Error ? e.message : 'Failed to fetch');
         setOptions([]);
       } finally {
         if (mounted) setLoading(false);
@@ -106,20 +152,19 @@ export function RemoteOptionsPicker({
       onChange(null);
       return;
     }
+
     const cur = Array.isArray(value) ? value : [];
     onChange(cur.filter((x) => x !== id));
   };
 
   const clear = () => onChange(multiple ? [] : null);
 
-  // TEMP DEBUG: shows the true prop value this component is receiving
-  const debugValue = useMemo(() => {
-    if (multiple) return Array.isArray(value) ? value : [];
-    return value ?? null;
-  }, [value, multiple]);
-
   return (
-    <div className={s.wrap}>
+    <div
+      className={s.wrap}
+      onMouseDown={(e) => e.stopPropagation()}
+      onDragStart={(e) => e.stopPropagation()}
+    >
       <div className={s.top}>
         <div className={s.label}>{label}</div>
         <div className={s.right}>
@@ -130,7 +175,6 @@ export function RemoteOptionsPicker({
         </div>
       </div>
 
-      {/* Selected chips */}
       {multiple && selected.length > 0 ? (
         <div className={s.chipsRow}>
           <div className={s.chipsLabel}>Selected ({selected.length})</div>
@@ -164,16 +208,10 @@ export function RemoteOptionsPicker({
 
       {error ? <div className={s.error}>{error}</div> : null}
 
-      {/* TEMP DEBUG: delete once confirmed */}
-      {multiple ? (
-        <div className={s.debug}>
-          <b>debug value:</b> {JSON.stringify(debugValue)}
-        </div>
-      ) : null}
-
       <div className={s.list}>
         {options.map((o) => {
           const active = selectedSet.has(o.id);
+
           return (
             <button
               key={o.id}

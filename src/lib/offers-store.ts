@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/prisma';
 import type { OfferAdminForm, OfferPayload } from '@/types/offers';
 import type { Prisma } from '@prisma/client';
+import { OfferStatus, OfferVisibility } from '@prisma/client';
 
 const asJson = (v: unknown): Prisma.InputJsonValue => v as Prisma.InputJsonValue;
 
@@ -28,22 +29,108 @@ function asPayload(v: unknown): OfferPayload | null {
   return v as OfferPayload;
 }
 
-export function rowToAdminForm(row: {
+function normStr(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const t = v.trim();
+  return t ? t : null;
+}
+
+/**
+ * Prisma enum(s) are the source of truth:
+ * - OfferStatus: ACTIVE | PAUSED | EXPIRED
+ * - OfferVisibility: ALL | BADGE_ONLY | PRODUCT_PAGE | CART_ONLY
+ */
+
+/** UI → Prisma */
+function toPrismaStatus(s: OfferAdminForm['status']): OfferStatus {
+  // Prisma doesn't have DRAFT → store as PAUSED (safe)
+  if (s === 'ACTIVE') return OfferStatus.ACTIVE;
+  if (s === 'PAUSED') return OfferStatus.PAUSED;
+  // DRAFT
+  return OfferStatus.PAUSED;
+}
+
+function toPrismaVisibility(v: OfferAdminForm['visibility']): OfferVisibility {
+  if (v === 'BADGE_ONLY') return OfferVisibility.BADGE_ONLY;
+  if (v === 'PRODUCT_PAGE') return OfferVisibility.PRODUCT_PAGE;
+  if (v === 'CART_ONLY') return OfferVisibility.CART_ONLY;
+  return OfferVisibility.ALL;
+}
+
+/** Prisma → UI */
+function fromPrismaStatus(s: OfferStatus): OfferAdminForm['status'] {
+  if (s === OfferStatus.ACTIVE) return 'ACTIVE';
+  if (s === OfferStatus.PAUSED) return 'PAUSED';
+  // EXPIRED: show as PAUSED in admin (or add 'EXPIRED' to UI later)
+  return 'PAUSED';
+}
+
+function fromPrismaVisibility(v: OfferVisibility): OfferAdminForm['visibility'] {
+  if (v === OfferVisibility.BADGE_ONLY) return 'BADGE_ONLY';
+  if (v === OfferVisibility.PRODUCT_PAGE) return 'PRODUCT_PAGE';
+  if (v === OfferVisibility.CART_ONLY) return 'CART_ONLY';
+  return 'ALL';
+}
+
+interface OfferRowSelected {
   id: string;
   name: string;
   mode: string;
   code: string | null;
-  status: string;
+  status: OfferStatus;
   startsAt: Date | null;
   endsAt: Date | null;
   stackingMode: string;
   priority: number;
   maxDiscountPerOrderPence: number | null;
   preventFreeOrder: boolean;
-  visibility: string;
+  visibility: OfferVisibility;
   exclusions: unknown;
   payload: unknown;
-}): OfferAdminForm {
+
+  bannerEnabled: boolean;
+  bannerTitle: string | null;
+  bannerMessage: string | null;
+  bannerCtaLabel: string | null;
+  bannerCtaHref: string | null;
+  bannerStartsAt: Date | null;
+  bannerEndsAt: Date | null;
+
+  emailEnabled: boolean;
+  emailSubject: string | null;
+  emailMessage: string | null;
+}
+
+const offerSelect = {
+  id: true,
+  name: true,
+  mode: true,
+  code: true,
+  status: true,
+  startsAt: true,
+  endsAt: true,
+  stackingMode: true,
+  priority: true,
+  maxDiscountPerOrderPence: true,
+  preventFreeOrder: true,
+  visibility: true,
+  exclusions: true,
+  payload: true,
+
+  bannerEnabled: true,
+  bannerTitle: true,
+  bannerMessage: true,
+  bannerCtaLabel: true,
+  bannerCtaHref: true,
+  bannerStartsAt: true,
+  bannerEndsAt: true,
+
+  emailEnabled: true,
+  emailSubject: true,
+  emailMessage: true
+} satisfies Prisma.OfferSelect;
+
+export function rowToAdminForm(row: OfferRowSelected): OfferAdminForm {
   const payload = asPayload(row.payload);
   if (!payload) throw new Error(`BAD_OFFER_PAYLOAD:${row.id}`);
 
@@ -54,7 +141,7 @@ export function rowToAdminForm(row: {
     mode: row.mode as OfferAdminForm['mode'],
     code: row.code,
 
-    status: row.status as OfferAdminForm['status'],
+    status: fromPrismaStatus(row.status),
     startsAt: toIso(row.startsAt),
     endsAt: toIso(row.endsAt),
 
@@ -64,16 +151,29 @@ export function rowToAdminForm(row: {
     maxDiscountPerOrderPence: row.maxDiscountPerOrderPence,
     preventFreeOrder: Boolean(row.preventFreeOrder),
 
-    visibility: row.visibility as OfferAdminForm['visibility'],
+    visibility: fromPrismaVisibility(row.visibility),
 
     exclusions: asObject(row.exclusions) ?? {},
-    payload
+    payload,
+
+    bannerEnabled: Boolean(row.bannerEnabled),
+    bannerTitle: row.bannerTitle ?? null,
+    bannerMessage: row.bannerMessage ?? null,
+    bannerCtaLabel: row.bannerCtaLabel ?? null,
+    bannerCtaHref: row.bannerCtaHref ?? null,
+    bannerStartsAt: toIso(row.bannerStartsAt),
+    bannerEndsAt: toIso(row.bannerEndsAt),
+
+    emailEnabled: Boolean(row.emailEnabled),
+    emailSubject: row.emailSubject ?? null,
+    emailMessage: row.emailMessage ?? null
   };
 }
 
 export async function getOffers(): Promise<OfferAdminForm[]> {
   const rows = await prisma.offer.findMany({
-    orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }]
+    orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+    select: offerSelect
   });
 
   const out: OfferAdminForm[] = [];
@@ -81,7 +181,7 @@ export async function getOffers(): Promise<OfferAdminForm[]> {
     try {
       out.push(
         rowToAdminForm({
-          ...r,
+          ...(r as OfferRowSelected),
           exclusions: r.exclusions ?? {},
           payload: r.payload
         })
@@ -94,10 +194,15 @@ export async function getOffers(): Promise<OfferAdminForm[]> {
 }
 
 export async function getOfferById(id: string): Promise<OfferAdminForm | null> {
-  const row = await prisma.offer.findUnique({ where: { id } });
+  const row = await prisma.offer.findUnique({
+    where: { id },
+    select: offerSelect
+  });
+
   if (!row) return null;
+
   return rowToAdminForm({
-    ...row,
+    ...(row as OfferRowSelected),
     exclusions: row.exclusions ?? {},
     payload: row.payload
   });
@@ -107,6 +212,9 @@ export async function createOffer(body: OfferAdminForm): Promise<OfferAdminForm>
   if (!body?.name?.trim()) throw new Error('NAME_REQUIRED');
   if (!body?.payload?.kind) throw new Error('PAYLOAD_REQUIRED');
 
+  const bannerEnabled = body.bannerEnabled === true;
+  const emailEnabled = body.emailEnabled === true;
+
   const created = await prisma.offer.create({
     data: {
       name: body.name.trim(),
@@ -114,7 +222,7 @@ export async function createOffer(body: OfferAdminForm): Promise<OfferAdminForm>
       mode: body.mode,
       code: body.code ? body.code.trim() : null,
 
-      status: body.status,
+      status: toPrismaStatus(body.status),
       startsAt: parseIso(body.startsAt),
       endsAt: parseIso(body.endsAt),
 
@@ -127,15 +235,28 @@ export async function createOffer(body: OfferAdminForm): Promise<OfferAdminForm>
           : null,
 
       preventFreeOrder: Boolean(body.preventFreeOrder),
-      visibility: body.visibility,
+      visibility: toPrismaVisibility(body.visibility),
 
       exclusions: asJson(body.exclusions ?? {}),
-      payload: asJson(body.payload)
-    }
+      payload: asJson(body.payload),
+
+      bannerEnabled,
+      bannerTitle: bannerEnabled ? normStr(body.bannerTitle) : null,
+      bannerMessage: bannerEnabled ? normStr(body.bannerMessage) : null,
+      bannerCtaLabel: bannerEnabled ? normStr(body.bannerCtaLabel) : null,
+      bannerCtaHref: bannerEnabled ? normStr(body.bannerCtaHref) : null,
+      bannerStartsAt: bannerEnabled ? parseIso(body.bannerStartsAt) : null,
+      bannerEndsAt: bannerEnabled ? parseIso(body.bannerEndsAt) : null,
+
+      emailEnabled,
+      emailSubject: emailEnabled ? normStr(body.emailSubject) : null,
+      emailMessage: emailEnabled ? normStr(body.emailMessage) : null
+    },
+    select: offerSelect
   });
 
   return rowToAdminForm({
-    ...created,
+    ...(created as OfferRowSelected),
     exclusions: created.exclusions ?? {},
     payload: created.payload
   });
@@ -146,6 +267,9 @@ export async function updateOffer(id: string, body: OfferAdminForm): Promise<Off
   if (!body?.name?.trim()) throw new Error('NAME_REQUIRED');
   if (!body?.payload?.kind) throw new Error('PAYLOAD_REQUIRED');
 
+  const bannerEnabled = body.bannerEnabled === true;
+  const emailEnabled = body.emailEnabled === true;
+
   const updated = await prisma.offer.update({
     where: { id },
     data: {
@@ -154,7 +278,7 @@ export async function updateOffer(id: string, body: OfferAdminForm): Promise<Off
       mode: body.mode,
       code: body.code ? body.code.trim() : null,
 
-      status: body.status,
+      status: toPrismaStatus(body.status),
       startsAt: parseIso(body.startsAt),
       endsAt: parseIso(body.endsAt),
 
@@ -167,15 +291,28 @@ export async function updateOffer(id: string, body: OfferAdminForm): Promise<Off
           : null,
 
       preventFreeOrder: Boolean(body.preventFreeOrder),
-      visibility: body.visibility,
+      visibility: toPrismaVisibility(body.visibility),
 
       exclusions: asJson(body.exclusions ?? {}),
-      payload: asJson(body.payload)
-    }
+      payload: asJson(body.payload),
+
+      bannerEnabled,
+      bannerTitle: bannerEnabled ? normStr(body.bannerTitle) : null,
+      bannerMessage: bannerEnabled ? normStr(body.bannerMessage) : null,
+      bannerCtaLabel: bannerEnabled ? normStr(body.bannerCtaLabel) : null,
+      bannerCtaHref: bannerEnabled ? normStr(body.bannerCtaHref) : null,
+      bannerStartsAt: bannerEnabled ? parseIso(body.bannerStartsAt) : null,
+      bannerEndsAt: bannerEnabled ? parseIso(body.bannerEndsAt) : null,
+
+      emailEnabled,
+      emailSubject: emailEnabled ? normStr(body.emailSubject) : null,
+      emailMessage: emailEnabled ? normStr(body.emailMessage) : null
+    },
+    select: offerSelect
   });
 
   return rowToAdminForm({
-    ...updated,
+    ...(updated as OfferRowSelected),
     exclusions: updated.exclusions ?? {},
     payload: updated.payload
   });

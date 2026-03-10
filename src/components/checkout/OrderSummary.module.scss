@@ -38,6 +38,7 @@
 }
 
 .thumbWrap {
+  position: relative; /* ✅ needed for badge */
   width: 72px;
   height: 72px;
   border-radius: 12px;
@@ -55,6 +56,24 @@
   object-fit: contain;
   padding: 8px;
   display: block;
+}
+
+/* ✅ top-right discount badge */
+.discountBadge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: #fff;
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
 .itemMeta {
@@ -98,6 +117,30 @@
 .itemPrice {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* ✅ consistent block for Was/Now/Save */
+.priceBlock {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+.was {
+  text-decoration: line-through;
+  opacity: 0.65;
+  font-size: 13px;
+}
+
+.now {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.save {
+  font-size: 12px;
+  font-weight: 850;
+  opacity: 0.9;
 }
 
 .offerLineHint {
@@ -207,4 +250,43 @@
 .total strong {
   font-size: 1.2rem;
   font-variant-numeric: tabular-nums;
+}
+
+.priceBlock {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+.was {
+  text-decoration: line-through;
+  opacity: 0.65;
+  font-size: 13px;
+}
+
+.now {
+  font-weight: 900;
+}
+
+.save {
+  font-size: 12px;
+  font-weight: 900;
+  opacity: 0.85;
+}
+
+.discountBadge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #111827;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.thumbWrap {
+  position: relative; /* ✅ required for badge positioning */
 }

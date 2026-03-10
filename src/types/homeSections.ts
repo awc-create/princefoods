@@ -17,6 +17,8 @@ export type HomeSectionProductSource =
 
 export type DealsMode = 'DISCOUNT_FIELDS' | 'RIBBON' | 'OFFER_ENGINE';
 
+export type DealsSelectionMode = 'ALL_ACTIVE' | 'SELECTED';
+
 export interface HomeSectionProductCarouselConfig {
   kind: 'PRODUCT_CAROUSEL';
   source: HomeSectionProductSource;
@@ -27,8 +29,7 @@ export interface HomeSectionProductCarouselConfig {
   productIds?: string[];
 
   dealsMode?: DealsMode;
-
-  // ✅ add
+  dealsSelectionMode?: DealsSelectionMode;
   offerIds?: string[];
 
   campaignKey?: CampaignKey;
@@ -60,10 +61,7 @@ export interface HomeSectionRow {
    */
   config?: unknown | null;
 
-  // optional banner (resolved by API)
   bannerUrl?: string | null;
-
-  // if you added it
   mediaId?: string | null;
 
   createdAt?: string;

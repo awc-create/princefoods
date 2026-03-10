@@ -1,6 +1,10 @@
+// Hero.module.scss
 .hero {
-  background: radial-gradient(1200px 600px at 50% -10%, #171717, #0d0d0d 60%, #000);
-  color: #fff;
+  background: var(--home-card);
+  border: 1px solid var(--home-card-border);
+  box-shadow: var(--home-card-shadow);
+  backdrop-filter: blur(10px);
+  border-radius: 18px;
   position: relative;
   overflow: hidden;
 }

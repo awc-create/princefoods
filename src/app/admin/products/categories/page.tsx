@@ -1,8 +1,8 @@
-// src/app/admin/products/categories/page.tsx
 'use client';
 
+import MediaField from '@/components/media/MediaField';
 import Link from 'next/link';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import styles from './CategoryPage.module.scss';
 
 interface Category {
@@ -23,7 +23,6 @@ interface BackfillResponse {
   children?: number;
   updatedProducts?: number;
   scannedProducts?: number;
-  // alt keys that may be returned
   parentsTouched?: number;
   childrenTouched?: number;
   productsUpdated?: number;
@@ -39,9 +38,6 @@ export default function Page() {
 
   const [editing, setEditing] = useState<Record<string, boolean>>({});
   const [drafts, setDrafts] = useState<Record<string, Partial<Category>>>({});
-
-  // hidden <input type="file"> for each card (only used by "Upload file")
-  const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const load = async () => {
     try {
@@ -88,7 +84,6 @@ export default function Page() {
       const res = await fetch(`/api/admin/categories/backfill${qs}`, { method: 'POST' });
       const data: unknown = await res.json().catch(() => ({}));
 
-      // Normalize response
       const b = (
         typeof data === 'object' && data !== null ? (data as BackfillResponse) : {}
       ) as BackfillResponse;
@@ -131,53 +126,6 @@ export default function Page() {
       const { [id]: _removed, ...rest } = d;
       return rest;
     });
-  };
-
-  // upload helper (button + drag & drop + paste in edit panel)
-  const uploadImageFile = async (id: string, file: File) => {
-    const form = new FormData();
-    form.append('file', file);
-
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/admin/categories/${id}/image`, { method: 'POST', body: form });
-      const data: unknown = await res.json().catch(() => ({}));
-      const ok =
-        typeof data === 'object' && data !== null && 'url' in (data as Record<string, unknown>);
-      if (!res.ok || !ok) {
-        const errMsg =
-          (typeof data === 'object' && data && 'error' in data
-            ? String((data as { error?: unknown }).error)
-            : null) ?? `Upload failed (${res.status})`;
-        throw new Error(errMsg);
-      }
-      const url = String((data as { url: unknown }).url);
-      setItems((prev) => prev.map((c) => (c.id === id ? { ...c, imageUrl: url } : c)));
-      setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], imageUrl: url } }));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const openPicker = (id: string) => fileInputs.current[id]?.click();
-
-  const onPick = async (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    await uploadImageFile(id, file);
-  };
-
-  const onDrop = async (id: string, e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const file = e.dataTransfer.files?.[0];
-    if (file) await uploadImageFile(id, file);
-  };
-
-  const onPaste = async (id: string, e: React.ClipboardEvent<HTMLDivElement>) => {
-    const file = e.clipboardData?.files?.[0];
-    if (file) await uploadImageFile(id, file);
   };
 
   const patch = async (id: string) => {
@@ -248,21 +196,11 @@ export default function Page() {
             const isEditing = !!editing[c.id];
             const d = drafts[c.id] || {};
             const currentImage = (d.imageUrl as string) ?? c.imageUrl ?? '';
+            const mediaValue = currentImage || null;
+            const categoryFolder = c.slug || c.name;
 
             return (
               <li key={c.id} className={styles.card}>
-                {/* hidden input for file picker (used by "Upload file" only) */}
-                <input
-                  ref={(el) => {
-                    fileInputs.current[c.id] = el;
-                  }}
-                  type="file"
-                  accept="image/*"
-                  className={styles.fileHidden}
-                  onChange={(e) => onPick(c.id, e)}
-                />
-
-                {/* Thumbnail now NAVIGATES (no upload on click) */}
                 <Link
                   href={`/admin/products/categories/${c.id}`}
                   className={styles.thumb}
@@ -284,15 +222,7 @@ export default function Page() {
                   </div>
 
                   {isEditing ? (
-                    <div
-                      className={styles.editPanel}
-                      onPaste={(e) => onPaste(c.id, e)}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                      }}
-                      onDrop={(e) => onDrop(c.id, e)}
-                      title="Drag & drop or paste image here"
-                    >
+                    <div className={styles.editPanel}>
                       <div className={styles.field}>
                         <label htmlFor={`name-${c.id}`}>Name</label>
                         <input
@@ -310,51 +240,39 @@ export default function Page() {
                       </div>
 
                       <div className={styles.field}>
-                        <label htmlFor={`imgurl-${c.id}`}>Image URL</label>
-                        <div className={styles.hstack}>
-                          <input
-                            id={`imgurl-${c.id}`}
-                            className={styles.input}
-                            type="text"
-                            placeholder="https://…"
-                            value={(d.imageUrl as string) ?? c.imageUrl ?? ''}
-                            onChange={(e) =>
-                              setDrafts((prev) => ({
-                                ...prev,
-                                [c.id]: { ...prev[c.id], imageUrl: e.target.value }
-                              }))
-                            }
-                          />
-                          <button
-                            type="button"
-                            className={styles.ghostBtn}
-                            onClick={() => openPicker(c.id)}
-                            disabled={busy}
-                          >
-                            Upload file
-                          </button>
-                        </div>
+                        <label>Category Media</label>
+                        <MediaField
+                          label="Category Image"
+                          modalTitle={`Media Library — ${c.name}`}
+                          pathSegments={['categories', categoryFolder]}
+                          itemName="thumbnail"
+                          value={mediaValue}
+                          onChange={(url) =>
+                            setDrafts((prev) => ({
+                              ...prev,
+                              [c.id]: { ...prev[c.id], imageUrl: url ?? '' }
+                            }))
+                          }
+                          accept="image/*"
+                        />
                       </div>
 
-                      {currentImage && (
-                        <div className={styles.preview}>
-                          {}
-                          <img src={currentImage} alt="" />
-                          <button
-                            type="button"
-                            className={styles.removePreview}
-                            onClick={() =>
-                              setDrafts((prev) => ({
-                                ...prev,
-                                [c.id]: { ...prev[c.id], imageUrl: '' }
-                              }))
-                            }
-                            aria-label="Remove image"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      )}
+                      <div className={styles.field}>
+                        <label htmlFor={`imgurl-${c.id}`}>Image URL</label>
+                        <input
+                          id={`imgurl-${c.id}`}
+                          className={styles.input}
+                          type="text"
+                          placeholder="https://…"
+                          value={(d.imageUrl as string) ?? c.imageUrl ?? ''}
+                          onChange={(e) =>
+                            setDrafts((prev) => ({
+                              ...prev,
+                              [c.id]: { ...prev[c.id], imageUrl: e.target.value }
+                            }))
+                          }
+                        />
+                      </div>
 
                       <div className={styles.fieldInline}>
                         <label className={styles.checkbox}>
@@ -377,7 +295,7 @@ export default function Page() {
                       <div className={styles.actions}>
                         <button
                           type="button"
-                          onClick={() => patch(c.id)}
+                          onClick={() => void patch(c.id)}
                           disabled={busy}
                           className={styles.primaryBtn}
                         >

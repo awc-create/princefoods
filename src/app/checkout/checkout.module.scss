@@ -118,6 +118,7 @@
   grid-template-columns: minmax(0, 1fr) 480px;
   gap: 18px;
 }
+
 @media (max-width: 900px) {
   .grid {
     grid-template-columns: 1fr;
@@ -238,29 +239,7 @@
   border-top: 1px dashed #e5e7eb;
 }
 
-/* payment header */
-.paymentHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-}
-
-.backBtn {
-  border: 0;
-  background: transparent;
-  color: #b21e2b;
-  cursor: pointer;
-  font-weight: 800;
-  padding: 6px 8px;
-  border-radius: 10px;
-
-  &:hover {
-    background: rgba(178, 30, 43, 0.08);
-  }
-}
-
-/* delivery */
+/* delivery (AddressStep can still use these if needed) */
 .deliveryWrap {
   display: grid;
   gap: 8px;
@@ -291,13 +270,7 @@
   }
 }
 
-/* step actions */
-.stepActions {
-  display: grid;
-  gap: 8px;
-  margin-top: 8px;
-}
-
+/* primary button (used by AddressStep “Continue” etc) */
 .nextBtn {
   width: 100%;
   height: 44px;
@@ -314,133 +287,7 @@
   }
 }
 
-/* pay card */
-.payCard {
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: #fff;
-  border-radius: 20px;
-  padding: 14px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.04);
-  margin-top: 10px;
-}
-
-.payCardHead {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.payCardTitle {
-  font-weight: 900;
-  letter-spacing: -0.02em;
-}
-
-.payCardSub {
-  margin-top: 4px;
-  color: #6b7280;
-  font-size: 0.92rem;
-  line-height: 1.3;
-}
-
-.payChip {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 6px 10px;
-  font-weight: 850;
-  font-size: 0.82rem;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  background: rgba(15, 23, 42, 0.02);
-  color: #111827;
-  white-space: nowrap;
-}
-
-.deliverySingle {
-  width: 100%;
-  text-align: left;
-  border-radius: 16px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  padding: 12px;
-  background: linear-gradient(180deg, rgba(220, 38, 38, 0.06), rgba(255, 255, 255, 0));
-  cursor: pointer;
-}
-
-.deliverySingleActive {
-  border-color: rgba(220, 38, 38, 0.35);
-  box-shadow: 0 12px 28px rgba(220, 38, 38, 0.08);
-}
-
-.deliverySingleTop {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.deliverySingleName {
-  font-weight: 900;
-  letter-spacing: -0.01em;
-  color: #111827;
-}
-
-.deliverySingleMeta {
-  font-weight: 750;
-  font-size: 0.86rem;
-  color: #6b7280;
-}
-
-.deliverySingleHint {
-  margin-top: 6px;
-  color: #6b7280;
-  font-size: 0.92rem;
-  line-height: 1.35;
-}
-
-.payDivider {
-  height: 1px;
-  background: rgba(15, 23, 42, 0.08);
-  margin: 12px 0;
-}
-
-.payInfoRow {
-  display: flex;
-  gap: 10px;
-  padding: 10px;
-  border-radius: 14px;
-  border: 1px dashed rgba(15, 23, 42, 0.12);
-  background: rgba(15, 23, 42, 0.015);
-
-  & + & {
-    margin-top: 10px;
-  }
-}
-
-.payInfoIcon {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  background: #fff;
-  font-size: 18px;
-}
-
-.payInfoTitle {
-  font-weight: 850;
-  color: #111827;
-  line-height: 1.2;
-}
-
-.payInfoSub {
-  margin-top: 3px;
-  color: #6b7280;
-  font-size: 0.92rem;
-  line-height: 1.3;
-}
-
+/* shared text */
 .muted {
   color: #6b7280;
   margin-top: 6px;

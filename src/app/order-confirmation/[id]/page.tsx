@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/prisma';
 import styles from '@/styles/order-confirm.module.scss';
 import Link from 'next/link';
+import ClearCartOnMount from './ClearCartOnMount';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,8 +72,16 @@ export default async function OrderConfirmationPage({
       currency: order.currency || 'GBP'
     }).format((p || 0) / 100);
 
+  // ✅ Your enum:
+  // PENDING | AUTHORIZED | CAPTURED | PARTIAL_REFUND | REFUNDED | FAILED
+  // Only CAPTURED means payment completed.
+  const shouldClear = order.paymentStatus === 'CAPTURED';
+
   return (
     <main className={styles.shell}>
+      {/* ✅ Clear cart only after successful payment */}
+      <ClearCartOnMount shouldClear={shouldClear} />
+
       <h1>Thank you! Your order is confirmed.</h1>
 
       <p className={styles.sub}>

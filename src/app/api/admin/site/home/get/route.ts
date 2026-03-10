@@ -1,10 +1,8 @@
-// src/app/api/admin/site/home/get/route.ts
 import { prisma } from '@/lib/prisma';
 import type { HomeSettingsDTO } from '@/types/homeSettings';
 import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 
-// Run on Node, never cache (admin data)
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -44,8 +42,25 @@ const DEFAULTS: HomeSettingsDTO = {
       }
     ]
   },
-  instagram: { token: '', usernameUrl: 'https://www.instagram.com/princefoodsuk/', enabled: true },
+  instagram: {
+    token: '',
+    usernameUrl: 'https://www.instagram.com/princefoodsuk/',
+    enabled: true
+  },
   promotions: [],
+  promotionBanner: {
+    enabled: false,
+    mode: 'SELECTED_PROMOTIONS',
+    promotionIds: [],
+    startAt: null,
+    endAt: null,
+    title: '',
+    message: '',
+    ctaLabel: '',
+    ctaHref: '/shop',
+    backgroundImageUrl: null
+  },
+  celebrationSections: [],
   productShowcase: {
     title: 'Featured',
     kinds: ['best_sellers', 'on_sale', 'b1g1', 'new_arrivals', 'trending', 'top_rated', 'seasonal'],
@@ -58,7 +73,6 @@ export async function GET() {
   try {
     let row = await prisma.homeSettings.findUnique({ where: { id: 1 } });
 
-    // prefer ??= (ESLint rule)
     row ??= await prisma.homeSettings.create({
       data: {
         id: 1,
@@ -66,17 +80,21 @@ export async function GET() {
         delivery: DEFAULTS.delivery as unknown as Prisma.InputJsonValue,
         instagram: DEFAULTS.instagram as unknown as Prisma.InputJsonValue,
         promotions: DEFAULTS.promotions as unknown as Prisma.InputJsonValue,
+        promotionBanner: DEFAULTS.promotionBanner as unknown as Prisma.InputJsonValue,
+        celebrationSections: DEFAULTS.celebrationSections as unknown as Prisma.InputJsonValue,
         productShowcase: DEFAULTS.productShowcase as unknown as Prisma.InputJsonValue,
         reviews: DEFAULTS.reviews as unknown as Prisma.InputJsonValue
       }
     });
 
-    // Avoid `any` casts; cast to specific slices
     const data: HomeSettingsDTO = {
       hero: row.hero as unknown as HomeSettingsDTO['hero'],
       delivery: row.delivery as unknown as HomeSettingsDTO['delivery'],
       instagram: row.instagram as unknown as HomeSettingsDTO['instagram'],
       promotions: row.promotions as unknown as HomeSettingsDTO['promotions'],
+      promotionBanner: row.promotionBanner as unknown as HomeSettingsDTO['promotionBanner'],
+      celebrationSections:
+        row.celebrationSections as unknown as HomeSettingsDTO['celebrationSections'],
       productShowcase: row.productShowcase as unknown as HomeSettingsDTO['productShowcase'],
       reviews: row.reviews as unknown as HomeSettingsDTO['reviews']
     };
@@ -85,6 +103,7 @@ export async function GET() {
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'UNKNOWN_ERROR';
     console.error('GET /api/admin/site/home/get failed:', e);
+
     return NextResponse.json(
       { ok: false, error: msg },
       { status: 500, headers: { 'Cache-Control': 'no-store' } }

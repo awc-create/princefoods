@@ -1,5 +1,14 @@
 .homeContainer {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 14% 18%, var(--home-ambient-1), transparent 34%),
+    radial-gradient(circle at 88% 14%, var(--home-ambient-2), transparent 36%),
+    linear-gradient(
+      180deg,
+      var(--home-surface-top) 0,
+      var(--home-surface-mid) 320px,
+      var(--home-surface-body) 321px,
+      var(--home-surface-body-2) 100%
+    );
 }

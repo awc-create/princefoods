@@ -85,10 +85,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         hide: !canEditSite,
         items: [
           { href: '/admin/site/home', label: 'Home (Hero/Delivery/etc)' },
-          { href: '/admin/site/home/sections', label: 'Home Sections' },
           { href: '/admin/site/about', label: 'About' },
           { href: '/admin/site/faq', label: 'FAQ' },
-          { href: '/admin/site/contact', label: 'Contact' }
+          { href: '/admin/site/contact', label: 'Contact' },
+          { href: '/admin/media', label: 'Media Library' }
         ]
       },
       {
@@ -120,7 +120,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         items: [
           // ✅ PROMOTIONS ADMIN PAGE INTEGRATION
           { href: '/admin/promotions', label: 'Promotions' },
-          { href: '/admin/offers', label: 'Offers' }
+          { href: '/admin/offers', label: 'Offers' },
+          { href: '/admin/customer-discounts', label: 'Customer Discounts' }
         ]
       },
       {

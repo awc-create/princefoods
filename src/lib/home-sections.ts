@@ -1,6 +1,4 @@
 // src/lib/home-sections.ts
-import type { CartLine, OfferAdminForm } from '@/lib/offers-engine';
-import { evaluateOffers } from '@/lib/offers-engine';
 import { prisma } from '@/lib/prisma';
 import type { DealsMode, HomeSectionProductCarouselConfig } from '@/types/homeSections';
 
@@ -14,6 +12,22 @@ interface ProductRow {
   categoryId: string | null;
   tags: string[];
   collection: string | null;
+}
+
+type DealsSelectionMode = 'ALL_ACTIVE' | 'SELECTED';
+
+interface ExtractedOfferTargets {
+  directProductIds: string[];
+  includesAllProducts: boolean;
+}
+
+interface OfferLite {
+  id: string;
+  name: string;
+  status: string;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  payload: unknown;
 }
 
 const takeSelect = (limit: number) => ({
@@ -45,27 +59,195 @@ function offerIdsFromCfg(cfg: HomeSectionProductCarouselConfig): string[] {
     .filter(Boolean);
 }
 
-/**
- * If Product.price is stored in pounds (e.g. 1.99), convert to pence for offers engine.
- * If your DB stores pence already, change this to: return clampInt(price, 0, 999999);
- */
-function priceToPence(price: number | null): number {
-  const n = Number(price ?? 0);
-  if (!Number.isFinite(n) || n <= 0) return 0;
-  return Math.round(n * 100);
+function dealsSelectionModeFromCfg(cfg: HomeSectionProductCarouselConfig): DealsSelectionMode {
+  return cfg.dealsSelectionMode === 'SELECTED' ? 'SELECTED' : 'ALL_ACTIVE';
 }
 
-function toCartLine(p: ProductRow): CartLine {
+function isRecord(x: unknown): x is Record<string, unknown> {
+  return !!x && typeof x === 'object';
+}
+
+function readStringArray(x: unknown): string[] {
+  if (!Array.isArray(x)) return [];
+  return x.filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
+}
+
+function extractPoolTargets(pool: unknown): ExtractedOfferTargets {
+  if (!Array.isArray(pool)) {
+    return {
+      directProductIds: [],
+      includesAllProducts: false
+    };
+  }
+
+  const ids = new Set<string>();
+  let includesAllProducts = false;
+
+  for (const entry of pool) {
+    if (!isRecord(entry)) continue;
+
+    const type = typeof entry.type === 'string' ? entry.type : '';
+
+    if (type === 'PRODUCT_IDS') {
+      for (const id of readStringArray(entry.ids)) {
+        ids.add(id);
+      }
+    }
+
+    if (type === 'ALL_PRODUCTS') {
+      includesAllProducts = true;
+    }
+  }
+
   return {
-    productId: p.id,
-    sku: p.sku,
-    name: p.name,
-    unitPricePence: priceToPence(p.price),
-    qty: 1,
-    categoryId: p.categoryId,
-    tags: Array.isArray(p.tags) ? p.tags : [],
-    collection: p.collection
+    directProductIds: [...ids],
+    includesAllProducts
   };
+}
+
+function extractOfferTargets(payload: unknown): ExtractedOfferTargets {
+  if (!isRecord(payload)) {
+    return {
+      directProductIds: [],
+      includesAllProducts: false
+    };
+  }
+
+  const data = isRecord(payload.data) ? payload.data : null;
+  if (!data) {
+    return {
+      directProductIds: [],
+      includesAllProducts: false
+    };
+  }
+
+  const buy = extractPoolTargets(data.buyPool);
+  const get = extractPoolTargets(data.getPool);
+
+  return {
+    directProductIds: [...new Set([...buy.directProductIds, ...get.directProductIds])],
+    includesAllProducts: buy.includesAllProducts || get.includesAllProducts
+  };
+}
+
+function isOfferLive(offer: OfferLite, now: Date): boolean {
+  if (offer.status !== 'ACTIVE') return false;
+  if (offer.startsAt && offer.startsAt > now) return false;
+  if (offer.endsAt && offer.endsAt < now) return false;
+  return true;
+}
+
+async function getRelevantDealsOffers(cfg: HomeSectionProductCarouselConfig): Promise<OfferLite[]> {
+  const selectionMode = dealsSelectionModeFromCfg(cfg);
+  const selectedIds = offerIdsFromCfg(cfg);
+  const now = new Date();
+
+  const offers = await prisma.offer.findMany({
+    where:
+      selectionMode === 'SELECTED'
+        ? {
+            id: { in: selectedIds.length ? selectedIds : ['__none__'] }
+          }
+        : {
+            status: 'ACTIVE'
+          },
+    orderBy: [{ updatedAt: 'desc' }],
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      startsAt: true,
+      endsAt: true,
+      payload: true
+    }
+  });
+
+  return offers.filter((offer) => isOfferLive(offer, now));
+}
+
+async function resolveDealsOfferEngineProducts(
+  cfg: HomeSectionProductCarouselConfig,
+  limit: number
+): Promise<ProductRow[]> {
+  const offers = await getRelevantDealsOffers(cfg);
+  if (!offers.length) return [];
+
+  const directIdSet = new Set<string>();
+  let includesAllProducts = false;
+
+  for (const offer of offers) {
+    const targets = extractOfferTargets(offer.payload);
+
+    for (const id of targets.directProductIds) {
+      directIdSet.add(id);
+    }
+
+    if (targets.includesAllProducts) {
+      includesAllProducts = true;
+    }
+  }
+
+  const directIds = [...directIdSet];
+
+  const directProducts =
+    directIds.length > 0
+      ? await prisma.product.findMany({
+          where: {
+            visible: true,
+            id: { in: directIds }
+          },
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            productImageUrl: true,
+            sku: true,
+            categoryId: true,
+            tags: true,
+            collection: true
+          }
+        })
+      : [];
+
+  // Keep same order as extracted ids where possible
+  const directProductMap = new Map(directProducts.map((p) => [p.id, p]));
+  const orderedDirectProducts = directIds
+    .map((id) => directProductMap.get(id))
+    .filter((p): p is ProductRow => !!p);
+
+  if (orderedDirectProducts.length >= limit) {
+    return orderedDirectProducts.slice(0, limit);
+  }
+
+  if (!includesAllProducts) {
+    return orderedDirectProducts.slice(0, limit);
+  }
+
+  const remaining = limit - orderedDirectProducts.length;
+  const excludeIds = orderedDirectProducts.map((p) => p.id);
+
+  const fillerProducts = await prisma.product.findMany({
+    take: remaining,
+    where: {
+      visible: true,
+      id: {
+        notIn: excludeIds.length ? excludeIds : ['__none__']
+      }
+    },
+    orderBy: [{ createdAt: 'desc' }],
+    select: {
+      id: true,
+      name: true,
+      price: true,
+      productImageUrl: true,
+      sku: true,
+      categoryId: true,
+      tags: true,
+      collection: true
+    }
+  });
+
+  return [...orderedDirectProducts, ...fillerProducts].slice(0, limit);
 }
 
 export async function productsForSection(
@@ -143,7 +325,6 @@ export async function productsForSection(
     case 'DEALS': {
       const dealsMode: DealsMode = cfg.dealsMode ?? 'OFFER_ENGINE';
 
-      // ✅ discount fields mode
       if (dealsMode === 'DISCOUNT_FIELDS') {
         return prisma.product.findMany({
           ...base,
@@ -152,7 +333,6 @@ export async function productsForSection(
         });
       }
 
-      // ✅ ribbon mode
       if (dealsMode === 'RIBBON') {
         return prisma.product.findMany({
           ...base,
@@ -161,40 +341,7 @@ export async function productsForSection(
         });
       }
 
-      // ✅ offer engine mode (this is where cfg.offerIds matters)
-      const restrictOfferIds = offerIdsFromCfg(cfg);
-
-      const offersDb = await prisma.offer.findMany({
-        where: {
-          status: 'ACTIVE',
-          ...(restrictOfferIds.length ? { id: { in: restrictOfferIds } } : {})
-        },
-        orderBy: [{ updatedAt: 'desc' }]
-      });
-
-      const offers = offersDb as unknown as OfferAdminForm[];
-      if (!offers.length) return [];
-
-      // Candidate pool bigger than limit, then filter down by engine
-      const candidates = await prisma.product.findMany({
-        ...takeSelect(clamp(limit * 6, 24, 240)),
-        orderBy: [{ updatedAt: 'desc' }]
-      });
-
-      const now = new Date();
-      const matches: ProductRow[] = [];
-
-      for (const p of candidates) {
-        const line = toCartLine(p);
-        const res = evaluateOffers(offers, { now, lines: [line] });
-
-        if (res.applied.length > 0) {
-          matches.push(p);
-          if (matches.length >= limit) break;
-        }
-      }
-
-      return matches;
+      return resolveDealsOfferEngineProducts(cfg, limit);
     }
 
     default:

@@ -31,7 +31,7 @@ export type PromoQuoteResult =
       promotionCode: string;
       discountPence: Money;
       shippingDiscountPence: Money;
-      reasons: string[]; // can include warnings (e.g. "Limited to 1 use per user")
+      reasons: string[];
     }
   | {
       ok: false;
@@ -111,6 +111,33 @@ function promoLockOk(args: {
   }
 
   return true;
+}
+
+/**
+ * ✅ NEW: allow-list check (many users)
+ * If the promotion has allowed-users rows, the caller must be logged in,
+ * and must be present in the allow-list.
+ */
+async function promoAllowListOk(args: { promotionId: string; userId: string | null }) {
+  const { promotionId, userId } = args;
+
+  const hasAny = await prisma.promotionAllowedUser.count({
+    where: { promotionId },
+    take: 1
+  });
+
+  // no allow-list => open to all (subject to other rules)
+  if (!hasAny) return true;
+
+  // allow-list exists => must be logged in
+  if (!userId) return false;
+
+  const row = await prisma.promotionAllowedUser.findUnique({
+    where: { promotionId_userId: { promotionId, userId } },
+    select: { userId: true }
+  });
+
+  return !!row;
 }
 
 /**
@@ -200,8 +227,6 @@ function computeItemDiscount(args: {
 
 /**
  * Compute shipping discount.
- * For now you said shipping prices are not set up => return 0.
- * Later, pass shippingDryPence / shippingFrozenPence to enable % discounts.
  */
 function computeShippingDiscount(args: {
   applyShippingDiscount: boolean;
@@ -215,7 +240,6 @@ function computeShippingDiscount(args: {
   const dry = Math.max(0, Math.floor(args.shippingDryPence ?? 0));
   const frozen = Math.max(0, Math.floor(args.shippingFrozenPence ?? 0));
 
-  // If you haven't implemented split yet, this will naturally be 0.
   if (dry <= 0 && frozen <= 0) return 0;
 
   const dryPct = clampInt(Number(args.shippingPercentOffDry ?? 0), 0, 100);
@@ -229,7 +253,6 @@ function computeShippingDiscount(args: {
 
 /**
  * Quote (validate + compute discount) for a promo code.
- * Does NOT redeem. Safe to call from checkout UI.
  */
 export async function quotePromotion(input: PromoQuoteInput): Promise<PromoQuoteResult> {
   const promotionCode = normalizePromotionCode(input.code);
@@ -307,6 +330,7 @@ export async function quotePromotion(input: PromoQuoteInput): Promise<PromoQuote
   const userId = safeUserId(input.userId);
   const emailUsed = safeEmail(input.emailUsed);
 
+  // ✅ single-user/email locks
   if (
     !promoLockOk({
       lockedToUserId: promo.lockedToUserId,
@@ -320,6 +344,17 @@ export async function quotePromotion(input: PromoQuoteInput): Promise<PromoQuote
       promotionCode,
       error: 'LOCKED',
       reasons: ['This code is not eligible for this customer/email.']
+    };
+  }
+
+  // ✅ NEW: multi-user allow-list
+  const allowOk = await promoAllowListOk({ promotionId: promo.id, userId });
+  if (!allowOk) {
+    return {
+      ok: false,
+      promotionCode,
+      error: 'NOT_ELIGIBLE_CUSTOMER',
+      reasons: ['This code is not eligible for this account.']
     };
   }
 
@@ -337,7 +372,6 @@ export async function quotePromotion(input: PromoQuoteInput): Promise<PromoQuote
   }
 
   if (promo.maxUsesPerUser != null && promo.maxUsesPerUser >= 0) {
-    // logged-in user check
     if (userId) {
       const usedByUser = await prisma.promotionRedemption.count({
         where: { promotionId: promo.id, userId }
@@ -351,7 +385,6 @@ export async function quotePromotion(input: PromoQuoteInput): Promise<PromoQuote
         };
       }
     } else if (emailUsed) {
-      // guest check by email
       const usedByEmail = await prisma.promotionRedemption.count({
         where: { promotionId: promo.id, emailUsed: emailUsed }
       });
@@ -364,7 +397,6 @@ export async function quotePromotion(input: PromoQuoteInput): Promise<PromoQuote
         };
       }
     } else {
-      // no identity at all => you can still allow quote, but redemption will require emailUsed for guests.
       reasons.push('Guest checkout will require an email to redeem this code.');
     }
   }
@@ -400,27 +432,18 @@ export async function quotePromotion(input: PromoQuoteInput): Promise<PromoQuote
     shippingFrozenPence: input.shippingFrozenPence
   });
 
-  // Avoid negative / nonsense
-  const finalDiscount = Math.max(0, Math.floor(discountPence));
-  const finalShipDiscount = Math.max(0, Math.floor(shippingDiscountPence));
-
   return {
     ok: true,
     promotionId: promo.id,
     promotionCode: promo.code ?? promotionCode,
-    discountPence: finalDiscount,
-    shippingDiscountPence: finalShipDiscount,
+    discountPence: Math.max(0, Math.floor(discountPence)),
+    shippingDiscountPence: Math.max(0, Math.floor(shippingDiscountPence)),
     reasons
   };
 }
 
 /**
  * Redeem promotion ONLY once payment is CAPTURED.
- * This is called from Stripe webhook after order is marked PAID/CAPTURED.
- *
- * Idempotency:
- * - PromotionRedemption has orderId @unique, so duplicate attempts are safe.
- * - Uses SERIALIZABLE tx to prevent race on maxUsesTotal / maxUsesPerUser.
  */
 export async function redeemPromotionOnCapturedPayment(args: {
   orderId: string;
@@ -437,7 +460,6 @@ export async function redeemPromotionOnCapturedPayment(args: {
 
   if (!orderId || !promotionId || !promotionCode) return;
 
-  // Must be captured/paid
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     select: {
@@ -455,17 +477,14 @@ export async function redeemPromotionOnCapturedPayment(args: {
   if (!order) return;
   if (order.paymentStatus !== 'CAPTURED') return;
 
-  // If order promo changed or missing, do nothing
   if (!order.promotionId || !order.promotionCode) return;
   if (order.promotionId !== promotionId) return;
   if (normalizePromotionCode(order.promotionCode) !== promotionCode) return;
 
-  // Use the order contact email as fallback for guests if not passed
   const emailForGuest = emailUsed ?? safeEmail(order.contactEmail);
 
   await prisma.$transaction(
     async (tx) => {
-      // Idempotent: already redeemed for this order?
       const existing = await tx.promotionRedemption.findUnique({
         where: {
           orderId_promotionId: {
@@ -494,11 +513,9 @@ export async function redeemPromotionOnCapturedPayment(args: {
       });
       if (!promo) return;
 
-      // Enforce status/window at redeem-time too
       if (promo.status !== 'ACTIVE') return;
       if (!promoWindowOk(promo)) return;
 
-      // Enforce locks at redeem-time too
       if (
         !promoLockOk({
           lockedToUserId: promo.lockedToUserId,
@@ -510,7 +527,21 @@ export async function redeemPromotionOnCapturedPayment(args: {
         return;
       }
 
-      // Enforce usage limits safely inside tx
+      // ✅ NEW: enforce allow-list at redeem-time too
+      // (do it inside tx for consistency)
+      const hasAny = await tx.promotionAllowedUser.count({
+        where: { promotionId: promo.id },
+        take: 1
+      });
+      if (hasAny) {
+        if (!userId) return;
+        const ok = await tx.promotionAllowedUser.findUnique({
+          where: { promotionId_userId: { promotionId: promo.id, userId } },
+          select: { userId: true }
+        });
+        if (!ok) return;
+      }
+
       if (promo.maxUsesTotal != null && promo.maxUsesTotal >= 0) {
         const totalUsed = await tx.promotionRedemption.count({
           where: { promotionId: promo.id }
@@ -530,22 +561,16 @@ export async function redeemPromotionOnCapturedPayment(args: {
           });
           if (usedByEmail >= promo.maxUsesPerUser) return;
         } else {
-          // No identity (should not happen because order has contactEmail)
           return;
         }
       }
 
-      // Create immutable redemption log
       await tx.promotionRedemption.create({
         data: {
           promotionId: promo.id,
           orderId,
           userId: userId ?? undefined,
           emailUsed: emailForGuest ?? undefined,
-
-          // Record what benefit was actually applied on the order.
-          // NOTE: shippingDiscountPence should eventually be computed explicitly;
-          // for now you can store 0 or infer if you later track it separately.
           discountPence: Math.max(0, order.discountTotal ?? 0),
           shippingDiscountPence: 0
         }

@@ -35,7 +35,7 @@ export default function CreatePromotionModal({
   optionsError: string | null;
   onRequestOptions: () => void;
 
-  onCreate: (body: CreateBody) => void;
+  onCreate: (body: CreateBody) => Promise<{ id: string; code: string | null; name: string }>;
   creating: boolean;
   createError: string | null;
 }) {
@@ -60,6 +60,18 @@ export default function CreatePromotionModal({
 
   const [localErr, setLocalErr] = useState<string | null>(null);
 
+  // ✅ Email after create
+  const [emailAfterCreate, setEmailAfterCreate] = useState(false);
+  const [emailScope, setEmailScope] = useState<'ALL_CUSTOMERS' | 'SELECTED_USERS'>(
+    'SELECTED_USERS'
+  );
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailMessage, setEmailMessage] = useState('');
+  const [emailCustomerOptions, setEmailCustomerOptions] = useState<PickerOption[]>([]);
+  const [emailCustomerLoading, setEmailCustomerLoading] = useState(false);
+  const [emailCustomerError, setEmailCustomerError] = useState<string | null>(null);
+  const [emailSelectedUserIds, setEmailSelectedUserIds] = useState<string[]>([]);
+
   const reset = () => {
     setPromoKind('AMOUNT_OFF');
     setCode('');
@@ -77,6 +89,15 @@ export default function CreatePromotionModal({
     setSelectedCategoryIds([]);
     setSelectedProductIds([]);
     setLocalErr(null);
+
+    setEmailAfterCreate(false);
+    setEmailScope('SELECTED_USERS');
+    setEmailSubject('');
+    setEmailMessage('');
+    setEmailCustomerOptions([]);
+    setEmailCustomerLoading(false);
+    setEmailCustomerError(null);
+    setEmailSelectedUserIds([]);
   };
 
   useEffect(() => {
@@ -106,7 +127,50 @@ export default function CreatePromotionModal({
 
   const showPicker = targetType === 'CATEGORIES' || targetType === 'PRODUCTS';
 
-  function submit() {
+  // ✅ prefill email subject/message as code changes (nice UX)
+  useEffect(() => {
+    const c = normCode(code);
+    if (!emailSubject.trim()) {
+      setEmailSubject(c ? `Prince Foods promo code: ${c}` : 'Prince Foods promo code');
+    }
+    if (!emailMessage.trim()) {
+      setEmailMessage(c ? `Use code ${c} at checkout to claim this offer.` : '');
+    }
+    // only when code changes, not on every keystroke in subject/message
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code]);
+
+  async function remoteSearchCustomers(q: string) {
+    setEmailCustomerLoading(true);
+    setEmailCustomerError(null);
+
+    try {
+      const res = await fetch(`/api/admin/options/customers?q=${encodeURIComponent(q)}&take=200`, {
+        cache: 'no-store'
+      });
+
+      const json = (await res.json()) as
+        | { options?: PickerOption[]; error?: string }
+        | { ok?: boolean; options?: PickerOption[]; error?: string };
+
+      if (!res.ok) {
+        const msg =
+          ('error' in json && typeof json.error === 'string' ? json.error : undefined) ??
+          'Failed to load customers.';
+        throw new Error(msg);
+      }
+
+      const opts = 'options' in json && Array.isArray(json.options) ? json.options : [];
+      setEmailCustomerOptions(opts);
+    } catch (e) {
+      setEmailCustomerError(e instanceof Error ? e.message : 'Failed to load customers.');
+      setEmailCustomerOptions([]);
+    } finally {
+      setEmailCustomerLoading(false);
+    }
+  }
+
+  async function submit() {
     setLocalErr(null);
 
     const c = normCode(code);
@@ -119,6 +183,16 @@ export default function CreatePromotionModal({
       return setLocalErr('Select at least 1 category.');
     if (targetType === 'PRODUCTS' && selectedProductIds.length === 0)
       return setLocalErr('Select at least 1 product.');
+
+    // ✅ validate email-after-create config (only when enabled)
+    if (emailAfterCreate) {
+      const subj = emailSubject.trim();
+      if (!subj) return setLocalErr('Email subject is required.');
+
+      if (emailScope === 'SELECTED_USERS' && emailSelectedUserIds.length === 0) {
+        return setLocalErr('Select at least 1 customer to email.');
+      }
+    }
 
     const discountType = kindToDiscountType(promoKind);
 
@@ -165,7 +239,31 @@ export default function CreatePromotionModal({
       productIds: targetType === 'PRODUCTS' ? dedupeIds(selectedProductIds) : []
     };
 
-    onCreate(body);
+    try {
+      const created = await onCreate(body);
+
+      // ✅ optional: create email blast after promo is created
+      if (emailAfterCreate) {
+        // Promo codes should exist for CODE promos; still guard
+        if (!created.code) return;
+
+        await fetch(`/api/admin/promotions/${created.id}/email-blast`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scope: emailScope,
+            userIds: emailScope === 'SELECTED_USERS' ? emailSelectedUserIds : undefined,
+            subject: emailSubject.trim(),
+            message: emailMessage.trim() ? emailMessage.trim() : null
+          })
+        });
+      }
+
+      // close modal (parent also closes on success, but this makes UX snappy)
+      onClose();
+    } catch {
+      // parent will show createError; keep local clean
+    }
   }
 
   if (!open) return null;
@@ -427,6 +525,79 @@ export default function CreatePromotionModal({
                   </span>
                 </label>
               </div>
+            </div>
+
+            {/* ✅ Email after create */}
+            <div className={styles.cardInset}>
+              <label className={styles.checkRow}>
+                <input
+                  type="checkbox"
+                  checked={emailAfterCreate}
+                  onChange={(e) => setEmailAfterCreate(e.target.checked)}
+                />
+                <span>
+                  <strong>Email promo code after creating</strong>
+                  <div className={styles.hint}>
+                    Send to selected customers (or all customers). You can email again later too.
+                  </div>
+                </span>
+              </label>
+
+              {emailAfterCreate ? (
+                <div className={styles.formGrid} style={{ marginTop: 10 }}>
+                  <div className={styles.split2}>
+                    <div className={styles.field}>
+                      <label className={styles.label}>Send to</label>
+                      <select
+                        className={styles.select}
+                        value={emailScope}
+                        onChange={(e) =>
+                          setEmailScope(e.target.value as 'ALL_CUSTOMERS' | 'SELECTED_USERS')
+                        }
+                      >
+                        <option value="SELECTED_USERS">Selected customers</option>
+                        <option value="ALL_CUSTOMERS">All customers</option>
+                      </select>
+                    </div>
+
+                    <div className={styles.field}>
+                      <label className={styles.label}>Email subject</label>
+                      <input
+                        className={styles.input}
+                        value={emailSubject}
+                        onChange={(e) => setEmailSubject(e.target.value)}
+                        placeholder="e.g. Prince Foods promo code: DIWALI10"
+                      />
+                    </div>
+                  </div>
+
+                  <div className={styles.field}>
+                    <label className={styles.label}>Message (optional)</label>
+                    <textarea
+                      className={styles.textarea}
+                      rows={3}
+                      value={emailMessage}
+                      onChange={(e) => setEmailMessage(e.target.value)}
+                      placeholder="Optional message shown above the code"
+                    />
+                  </div>
+
+                  {emailScope === 'SELECTED_USERS' ? (
+                    <MultiPicker
+                      title="Select customers"
+                      placeholder="Search customers…"
+                      remote
+                      minChars={0}
+                      options={emailCustomerOptions}
+                      selectedIds={emailSelectedUserIds}
+                      onChange={setEmailSelectedUserIds}
+                      onRemoteSearch={remoteSearchCustomers}
+                      remoteLoading={emailCustomerLoading}
+                      remoteError={emailCustomerError}
+                    />
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </div>
 

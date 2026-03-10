@@ -1,7 +1,6 @@
-// src/components/admin/offers/EditOfferModal.tsx
 'use client';
 
-import type { OfferAdminForm, OfferKind, OfferStatus, OfferTargetRule } from '@/types/offers';
+import type { OfferAdminForm, OfferKind, OfferTargetRule } from '@/types/offers';
 import { useEffect, useMemo, useState } from 'react';
 import OfferRuleBuilder from './OfferRuleBuilder';
 import styles from './offers.module.scss';
@@ -42,17 +41,6 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
 }
 
-function isOfferTargetRuleArray(v: unknown): v is OfferTargetRule[] {
-  return Array.isArray(v);
-}
-
-function _readPool(data: unknown, fallback: OfferTargetRule[]): OfferTargetRule[] {
-  if (!isRecord(data)) return fallback;
-  const pool = data.pool;
-  return isOfferTargetRuleArray(pool) ? pool : fallback;
-}
-
-// ✅ Admin UI supports these 5 kinds now
 function isSupportedKind(k: OfferKind): k is AdminOfferKind {
   return (
     k === 'BOGOF' ||
@@ -73,16 +61,6 @@ function buildPool(targetType: OfferTargetType, productIds: string[], categoryId
   return selectionToPool({ targetType: 'CATEGORIES', categoryIds });
 }
 
-/**
- * Derive editor selection from a pool.
- * We support these shapes:
- * - [{ type: 'ALL_PRODUCTS' }]
- * - [{ type: 'PRODUCT_IDS', ids: [...] }]
- * - [{ type: 'CATEGORY_IDS', ids: [...] }]
- *
- * If multiple rules are present, we merge ids for PRODUCT_IDS/CATEGORY_IDS.
- * If ALL_PRODUCTS appears anywhere, we treat it as SITE_WIDE.
- */
 function deriveTargetFromPool(pool: OfferTargetRule[] | null | undefined): {
   targetType: OfferTargetType;
   productIds: string[];
@@ -91,7 +69,7 @@ function deriveTargetFromPool(pool: OfferTargetRule[] | null | undefined): {
   const rules = Array.isArray(pool) ? pool : [];
   if (!rules.length) return { targetType: 'SITE_WIDE', productIds: [], categoryIds: [] };
 
-  if (rules.some((r) => r && (r as OfferTargetRule).type === 'ALL_PRODUCTS')) {
+  if (rules.some((r) => r && r.type === 'ALL_PRODUCTS')) {
     return { targetType: 'SITE_WIDE', productIds: [], categoryIds: [] };
   }
 
@@ -100,11 +78,17 @@ function deriveTargetFromPool(pool: OfferTargetRule[] | null | undefined): {
 
   for (const r of rules) {
     if (!r) continue;
+
     if (r.type === 'PRODUCT_IDS') {
-      for (const id of r.ids ?? []) if (typeof id === 'string' && id) productIds.push(id);
+      for (const id of r.ids ?? []) {
+        if (typeof id === 'string' && id) productIds.push(id);
+      }
     }
+
     if (r.type === 'CATEGORY_IDS') {
-      for (const id of r.ids ?? []) if (typeof id === 'string' && id) categoryIds.push(id);
+      for (const id of r.ids ?? []) {
+        if (typeof id === 'string' && id) categoryIds.push(id);
+      }
     }
   }
 
@@ -118,7 +102,6 @@ function deriveTargetFromPool(pool: OfferTargetRule[] | null | undefined): {
     return { targetType: 'CATEGORIES', productIds: [], categoryIds: uniq(categoryIds) };
   }
 
-  // fallback (unknown rule types)
   return { targetType: 'SITE_WIDE', productIds: [], categoryIds: [] };
 }
 
@@ -141,48 +124,29 @@ export default function EditOfferModal({
 
   const [original, setOriginal] = useState<OfferAdminForm | null>(null);
 
-  /* =====================
-     Basics (editable)
-     ===================== */
   const [name, setName] = useState('');
-  const [status, setStatus] = useState<OfferStatus>('ACTIVE');
+  const [status, setStatus] = useState<OfferAdminForm['status']>('ACTIVE');
   const [startsAt, setStartsAt] = useState<string | null>(null);
   const [endsAt, setEndsAt] = useState<string | null>(null);
   const [priority, setPriority] = useState<number>(0);
 
-  /* =====================
-     Kind + rule fields (CreateOfferModal-style)
-     ===================== */
   const [kind, setKind] = useState<AdminOfferKind>('BOGOF');
 
   const [buyQty, setBuyQty] = useState(2);
   const [getQty, setGetQty] = useState<number | null>(1);
   const [payQty, setPayQty] = useState<number | null>(1);
-
-  // used by X_FOR_FIXED_PRICE and AMOUNT_OFF
-  const [pricePence, setPricePence] = useState<number | null>(100); // £1 default
-
-  // used by PERCENT_OFF
+  const [pricePence, setPricePence] = useState<number | null>(100);
   const [percent, setPercent] = useState<number | null>(10);
 
-  /* =====================
-     Targeting (CreateOfferModal-style)
-     ===================== */
   const [targetType, setTargetType] = useState<OfferTargetType>('SITE_WIDE');
   const [productIds, setProductIds] = useState<string[]>([]);
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
 
-  /* =====================
-     Picker options
-     ===================== */
   const [productOptions, setProductOptions] = useState<PickerOption[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<PickerOption[]>([]);
   const [optErr, setOptErr] = useState<string | null>(null);
   const [optLoading, setOptLoading] = useState(false);
 
-  /* =====================
-     Reset on open
-     ===================== */
   useEffect(() => {
     if (!open) return;
 
@@ -211,9 +175,6 @@ export default function EditOfferModal({
     setCategoryIds([]);
   }, [open]);
 
-  /* =====================
-     Load offer
-     ===================== */
   useEffect(() => {
     if (!open) return;
 
@@ -243,7 +204,6 @@ export default function EditOfferModal({
 
         setOriginal(o);
 
-        // Basics
         setName(o.name ?? '');
         setStatus(o.status ?? 'ACTIVE');
         setStartsAt(o.startsAt ?? null);
@@ -252,12 +212,9 @@ export default function EditOfferModal({
 
         const pk = o.payload?.kind;
 
-        // If unsupported kind, still allow changing basics (name/status/window/priority).
         if (pk && isSupportedKind(pk)) {
           setKind(pk);
 
-          // ---- Targeting ----
-          // Determine pool shape depending on kind
           let pool: OfferTargetRule[] | undefined;
 
           if (pk === 'BOGOF') {
@@ -278,7 +235,6 @@ export default function EditOfferModal({
           setProductIds(derived.productIds);
           setCategoryIds(derived.categoryIds);
 
-          // ---- Rule fields ----
           if (pk === 'BOGOF') {
             setBuyQty(clampInt(o.payload.data.buyQty, 1, 999));
             setGetQty(clampInt(o.payload.data.getQty, 1, 999));
@@ -332,7 +288,6 @@ export default function EditOfferModal({
             setPercent(null);
           }
         } else {
-          // Unsupported kind: keep targeting/rule editor in a safe default state
           setTargetType('SITE_WIDE');
           setProductIds([]);
           setCategoryIds([]);
@@ -356,18 +311,13 @@ export default function EditOfferModal({
     return pk ? isSupportedKind(pk) : true;
   }, [original]);
 
-  /* =====================
-     Reset rule fields on kind change (CreateOfferModal-style)
-     ===================== */
   useEffect(() => {
-    if (!open) return;
-    if (!supported) return;
+    if (!open || !supported) return;
 
     if (kind === 'BOGOF') {
       setPayQty(null);
       setPricePence(null);
       setPercent(null);
-
       setGetQty((v) => v ?? 1);
       setBuyQty((v) => v || 2);
       return;
@@ -377,7 +327,6 @@ export default function EditOfferModal({
       setGetQty(null);
       setPricePence(null);
       setPercent(null);
-
       setPayQty((v) => v ?? 1);
       setBuyQty((v) => v || 2);
       return;
@@ -387,7 +336,6 @@ export default function EditOfferModal({
       setGetQty(null);
       setPayQty(null);
       setPercent(null);
-
       setPricePence((v) => v ?? 100);
       setBuyQty((v) => v || 2);
       return;
@@ -397,25 +345,18 @@ export default function EditOfferModal({
       setGetQty(null);
       setPayQty(null);
       setPricePence(null);
-
       setPercent((v) => v ?? 10);
       return;
     }
 
-    // AMOUNT_OFF
     setGetQty(null);
     setPayQty(null);
     setPercent(null);
-
     setPricePence((v) => v ?? 100);
   }, [open, kind, supported]);
 
-  /* =====================
-     Reset targets on target type change (CreateOfferModal-style)
-     ===================== */
   useEffect(() => {
-    if (!open) return;
-    if (!supported) return;
+    if (!open || !supported) return;
 
     if (targetType === 'SITE_WIDE') {
       setProductIds([]);
@@ -429,13 +370,8 @@ export default function EditOfferModal({
     }
   }, [open, targetType, supported]);
 
-  /* =====================
-     Load picker options (same endpoints as Create)
-     ===================== */
   useEffect(() => {
-    if (!open) return;
-    if (!supported) return;
-    if (targetType === 'SITE_WIDE') return;
+    if (!open || !supported || targetType === 'SITE_WIDE') return;
 
     let cancelled = false;
 
@@ -483,23 +419,17 @@ export default function EditOfferModal({
     };
   }, [open, supported, targetType, productOptions.length, categoryOptions.length]);
 
-  /* =====================
-     Validation
-     ===================== */
   const canSubmit = useMemo(() => {
     if (!offerId) return false;
     if (loading || saving) return false;
     if (!name.trim()) return false;
     if (!original) return false;
 
-    // Unsupported kind: allow saving basics only
     if (!supported) return true;
 
-    // Targeting requirements
     if (targetType === 'PRODUCTS' && productIds.length === 0) return false;
     if (targetType === 'CATEGORIES' && categoryIds.length === 0) return false;
 
-    // kind-specific minimal checks
     if (kind === 'PERCENT_OFF') return (percent ?? 0) > 0;
     if (kind === 'AMOUNT_OFF') return (pricePence ?? 0) > 0;
 
@@ -519,13 +449,8 @@ export default function EditOfferModal({
     pricePence
   ]);
 
-  /* =====================
-     Submit (PUT)
-     ===================== */
   async function save() {
-    if (!canSubmit) return;
-    if (!offerId) return;
-    if (!original) return;
+    if (!canSubmit || !offerId || !original) return;
 
     setSaveErr(null);
     setSaving(true);
@@ -541,7 +466,6 @@ export default function EditOfferModal({
         exclusions: original.exclusions ?? {}
       };
 
-      // Preserve payload exactly for unsupported kinds
       if (supported) {
         const pool = buildPool(targetType, productIds, categoryIds);
 
@@ -637,7 +561,7 @@ export default function EditOfferModal({
             ) : null}
           </div>
 
-          <button className={styles.iconBtn} onClick={onClose} aria-label="Close">
+          <button className={styles.iconBtn} onClick={onClose} aria-label="Close" type="button">
             ✕
           </button>
         </div>
@@ -648,9 +572,6 @@ export default function EditOfferModal({
           {optErr && <div className={styles.bannerError}>{optErr}</div>}
 
           <div className={styles.formGrid}>
-            {/* =====================
-                Basics
-               ===================== */}
             <div className={styles.sectionCard}>
               <div className={styles.sectionHead}>
                 <div>
@@ -675,12 +596,12 @@ export default function EditOfferModal({
                   <select
                     className={styles.select}
                     value={status}
-                    onChange={(e) => setStatus(e.target.value as OfferStatus)}
+                    onChange={(e) => setStatus(e.target.value as OfferAdminForm['status'])}
                     disabled={loading || saving}
                   >
                     <option value="ACTIVE">ACTIVE</option>
                     <option value="PAUSED">PAUSED</option>
-                    <option value="EXPIRED">EXPIRED</option>
+                    <option value="DRAFT">DRAFT</option>
                   </select>
                 </div>
 
@@ -720,9 +641,6 @@ export default function EditOfferModal({
               </div>
             </div>
 
-            {/* =====================
-                Targeting (same as Create)
-               ===================== */}
             <div className={styles.sectionCard}>
               <div className={styles.sectionHead}>
                 <div>
@@ -758,7 +676,7 @@ export default function EditOfferModal({
                 ) : null}
               </div>
 
-              {supported && targetType === 'PRODUCTS' && (
+              {supported && targetType === 'PRODUCTS' ? (
                 <OfferTargetPicker
                   title="Products"
                   placeholder="Search products…"
@@ -766,9 +684,9 @@ export default function EditOfferModal({
                   selectedIds={productIds}
                   onChange={setProductIds}
                 />
-              )}
+              ) : null}
 
-              {supported && targetType === 'CATEGORIES' && (
+              {supported && targetType === 'CATEGORIES' ? (
                 <OfferTargetPicker
                   title="Categories"
                   placeholder="Search categories…"
@@ -776,12 +694,9 @@ export default function EditOfferModal({
                   selectedIds={categoryIds}
                   onChange={setCategoryIds}
                 />
-              )}
+              ) : null}
             </div>
 
-            {/* =====================
-                Rule (same as Create)
-               ===================== */}
             <div className={styles.sectionCard}>
               <div className={styles.sectionHead}>
                 <div>
