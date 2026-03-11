@@ -1,3 +1,4 @@
+// src/lib/storage.ts
 import {
   DeleteObjectCommand,
   ListObjectsV2Command,
@@ -8,25 +9,33 @@ import crypto from 'node:crypto';
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
-  if (!value) throw new Error(`Missing env: ${name}`);
-  return value;
+  if (!value || !value.trim()) throw new Error(`Missing env: ${name}`);
+  return value.trim();
 }
 
-const bucket = requiredEnv('HETZNER_S3_BUCKET');
-const endpoint = requiredEnv('HETZNER_S3_ENDPOINT');
-const region = requiredEnv('HETZNER_S3_REGION');
-const accessKeyId = requiredEnv('HETZNER_S3_ACCESS_KEY_ID');
-const secretAccessKey = requiredEnv('HETZNER_S3_SECRET_ACCESS_KEY');
-const publicBaseUrl = requiredEnv('HETZNER_S3_PUBLIC_BASE_URL');
+function getStorageConfig() {
+  const bucket = requiredEnv('HETZNER_S3_BUCKET');
+  const endpoint = requiredEnv('HETZNER_S3_ENDPOINT');
+  const region = requiredEnv('HETZNER_S3_REGION');
+  const accessKeyId = requiredEnv('HETZNER_S3_ACCESS_KEY_ID');
+  const secretAccessKey = requiredEnv('HETZNER_S3_SECRET_ACCESS_KEY');
+  const publicBaseUrl = requiredEnv('HETZNER_S3_PUBLIC_BASE_URL');
 
-export const storageClient = new S3Client({
-  region,
-  endpoint,
-  credentials: {
-    accessKeyId,
-    secretAccessKey
-  }
-});
+  const storageClient = new S3Client({
+    region,
+    endpoint,
+    credentials: {
+      accessKeyId,
+      secretAccessKey
+    }
+  });
+
+  return {
+    bucket,
+    publicBaseUrl,
+    storageClient
+  };
+}
 
 function slugify(value: string): string {
   return value
@@ -67,10 +76,12 @@ export function buildObjectKey(params: {
 }
 
 export function getPublicFileUrl(objectKey: string): string {
+  const { publicBaseUrl } = getStorageConfig();
   return `${publicBaseUrl.replace(/\/$/, '')}/${objectKey}`;
 }
 
 export function getObjectKeyFromPublicUrl(url: string): string | null {
+  const { publicBaseUrl } = getStorageConfig();
   const base = publicBaseUrl.replace(/\/$/, '');
   if (!url.startsWith(base)) return null;
 
@@ -85,6 +96,7 @@ export async function uploadBufferToStorage(params: {
   contentDisposition?: string;
 }) {
   const { buffer, objectKey, contentType, contentDisposition } = params;
+  const { bucket, storageClient } = getStorageConfig();
 
   await storageClient.send(
     new PutObjectCommand({
@@ -103,6 +115,8 @@ export async function uploadBufferToStorage(params: {
 }
 
 export async function deleteFromStorage(objectKey: string) {
+  const { bucket, storageClient } = getStorageConfig();
+
   await storageClient.send(
     new DeleteObjectCommand({
       Bucket: bucket,
@@ -112,6 +126,8 @@ export async function deleteFromStorage(objectKey: string) {
 }
 
 export async function listFilesFromStorage(prefix: string) {
+  const { bucket, storageClient } = getStorageConfig();
+
   const result = await storageClient.send(
     new ListObjectsV2Command({
       Bucket: bucket,
