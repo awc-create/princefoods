@@ -1,3 +1,4 @@
+// src/app/api/admin/upload/route.ts
 import { buildObjectKey, uploadBufferToStorage } from '@/lib/storage';
 import { NextResponse } from 'next/server';
 

@@ -1,3 +1,4 @@
+// src/app/api/admin/upload/delete/route.ts
 import { deleteFromStorage, getObjectKeyFromPublicUrl } from '@/lib/storage';
 import { NextResponse } from 'next/server';
 

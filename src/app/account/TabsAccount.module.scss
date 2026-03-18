@@ -98,6 +98,8 @@
   background: #fff;
   color: #b21e2b;
   border-color: #b21e2b;
+  outline: none;
+  box-shadow: none;
 }
 
 /* Panels */
@@ -431,4 +433,14 @@
   .grid2 {
     grid-template-columns: 1fr;
   }
+}
+
+/* Remove browser default focus ring on tabs — use focus-visible instead */
+.tab:focus {
+  outline: none;
+  box-shadow: none;
+}
+.tab:focus-visible {
+  outline: 2px solid #b21e2b;
+  outline-offset: 2px;
 }

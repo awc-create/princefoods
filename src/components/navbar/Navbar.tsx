@@ -47,6 +47,7 @@ function NavbarInner() {
   const [activeIdx, setActiveIdx] = useState(-1);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const mobileWrapperRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const toggleMenu = useCallback(() => setMenuOpen((prev) => !prev), []);
@@ -56,10 +57,11 @@ function NavbarInner() {
     closeMenu();
   }, [pathname, closeMenu]);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+      const inDesktop = wrapperRef.current?.contains(e.target as Node);
+      const inMobile = mobileWrapperRef.current?.contains(e.target as Node);
+      if (!inDesktop && !inMobile) {
         setShowDrop(false);
         setActiveIdx(-1);
       }
@@ -68,18 +70,14 @@ function NavbarInner() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Debounced fetch suggestions
   useEffect(() => {
     const q = searchQuery.trim();
-
     if (!q || q.length < 2) {
       setSuggestions([]);
       setShowDrop(false);
       return;
     }
-
     if (debounceRef.current) clearTimeout(debounceRef.current);
-
     debounceRef.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=6`, {
@@ -95,7 +93,6 @@ function NavbarInner() {
         setShowDrop(false);
       }
     }, 250);
-
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
@@ -110,6 +107,7 @@ function NavbarInner() {
       setSuggestions([]);
       router.push(`/shop?q=${encodeURIComponent(q)}`);
       setSearchQuery('');
+      setMenuOpen(false);
     },
     [searchQuery, router]
   );
@@ -123,7 +121,6 @@ function NavbarInner() {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showDrop || suggestions.length === 0) return;
-
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setActiveIdx((i) => Math.min(i + 1, suggestions.length - 1));
@@ -151,9 +148,9 @@ function NavbarInner() {
 
   return (
     <header className={styles.navbar}>
-      <div className={styles.topRow}>
+      {/* ── DESKTOP top row ── */}
+      <div className={`${styles.topRow} ${styles.desktopOnly}`}>
         <div />
-
         <div className={styles.logo}>
           <Link href="/">
             <Image
@@ -165,7 +162,6 @@ function NavbarInner() {
             />
           </Link>
         </div>
-
         <div className={styles.searchWrapper} ref={wrapperRef}>
           <div className={styles.ribbonAbove}>
             <Image src="/assets/royal-treat.png" alt="A Royal Treat" width={200} height={120} />
@@ -219,10 +215,8 @@ function NavbarInner() {
               </button>
             )}
           </form>
-
-          {/* Autocomplete dropdown */}
           {showDrop && suggestions.length > 0 && (
-            <div className={styles.dropdown} role="listbox" aria-label="Search suggestions">
+            <div className={styles.dropdown} role="listbox">
               {suggestions.map((item, idx) => (
                 <button
                   key={item.id}
@@ -253,7 +247,6 @@ function NavbarInner() {
                   </div>
                 </button>
               ))}
-
               <button
                 type="button"
                 className={styles.dropViewAll}
@@ -268,25 +261,99 @@ function NavbarInner() {
             </div>
           )}
         </div>
-
-        <button className={styles.hamburger} onClick={toggleMenu} aria-label="Toggle menu">
-          {menuOpen ? <X width={28} height={28} /> : <Menu width={28} height={28} />}
-        </button>
       </div>
 
-      <nav className={styles.navRow}>
+      {/* ── MOBILE row 1: Logo + Cart + Hamburger ── */}
+      <div className={`${styles.mobileRow1} ${styles.mobileOnly}`}>
+        <div className={styles.logo}>
+          <Link href="/">
+            <Image
+              src="/assets/prince-foods-logo.png"
+              alt="Prince Foods"
+              width={160}
+              height={86}
+              priority
+            />
+          </Link>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <CartIcon />
+          <button
+            className={styles.hamburgerBtn}
+            onClick={toggleMenu}
+            aria-label="Toggle menu"
+            aria-expanded={menuOpen}
+          >
+            {menuOpen ? <X width={26} height={26} /> : <Menu width={26} height={26} />}
+          </button>
+        </div>
+      </div>
+
+      {/* ── MOBILE row 2: Account + Search ── */}
+      <div className={`${styles.mobileRow2} ${styles.mobileOnly}`} ref={mobileWrapperRef}>
+        <div className={styles.mobileIcons}>
+          <LoginOrAccount />
+        </div>
+        <form className={styles.mobileSearchForm} onSubmit={handleSearch} role="search">
+          <input
+            type="text"
+            placeholder="Search products..."
+            aria-label="Search products"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onFocus={() => suggestions.length > 0 && setShowDrop(true)}
+            autoComplete="off"
+          />
+          <button type="submit" aria-label="Search">
+            <Search width={17} height={17} />
+          </button>
+        </form>
+        {showDrop && suggestions.length > 0 && (
+          <div className={styles.mobileDropdown} role="listbox">
+            {suggestions.map((item, idx) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`${styles.dropItem} ${idx === activeIdx ? styles.dropItemActive : ''}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleSelect(item.id);
+                }}
+              >
+                <div className={styles.dropImg}>
+                  <Image
+                    src={normalizeImg(item.productImageUrl)}
+                    alt={item.title}
+                    width={36}
+                    height={36}
+                    style={{ objectFit: 'contain' }}
+                  />
+                </div>
+                <div className={styles.dropMeta}>
+                  <span className={styles.dropName}>{item.title}</span>
+                  {item.price != null && (
+                    <span className={styles.dropPrice}>£{item.price.toFixed(2)}</span>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Desktop nav row ── */}
+      <nav className={`${styles.navRow} ${styles.desktopOnly}`}>
         <div className={styles.links}>
           {mainLinks.map(({ slug, label }) => {
             const href = `/${slug}`;
-            const isActive = pathname === href;
             return (
-              <Link key={slug} href={href} className={isActive ? styles.active : ''}>
+              <Link key={slug} href={href} className={pathname === href ? styles.active : ''}>
                 {label}
               </Link>
             );
           })}
         </div>
-
         {shopLink && (
           <div className={styles.shopLink}>
             <Link
@@ -297,24 +364,23 @@ function NavbarInner() {
             </Link>
           </div>
         )}
-
         <div className={styles.actions}>
           <CartIcon />
           <LoginOrAccount />
         </div>
       </nav>
 
+      {/* ── Mobile nav menu (hamburger) ── */}
       {menuOpen && (
-        <nav className={styles.mobileMenu}>
+        <nav className={`${styles.mobileMenu} ${styles.mobileOnly} ${styles.open}`}>
           {NAV_LINKS.map(({ slug, label }) => {
             const href = `/${slug}`;
-            const isActive = pathname === href;
             return (
               <Link
                 key={slug}
                 href={href}
                 onClick={closeMenu}
-                className={isActive ? styles.active : ''}
+                className={pathname === href ? styles.active : ''}
               >
                 {label}
               </Link>

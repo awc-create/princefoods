@@ -1,7 +1,7 @@
 .host {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  z-index: 200;
 }
 
 .backdrop {
@@ -317,7 +317,7 @@
    ═══════════════════════════════════════ */
 @media (max-width: 480px) {
   /* Full-width drawer on very small screens */
-  .drawer {
+  .panel {
     width: 100vw !important;
     max-width: 100vw;
     border-radius: 0;
@@ -337,5 +337,82 @@
   .viewCartBtn {
     font-size: 0.95rem;
     padding: 13px 16px;
+  }
+}
+
+/* ═══════════════════════════════════════
+   CART DRAWER ITEM — MOBILE FIX
+   ═══════════════════════════════════════ */
+@media (max-width: 540px) {
+  /* Slide up from bottom on small screens */
+  .panel {
+    width: 100vw !important;
+    max-width: 100vw;
+    border-radius: 20px 20px 0 0;
+    top: auto !important;
+    bottom: 0 !important;
+    height: 88vh !important;
+  }
+
+  /* Reflow: image left, name+controls right stacked */
+  .line {
+    display: grid;
+    grid-template-columns: 60px 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 4px 10px;
+    align-items: start;
+  }
+
+  /* Image: spans both rows */
+  .thumb {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-self: center;
+  }
+
+  /* Name + offer info: row 1, col 2 */
+  .meta {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .name {
+    font-size: 0.82rem;
+    white-space: normal;
+    line-height: 1.3;
+    overflow: visible;
+    text-overflow: unset;
+  }
+
+  /* Qty controls: row 2, col 2 */
+  .qtyRow {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  /* Price: row 2, col 3 */
+  .lineTotal {
+    grid-column: 3;
+    grid-row: 2;
+    text-align: right;
+    font-size: 0.9rem;
+  }
+
+  /* Remove: row 1, col 3 */
+  .remove {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: start;
+    justify-self: end;
+  }
+
+  .qtyFreeNote {
+    font-size: 0.72rem;
+    white-space: normal;
+  }
+
+  .nudge {
+    font-size: 0.72rem;
   }
 }

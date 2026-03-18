@@ -1,3 +1,4 @@
+// src/app/api/admin/upload/list/route.ts
 import { listFilesFromStorage } from '@/lib/storage';
 import { NextResponse } from 'next/server';
 

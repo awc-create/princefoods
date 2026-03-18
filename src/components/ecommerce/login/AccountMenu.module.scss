@@ -118,3 +118,12 @@
 .signOut:hover {
   background: #fdf2f2;
 }
+
+/* ── Mobile: align dropdown to left edge so it doesn't go off-screen ── */
+@media (max-width: 768px) {
+  .menu {
+    right: auto;
+    left: 0;
+    width: min(260px, calc(100vw - 24px));
+  }
+}
