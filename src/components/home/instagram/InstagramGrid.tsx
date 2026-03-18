@@ -47,11 +47,12 @@ export default function InstagramGrid({
   return (
     <section className={styles.wrap} aria-labelledby="ig-heading">
       <div className={styles.header}>
-        <h2 id="ig-heading">From Our Instagram</h2>
-        <a className={styles.viewAll} href={usernameUrl} target="_blank" rel="noreferrer">
-          Follow @
-          {usernameUrl.replace(/^https?:\/\/(www\.)?instagram\.com\//, '').replace(/\/$/, '')}
-        </a>
+        <h2 id="ig-heading">
+          Follow us on Instagram{' '}
+          <a href={usernameUrl} target="_blank" rel="noreferrer" className={styles.viewAll}>
+            #keralafoodies
+          </a>
+        </h2>
       </div>
 
       {loading ? (

@@ -106,6 +106,17 @@ interface OrderOfferRow {
   appliedAt: Date | string;
 }
 
+interface OrderCustomerDiscountRow {
+  id: string;
+  percentOff: number;
+  applyShippingDiscount: boolean;
+  shippingPercentOffDry: number | null;
+  shippingPercentOffFrozen: number | null;
+  discountPence: number;
+  shippingDiscountPence: number;
+  createdAt: Date | string;
+}
+
 interface OrderWithRels {
   id: string;
   displayId: string | null;
@@ -147,6 +158,7 @@ interface OrderWithRels {
   payments: PaymentRow[];
   items: OrderItemRow[];
   orderOffers: OrderOfferRow[];
+  customerDiscountsApplied: OrderCustomerDiscountRow[];
 }
 
 function formatMoney(pence: number, currency = 'GBP') {
@@ -245,6 +257,20 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             discountPence: true,
             meta: true,
             appliedAt: true
+          }
+        },
+
+        // ✅ customer discount audit
+        customerDiscountsApplied: {
+          select: {
+            id: true,
+            percentOff: true,
+            applyShippingDiscount: true,
+            shippingPercentOffDry: true,
+            shippingPercentOffFrozen: true,
+            discountPence: true,
+            shippingDiscountPence: true,
+            createdAt: true
           }
         }
       }
@@ -463,7 +489,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <Card label="Subtotal" value={formatMoney(order.subtotal, currency)} />
             <Card label="Shipping" value={formatMoney(order.shippingTotal, currency)} />
             {order.discountTotal > 0 && (
-              <Card label="Discount" value={`-${formatMoney(order.discountTotal, currency)}`} />
+              <Card
+                label="Total discount"
+                value={`-${formatMoney(order.discountTotal, currency)}`}
+              />
             )}
             {order.taxTotal > 0 && (
               <Card label="Tax" value={formatMoney(order.taxTotal, currency)} />
@@ -471,14 +500,49 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <Card label="Grand total" value={formatMoney(order.grandTotal, currency)} />
             <Card label="Total weight" value={formatKg(totalWeightGrams)} />
 
-            {promoLabel && <Card label="Promotion" value={promoLabel} />}
+            {promoLabel && <Card label="🎟️ Promotion" value={promoLabel} />}
             {order.orderOffers.length > 0 && (
-              <Card label="Offers" value={`${order.orderOffers.length} used`} />
+              <Card label={`🎁 Offers`} value={`${order.orderOffers.length} applied`} />
+            )}
+            {order.customerDiscountsApplied.length > 0 && (
+              <Card
+                label="👤 Customer discount"
+                value={`${order.customerDiscountsApplied[0].percentOff}% off${order.customerDiscountsApplied[0].applyShippingDiscount ? ' + shipping' : ''}`}
+              />
             )}
           </section>
 
           <section>
             <h2 style={{ margin: '6px 0' }}>Items</h2>
+            {(() => {
+              const freeItems = order.items.filter((it: OrderItemRow) => it.unitPrice === 0);
+              const totalQty = order.items.reduce(
+                (s: number, it: OrderItemRow) => s + it.quantity,
+                0
+              );
+              if (!freeItems.length) return null;
+              return (
+                <div
+                  style={{
+                    background: 'rgba(22,163,74,0.12)',
+                    border: '1px solid #16a34a',
+                    borderRadius: 8,
+                    padding: '10px 14px',
+                    marginBottom: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>📦</span>
+                  <span style={{ fontWeight: 700, color: '#15803d' }}>
+                    Pack {totalQty} items total — includes{' '}
+                    {freeItems.reduce((s: number, it: OrderItemRow) => s + it.quantity, 0)} free
+                    (highlighted in green below)
+                  </span>
+                </div>
+              );
+            })()}
             <div style={{ overflow: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
                 <thead>
@@ -494,8 +558,15 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 <tbody>
                   {order.items.map((it: OrderItemRow) => {
                     const lineG = (it.unitWeightGrams ?? 0) * it.quantity;
+                    const isFree = it.unitPrice === 0;
                     return (
-                      <tr key={it.id} style={{ borderTop: '1px solid #222' }}>
+                      <tr
+                        key={it.id}
+                        style={{
+                          borderTop: '1px solid #222',
+                          background: isFree ? 'rgba(22,163,74,0.08)' : undefined
+                        }}
+                      >
                         <td style={td}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             <div
@@ -514,14 +585,51 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                                 style={{ objectFit: 'contain' }}
                               />
                             </div>
-                            <div>{it.name}</div>
+                            <div>
+                              {it.name}
+                              {isFree && (
+                                <span
+                                  style={{
+                                    marginLeft: 8,
+                                    background: '#16a34a',
+                                    color: '#fff',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    padding: '2px 8px',
+                                    borderRadius: 999
+                                  }}
+                                >
+                                  🎁 FREE — PACK THIS
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td style={td}>{it.sku ?? '—'}</td>
-                        <td style={td}>{formatMoney(it.unitPrice, currency)}</td>
-                        <td style={td}>{it.quantity}</td>
+                        <td style={td}>
+                          {isFree ? (
+                            <span style={{ color: '#16a34a', fontWeight: 700 }}>FREE</span>
+                          ) : (
+                            formatMoney(it.unitPrice, currency)
+                          )}
+                        </td>
+                        <td
+                          style={{
+                            ...td,
+                            fontWeight: isFree ? 700 : undefined,
+                            color: isFree ? '#16a34a' : undefined
+                          }}
+                        >
+                          {it.quantity}
+                        </td>
                         <td style={td}>{lineG ? formatKg(lineG) : '—'}</td>
-                        <td style={td}>{formatMoney(it.lineTotal, currency)}</td>
+                        <td style={td}>
+                          {isFree ? (
+                            <span style={{ color: '#16a34a' }}>£0.00</span>
+                          ) : (
+                            formatMoney(it.lineTotal, currency)
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -612,6 +720,46 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                         </tr>
                       );
                     })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {order.customerDiscountsApplied.length > 0 && (
+            <section>
+              <h2 style={{ margin: '6px 0' }}>👤 Customer discount</h2>
+              <div style={{ overflow: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
+                  <thead>
+                    <tr>
+                      <th style={th}>Date</th>
+                      <th style={th}>Items discount</th>
+                      <th style={th}>Shipping discount</th>
+                      <th style={th}>Items saving</th>
+                      <th style={th}>Shipping saving</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {order.customerDiscountsApplied.map((cd: OrderCustomerDiscountRow) => (
+                      <tr key={cd.id} style={{ borderTop: '1px solid #222' }}>
+                        <td style={td}>{new Date(cd.createdAt).toLocaleString('en-GB')}</td>
+                        <td style={td}>{cd.percentOff}% off items</td>
+                        <td style={td}>
+                          {cd.applyShippingDiscount
+                            ? `${cd.shippingPercentOffDry ?? 0}% dry / ${cd.shippingPercentOffFrozen ?? 0}% frozen`
+                            : '—'}
+                        </td>
+                        <td style={{ ...td, color: '#16a34a', fontWeight: 700 }}>
+                          -{formatMoney(cd.discountPence, currency)}
+                        </td>
+                        <td style={{ ...td, color: '#16a34a', fontWeight: 700 }}>
+                          {cd.shippingDiscountPence > 0
+                            ? `-${formatMoney(cd.shippingDiscountPence, currency)}`
+                            : '—'}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

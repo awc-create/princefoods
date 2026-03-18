@@ -298,3 +298,63 @@
   font-weight: 800;
   margin-top: 6px;
 }
+
+/* ═══════════════════════════════════════
+   MOBILE IMPROVEMENTS
+   ═══════════════════════════════════════ */
+@media (max-width: 640px) {
+  .shell {
+    padding: 12px 10px;
+  }
+
+  /* Steps header */
+  .steps {
+    gap: 6px;
+    font-size: 0.85rem;
+  }
+
+  .stepLabel {
+    font-size: 0.8rem;
+  }
+
+  /* Order summary panel — collapses to bottom sheet on mobile */
+  .summaryPanel {
+    position: static;
+    border-top: 1px solid #e5e7eb;
+    margin-top: 16px;
+    border-radius: 14px;
+    padding: 14px;
+  }
+
+  .form {
+    padding: 12px;
+  }
+
+  /* Checkout header */
+  .headerBack {
+    font-size: 0.85rem;
+  }
+
+  /* Payment buttons full width */
+  .payBtn {
+    width: 100%;
+    padding: 14px;
+    font-size: 1rem;
+  }
+
+  /* Address fields */
+  .row2,
+  .row3 {
+    grid-template-columns: 1fr;
+  }
+
+  /* Summary items */
+  .summaryItem {
+    gap: 8px;
+  }
+
+  .summaryThumb {
+    width: 48px;
+    height: 48px;
+  }
+}

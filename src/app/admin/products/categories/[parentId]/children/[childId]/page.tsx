@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './ProductsPage.module.scss';
 
 interface Product {
@@ -12,31 +12,44 @@ interface Product {
 export default function ProductsInChildPage() {
   const { childId } = useParams() as { childId: string };
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [all, setAll] = useState<Product[]>([]);
+  const [inCatProducts, setInCatProducts] = useState<Product[]>([]);
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [query, setQuery] = useState('');
+  const [searching, setSearching] = useState(false);
   const [pendingAssign, setPendingAssign] = useState<string[]>([]);
   const [pendingUnassign, setPendingUnassign] = useState<string[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const load = useCallback(async () => {
-    const [inCatRes, allRes] = await Promise.all([
-      fetch(`/api/admin/categories/${childId}/products`, { cache: 'no-store' }),
-      fetch(`/api/admin/products?limit=200&fields=id,name`, { cache: 'no-store' })
-    ]);
-    setProducts(inCatRes.ok ? await inCatRes.json() : []);
-    setAll(allRes.ok ? await allRes.json() : []);
+  const loadInCat = useCallback(async () => {
+    const res = await fetch(`/api/admin/categories/${childId}/products`, { cache: 'no-store' });
+    setInCatProducts(res.ok ? await res.json() : []);
     setPendingAssign([]);
     setPendingUnassign([]);
   }, [childId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadInCat();
+  }, [loadInCat]);
 
-  const filtered = useMemo<Product[]>(() => {
-    const q = query.trim().toLowerCase();
-    return q ? all.filter((p) => p.name.toLowerCase().includes(q)) : all;
-  }, [query, all]);
+  // Debounced search — only hits the API after 300ms pause
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const q = query.trim();
+    if (!q) {
+      setSearchResults([]);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`/api/admin/products?q=${encodeURIComponent(q)}&limit=30`);
+        const data = await res.json();
+        setSearchResults(Array.isArray(data) ? data : (data.products ?? []));
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+  }, [query]);
 
   const toggleAssign = (id: string, isInCategory: boolean) => {
     if (isInCategory) {
@@ -58,10 +71,13 @@ export default function ProductsInChildPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ assignIds: pendingAssign, unassignIds: pendingUnassign })
     });
-    load();
+    loadInCat();
+    setQuery('');
+    setSearchResults([]);
   };
 
-  const currentIds = new Set(products.map((p) => p.id));
+  const currentIds = new Set(inCatProducts.map((p) => p.id));
+  const displayList = query.trim() ? searchResults : inCatProducts;
 
   return (
     <section className={styles.wrap}>
@@ -69,17 +85,25 @@ export default function ProductsInChildPage() {
 
       <div className={styles.toolbar}>
         <input
-          placeholder="Search products…"
+          placeholder="Search to add products… (type at least 2 chars)"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
         <button disabled={!pendingAssign.length && !pendingUnassign.length} onClick={commit}>
-          Save changes
+          Save changes ({pendingAssign.length} add, {pendingUnassign.length} remove)
         </button>
       </div>
 
+      {!query.trim() && (
+        <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 12px' }}>
+          Showing {inCatProducts.length} products currently in this category. Search above to find
+          and add more.
+        </p>
+      )}
+      {searching && <p style={{ fontSize: 13, color: '#6b7280' }}>Searching…</p>}
+
       <ul className={styles.grid}>
-        {filtered.map((p) => {
+        {displayList.map((p) => {
           const inCat = currentIds.has(p.id);
           const markedAdd = !inCat && pendingAssign.includes(p.id);
           const markedRemove = inCat && pendingUnassign.includes(p.id);

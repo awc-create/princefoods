@@ -290,3 +290,91 @@
 .thumbWrap {
   position: relative; /* ✅ required for badge positioning */
 }
+
+/* Offer badge pills — red, same as cart/drawer */
+.badgeRow {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.offerBadgePill {
+  display: inline-flex;
+  align-items: center;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+}
+
+.freeTag {
+  display: inline-flex;
+  align-items: center;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #15803d;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 999px;
+  margin-top: 3px;
+}
+
+.summaryPrice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.summaryWas {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.summaryNow {
+  font-weight: 700;
+  color: #15803d;
+}
+
+.savingsBanner {
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #15803d;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 8px;
+  text-align: center;
+  margin: 4px 0 6px;
+}
+
+.lineLabel {
+  font-size: 0.82rem;
+  color: var(--text-dark);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.lineQty {
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: 0.78rem;
+}
+
+.subtotalRow {
+  border-top: 2px solid #e5e7eb;
+  margin-top: 4px;
+  padding-top: 8px;
+  font-weight: 700;
+}

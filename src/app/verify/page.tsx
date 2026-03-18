@@ -42,11 +42,7 @@ function VerifyClient() {
   const token = useMemo(() => sp.get('token') ?? null, [sp]);
   const nextUrl = useMemo(() => sp.get('next') ?? '/', [sp]);
 
-  const [email, setEmail] = useState<string>(
-    () =>
-      initialEmail ||
-      (typeof window !== 'undefined' ? (localStorage.getItem('verify:email') ?? '') : '')
-  );
+  const [email, setEmail] = useState<string>(() => initialEmail);
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -65,7 +61,6 @@ function VerifyClient() {
   });
 
   useEffect(() => setEmail((e) => initialEmail || e), [initialEmail]);
-  useEffect(() => localStorage.setItem('verify:email', email || ''), [email]);
   useEffect(() => {
     if (!cooldown) return;
     const t = setInterval(() => setCooldown((s) => Math.max(0, s - 1)), 1000);

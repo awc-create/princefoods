@@ -32,8 +32,9 @@ function cleanString(v: unknown, maxLen: number): string | undefined {
 export async function PATCH(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    const email = session?.user?.email;
-    if (!email) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+    const currentEmail = session?.user?.email;
+    if (!currentEmail)
+      return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
 
     const body: unknown = await req.json();
     const b = body as Record<string, unknown>;
@@ -45,7 +46,6 @@ export async function PATCH(req: Request) {
     const phoneRaw = cleanString(b.phoneE164, 32);
     const phoneNorm = phoneRaw ? normalizePhoneLoose(phoneRaw) : undefined;
 
-    // If user typed something but it normalised to empty -> reject (prevents junk saved)
     if (phoneRaw && !phoneNorm) {
       return NextResponse.json(
         { ok: false, error: 'Invalid phone. Use digits or +44…, 6–15 digits.' },
@@ -53,18 +53,42 @@ export async function PATCH(req: Request) {
       );
     }
 
+    // Handle email change
+    const newEmailRaw = cleanString(b.email, 254);
+    const newEmail = newEmailRaw?.toLowerCase().trim();
+    const emailChanged = !!newEmail && newEmail !== currentEmail.toLowerCase();
+
+    if (emailChanged) {
+      // Validate format
+      if (!/^\S+@\S+\.\S+$/.test(newEmail!)) {
+        return NextResponse.json({ ok: false, error: 'Invalid email address.' }, { status: 400 });
+      }
+      // Check not already taken
+      const existing = await prisma.user.findUnique({
+        where: { email: newEmail! },
+        select: { id: true }
+      });
+      if (existing) {
+        return NextResponse.json(
+          { ok: false, error: 'That email is already in use.' },
+          { status: 409 }
+        );
+      }
+    }
+
     await prisma.user.update({
-      where: { email },
+      where: { email: currentEmail },
       data: {
-        // ✅ only set if provided; otherwise skip update
         ...(firstName !== undefined ? { firstName } : {}),
         ...(lastName !== undefined ? { lastName } : {}),
         ...(name !== undefined ? { name } : {}),
-        ...(phoneNorm !== undefined ? { phoneE164: phoneNorm } : {})
+        ...(phoneNorm !== undefined ? { phoneE164: phoneNorm } : {}),
+        // On email change: update email and clear verification
+        ...(emailChanged ? { email: newEmail!, emailVerified: null } : {})
       }
     });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, emailChanged });
   } catch (e) {
     console.error('[account.profile]', e);
     return NextResponse.json({ ok: false, error: 'Server error' }, { status: 500 });

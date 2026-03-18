@@ -8,7 +8,6 @@ import {
   Eye,
   EyeOff,
   Filter,
-  Megaphone,
   MoreVertical,
   Trash2,
   Upload,
@@ -75,7 +74,6 @@ export default function ProductsPage() {
   const [collectionQuery, setCollectionQuery] = useState('');
   const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
 
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const filterRef = useRef<HTMLDivElement | null>(null);
 
   const collectionsParam = useMemo(() => {
@@ -125,9 +123,11 @@ export default function ProductsPage() {
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpenMenu(null);
-      if (filterRef.current && !filterRef.current.contains(e.target as Node))
-        setCollectionOpen(false);
+      // Fix 3: check if click is inside ANY menu wrap, not just the last one via shared ref
+      const target = e.target as Node;
+      const menuWrap = (target as Element)?.closest?.('[data-menu-id]');
+      if (!menuWrap) setOpenMenu(null);
+      if (filterRef.current && !filterRef.current.contains(target)) setCollectionOpen(false);
     };
     document.addEventListener('click', onDocClick);
     return () => document.removeEventListener('click', onDocClick);
@@ -605,14 +605,6 @@ export default function ProductsPage() {
 
                     <td className={styles.actionsCell}>
                       <div className={styles.hoverbar}>
-                        <button
-                          className={styles.iconBtn}
-                          title="Boost (promote)"
-                          onClick={() => alert('We’ll add Boost flows soon ✨')}
-                        >
-                          <Megaphone size={16} />
-                        </button>
-
                         {r.visible ? (
                           <button
                             className={styles.iconBtn}
@@ -631,7 +623,7 @@ export default function ProductsPage() {
                           </button>
                         )}
 
-                        <div className={styles.menuWrap} ref={menuRef}>
+                        <div className={styles.menuWrap} data-menu-id={r.id}>
                           <button
                             className={styles.iconBtn}
                             title="More"

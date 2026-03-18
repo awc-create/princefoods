@@ -1,6 +1,8 @@
 import { getFeaturedCategories } from '@/lib/catalog';
 import { sendWelcomeVerifyEmail } from '@/lib/email';
 import { prisma } from '@/lib/prisma';
+import { magicLinkLimiter } from '@/lib/rate-limit';
+import { getClientIp, tooManyRequests } from '@/lib/rate-limit-response';
 import { issueEmailVerification } from '@/lib/verify';
 import bcrypt from 'bcryptjs';
 import type { CountryCode } from 'libphonenumber-js';
@@ -20,7 +22,7 @@ type IssuedOk =
   | { ok: false; reason: 'noop' | 'cooldown' };
 
 function resolveSiteUrl(): string {
-  return process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com';
+  return process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-foods.com';
 }
 
 function resolveOriginForNextAuth(): string {
@@ -61,6 +63,9 @@ function buildLegacyVerifyUrl(params: {
 
 export async function POST(req: Request) {
   try {
+    const rl = magicLinkLimiter(getClientIp(req));
+    if (!rl.allowed) return tooManyRequests(rl);
+
     const body = (await req.json()) as {
       firstName?: string;
       lastName?: string;
@@ -72,6 +77,27 @@ export async function POST(req: Request) {
     };
 
     const { firstName, lastName, email, password, phone, country = 'GB', next = '/' } = body;
+
+    // Fix 6: enforce minimum password strength server-side
+    const pw = String(password ?? '');
+    if (pw.length < 8) {
+      return NextResponse.json(
+        { ok: false, error: 'Password must be at least 8 characters.' },
+        { status: 400 }
+      );
+    }
+    if (!/[A-Za-z]/.test(pw)) {
+      return NextResponse.json(
+        { ok: false, error: 'Password must contain at least one letter.' },
+        { status: 400 }
+      );
+    }
+    if (!/[0-9!@#$%^&*]/.test(pw)) {
+      return NextResponse.json(
+        { ok: false, error: 'Password must contain a number or special character.' },
+        { status: 400 }
+      );
+    }
 
     const emailNorm = String(email ?? '')
       .trim()

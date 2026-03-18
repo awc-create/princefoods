@@ -6,6 +6,26 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useMemo, useState, useTransition } from 'react';
 
+// Fix 6: password strength validation
+function validatePassword(pw: string): string | null {
+  if (pw.length < 8) return 'Password must be at least 8 characters.';
+  if (!/[A-Za-z]/.test(pw)) return 'Password must contain at least one letter.';
+  if (!/[0-9!@#$%^&*]/.test(pw)) return 'Password must contain a number or special character.';
+  return null;
+}
+
+// Fix 3: detect country from browser locale
+function detectCountry(): string {
+  if (typeof navigator === 'undefined') return 'GB';
+  const lang = navigator.language ?? 'en-GB';
+  // Common locale → country mappings for Prince Foods markets
+  if (lang.includes('IE') || lang === 'en-IE') return 'IE';
+  if (lang.includes('US') || lang === 'en-US') return 'US';
+  if (lang.includes('AU') || lang === 'en-AU') return 'AU';
+  // Default to GB for all other en-* and unknown locales
+  return 'GB';
+}
+
 export default function SignupForm() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -48,6 +68,16 @@ export default function SignupForm() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setErr(null);
+
+    // Fix 6: client-side password strength check
+    const pwErr = validatePassword(password);
+    if (pwErr) {
+      setErr(pwErr);
+      return;
+    }
+
+    // Fix 3: detect country from browser
+    const country = detectCountry();
     setOk(null);
 
     startTransition(async () => {
@@ -61,7 +91,7 @@ export default function SignupForm() {
             email,
             password,
             phone,
-            country: 'GB'
+            country
           })
         });
 
@@ -194,11 +224,11 @@ export default function SignupForm() {
           <input
             id="password"
             type={showPw ? 'text' : 'password'}
-            placeholder="At least 6 characters"
+            placeholder="At least 8 characters"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            minLength={6}
+            minLength={8}
             autoComplete="new-password"
             className={styles.input}
           />
@@ -213,10 +243,13 @@ export default function SignupForm() {
         </div>
 
         <label className={styles.label} htmlFor="phone">
-          Phone (GB +44)
+          Phone{' '}
+          <span style={{ fontWeight: 400, opacity: 0.6 }}>
+            (optional — needed at checkout for delivery updates)
+          </span>
         </label>
         <div className={styles.field}>
-          <span className={styles.badge}>GB +44</span>
+          <span className={styles.badge}>+44</span>
           <input
             id="phone"
             type="tel"

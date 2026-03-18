@@ -1,106 +1,303 @@
-import { authOptions } from '@/lib/auth-options';
+// src/app/api/products/route.ts
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth';
-import { NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
+import { NextRequest, NextResponse } from 'next/server';
 
-export const runtime = 'nodejs';
+const DEFAULT_LIMIT = 12;
 
-type Role = 'HEAD' | 'STAFF' | 'VIEWER';
-interface SessionUser {
-  role?: Role | null;
-}
+export async function GET(req: NextRequest) {
+  try {
+    const url = new URL(req.url);
 
-const hasRole = (u: unknown): u is SessionUser =>
-  !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
+    const collectionParam = (url.searchParams.get('collection') ?? '').trim();
+    const searchQuery = (url.searchParams.get('q') ?? '').trim();
+    const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 10));
+    const limit = Math.min(
+      48,
+      parseInt(url.searchParams.get('limit') ?? String(DEFAULT_LIMIT), 10)
+    );
+    const skip = (page - 1) * limit;
 
-export async function GET(req: Request) {
-  const session = await getServerSession(authOptions);
-  const role: Role | undefined = hasRole(session?.user)
-    ? (session!.user.role ?? undefined)
-    : undefined;
-  if (!role) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    // optional price filters (GBP)
+    const minStr = url.searchParams.get('min');
+    const maxStr = url.searchParams.get('max');
+    const min = minStr != null && minStr !== '' ? Number(minStr) : undefined;
+    const max = maxStr != null && maxStr !== '' ? Number(maxStr) : undefined;
 
-  const { searchParams } = new URL(req.url);
+    const priceFilter: Prisma.ProductWhereInput =
+      (min != null && !Number.isNaN(min)) || (max != null && !Number.isNaN(max))
+        ? {
+            price: {
+              ...(min != null && !Number.isNaN(min) ? { gte: min } : {}),
+              ...(max != null && !Number.isNaN(max) ? { lte: max } : {})
+            }
+          }
+        : {};
 
-  // ---- MODE A: minimal list for pickers (?fields=id,name&limit=200)
-  const fields = (searchParams.get('fields') ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
+    // Category / collection filter:
+    let categoryFilter: Prisma.ProductWhereInput = {};
+    if (collectionParam) {
+      const slug = collectionParam.toLowerCase();
+      const cat = await prisma.category.findUnique({
+        where: { slug },
+        select: { id: true, parentId: true }
+      });
 
-  const limitParam = searchParams.get('limit');
-
-  if (fields.length > 0 || limitParam) {
-    const limitRaw = parseInt(limitParam ?? '200', 10);
-    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 1000) : 200;
-
-    // Build a typed select
-    const select: { id?: true; name?: true } = {};
-    if (fields.includes('id')) select.id = true;
-    if (fields.includes('name')) select.name = true;
-    if (!select.id && !select.name) {
-      select.id = true;
-      select.name = true;
+      if (cat) {
+        let ids: string[] = [cat.id];
+        if (cat.parentId === null) {
+          const children = await prisma.category.findMany({
+            where: { parentId: cat.id, isActive: true },
+            select: { id: true }
+          });
+          ids = [cat.id, ...children.map((c) => c.id)];
+        }
+        categoryFilter = { categoryId: { in: ids } };
+      } else {
+        // fallback to legacy text collection field
+        categoryFilter = { collection: { contains: collectionParam, mode: 'insensitive' } };
+      }
     }
 
-    const items = await prisma.product.findMany({
-      select,
-      orderBy: { createdAt: 'desc' },
-      take: limit
+    // Search query filter — name contains match only
+    const searchFilter: Prisma.ProductWhereInput = searchQuery
+      ? { name: { contains: searchQuery, mode: 'insensitive' } }
+      : {};
+
+    const whereForBounds: Prisma.ProductWhereInput = {
+      visible: true,
+      ...categoryFilter,
+      ...searchFilter
+    };
+
+    const where: Prisma.ProductWhereInput = {
+      visible: true,
+      ...priceFilter,
+      ...categoryFilter,
+      ...searchFilter
+    };
+
+    // Sorting — only customer-facing options accepted
+    const sort = (url.searchParams.get('sort') ?? '').toLowerCase();
+    let orderBy: Prisma.ProductOrderByWithRelationInput[] = [{ createdAt: 'desc' }];
+    switch (sort) {
+      case 'best':
+        orderBy = [{ unitsSold: 'desc' }, { revenuePence: 'desc' }];
+        break;
+      case 'price_asc':
+        orderBy = [{ price: 'asc' }];
+        break;
+      case 'price_desc':
+        orderBy = [{ price: 'desc' }];
+        break;
+      case 'newest':
+      default:
+        orderBy = [{ createdAt: 'desc' }];
+    }
+
+    const [total, rows, bounds] = await Promise.all([
+      prisma.product.count({ where }),
+      prisma.product.findMany({
+        where,
+        orderBy,
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          price: true,
+          productImageUrl: true,
+
+          // ✅ offer fields (needed for pills + UI)
+          ribbon: true,
+          discountMode: true,
+          discountValue: true,
+
+          // misc fields
+          collection: true,
+          inventory: true,
+          visible: true,
+
+          // analytics
+          views: true,
+          clicks: true,
+          unitsSold: true,
+          revenuePence: true
+        }
+      }),
+      prisma.product.aggregate({
+        where: whereForBounds,
+        _min: { price: true },
+        _max: { price: true }
+      })
+    ]);
+
+    const coerceInventory = (inv: string | null): number | undefined => {
+      if (!inv) return undefined;
+      const n = Number(inv);
+      return Number.isFinite(n) ? n : undefined;
+    };
+
+    const isSpecial = (r: {
+      ribbon: string | null;
+      discountMode: string | null;
+      discountValue: number | null;
+    }) =>
+      Boolean(
+        (r.ribbon && /best|special|hot|deal/i.test(r.ribbon)) ??
+        (r.discountMode && r.discountValue && r.discountValue > 0)
+      );
+
+    const products = rows.map((r) => ({
+      id: r.id,
+      title: r.name,
+      description: r.description ?? undefined,
+      price: r.price ?? 0,
+
+      // ✅ your frontend expects imageUrl (not productImageUrl)
+      imageUrl: r.productImageUrl ?? null,
+
+      slug: undefined,
+      collection: r.collection ?? undefined,
+      inventory: coerceInventory(r.inventory ?? null),
+      visible: r.visible ?? true,
+
+      // ✅ keep these for ProductCard pills
+      ribbon: r.ribbon ?? null,
+      discountMode: r.discountMode ?? null,
+      discountValue: r.discountValue ?? null,
+
+      // keep your legacy tag/special too
+      tag: r.ribbon ?? undefined,
+      special: isSpecial({
+        ribbon: r.ribbon ?? null,
+        discountMode: r.discountMode ?? null,
+        discountValue: r.discountValue ?? null
+      }),
+
+      // expose analytics (optional to use in UI)
+      views: r.views,
+      clicks: r.clicks,
+      unitsSold: r.unitsSold,
+      revenuePence: r.revenuePence
+    }));
+
+    const pageCount = Math.max(1, Math.ceil(total / limit));
+    const hasNextPage = page < pageCount;
+
+    // ✅ bounds in GBP (same units as your product price)
+    const minPrice = Number(bounds._min.price ?? 0);
+    const maxPrice = Number(bounds._max.price ?? 0);
+
+    return NextResponse.json({
+      ok: true,
+      products,
+      page,
+      limit,
+      total,
+      pageCount,
+      hasNextPage,
+      priceBounds: {
+        min: Number.isFinite(minPrice) ? minPrice : 0,
+        max: Number.isFinite(maxPrice) ? maxPrice : 0
+      }
+    });
+  } catch (error) {
+    console.error('[API /products] Error:', error);
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
+  }
+}
+
+// POST /api/products — create a new product from admin create form
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+
+    const {
+      name,
+      sku,
+      price,
+      description,
+      productImageUrl,
+      ribbon,
+      brand,
+      collection,
+      visible,
+      weight,
+      shippingWeightGrams,
+      shippingTemp,
+      discountMode,
+      discountValue,
+      caseQty,
+      surcharge,
+      inventory
+    } = body as Record<string, unknown>;
+
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return NextResponse.json({ ok: false, error: 'Name is required' }, { status: 400 });
+    }
+
+    // Resolve collection path string (e.g. "Bakeries ; Wafers") to categoryId immediately
+    let categoryId: string | null = null;
+    const collectionPath = Array.isArray(collection)
+      ? (collection[0] as string | undefined)
+      : typeof collection === 'string'
+        ? collection
+        : null;
+
+    if (collectionPath) {
+      const parts = collectionPath
+        .split(/[;>|]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (parts.length >= 2) {
+        // Look for child category by name under the parent
+        const parent = await prisma.category.findFirst({
+          where: { name: { equals: parts[0], mode: 'insensitive' }, parentId: null }
+        });
+        if (parent) {
+          const child = await prisma.category.findFirst({
+            where: { name: { equals: parts[1], mode: 'insensitive' }, parentId: parent.id }
+          });
+          categoryId = child?.id ?? parent.id;
+        }
+      } else if (parts.length === 1) {
+        const cat = await prisma.category.findFirst({
+          where: { name: { equals: parts[0], mode: 'insensitive' } }
+        });
+        categoryId = cat?.id ?? null;
+      }
+    }
+
+    const product = await prisma.product.create({
+      data: {
+        fieldType: 'Product',
+        name: String(name).trim(),
+        sku: sku ? String(sku).trim() : null,
+        price: price != null ? Number(price) : null,
+        description: description ? String(description) : null,
+        productImageUrl: productImageUrl ? String(productImageUrl) : null,
+        ribbon: ribbon ? String(ribbon) : null,
+        brand: brand ? String(brand) : null,
+        collection: collectionPath ?? null,
+        categoryId,
+        visible: visible !== false,
+        weight: weight != null ? Number(weight) : null,
+        shippingWeightGrams:
+          shippingWeightGrams != null ? Math.trunc(Number(shippingWeightGrams)) : null,
+        shippingTemp: (shippingTemp as 'DRY' | 'FROZEN' | null) ?? 'DRY',
+        discountMode: discountMode ? String(discountMode) : null,
+        discountValue: discountValue != null ? Number(discountValue) : null,
+        caseQty: caseQty != null ? Math.trunc(Number(caseQty)) : null,
+        surcharge: surcharge != null ? Number(surcharge) : null,
+        inventory: inventory ? String(inventory) : null
+      }
     });
 
-    return NextResponse.json(items);
+    return NextResponse.json({ ok: true, product }, { status: 201 });
+  } catch (e) {
+    console.error('[POST /api/products]', e);
+    return NextResponse.json({ ok: false, error: 'Failed to create product' }, { status: 500 });
   }
-
-  // ---- MODE B: paged search
-  const page = Math.max(1, Number(searchParams.get('page') ?? 1));
-  const pageSize = 20;
-  const search = (searchParams.get('search') ?? '').trim();
-
-  // ✅ collections filter (comma-separated exact matches)
-  const collectionsParam = (searchParams.get('collections') ?? '').trim();
-  const collections = collectionsParam
-    ? collectionsParam
-        .split(',')
-        .map((s) => decodeURIComponent(s).trim())
-        .filter(Boolean)
-    : [];
-
-  const where = {
-    ...(search
-      ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' as const } },
-            { sku: { contains: search, mode: 'insensitive' as const } },
-            { brand: { contains: search, mode: 'insensitive' as const } },
-            { collection: { contains: search, mode: 'insensitive' as const } }
-          ]
-        }
-      : {}),
-    ...(collections.length ? { collection: { in: collections } } : {})
-  };
-
-  const [totalMatches, items] = await Promise.all([
-    prisma.product.count({ where }),
-    prisma.product.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      select: {
-        id: true,
-        name: true,
-        sku: true,
-        price: true,
-        inventory: true,
-        collection: true,
-        productImageUrl: true,
-        visible: true,
-        createdAt: true
-      }
-    })
-  ]);
-
-  const totalPages = Math.max(1, Math.ceil(totalMatches / pageSize));
-  return NextResponse.json({ items, totalPages, totalMatches, pageSize });
 }

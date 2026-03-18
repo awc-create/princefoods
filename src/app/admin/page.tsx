@@ -4,7 +4,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import styles from './Admin.module.scss';
 import RecentNotifications from './RecentNotifications';
-import SetupPush from './SetupPush';
 
 interface Stats {
   products: number;
@@ -29,6 +28,7 @@ interface ApcHealthResp {
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'all'>('month');
 
   const [apcHealth, setApcHealth] = useState<ApcHealthResp | null>(null);
   const [apcLoading, setApcLoading] = useState(true);
@@ -37,13 +37,15 @@ export default function AdminDashboard() {
     let cancelled = false;
 
     async function load() {
+      setLoading(true);
       try {
-        const res = await fetch('/api/admin/stats', { cache: 'no-store' });
+        const res = await fetch(`/api/admin/stats?period=${period}`, { cache: 'no-store' });
         const data: {
           ok?: boolean;
           products?: number;
           customers?: number;
           orders?: number;
+          newOrdersToday?: number;
           revenuePence?: number;
         } = await res.json();
 
@@ -68,7 +70,7 @@ export default function AdminDashboard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [period]);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,9 +129,36 @@ export default function AdminDashboard() {
 
   return (
     <div>
-      <SetupPush />
       <div className={styles.dashboardHeader}>
         <h1>Admin Dashboard</h1>
+        <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+          {(['today', 'week', 'month', 'year', 'all'] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 8,
+                border: '1px solid #e5e7eb',
+                fontWeight: period === p ? 700 : 400,
+                background: period === p ? '#111827' : '#fff',
+                color: period === p ? '#fff' : '#374151',
+                cursor: 'pointer',
+                fontSize: 13
+              }}
+            >
+              {p === 'all'
+                ? 'All time'
+                : p === 'today'
+                  ? 'Today'
+                  : p === 'week'
+                    ? '7 days'
+                    : p === 'month'
+                      ? '30 days'
+                      : '1 year'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ✅ 4 cards only */}

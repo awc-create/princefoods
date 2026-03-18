@@ -14,6 +14,8 @@ interface LoginFormProps {
   /** Sentinel error string used by your Credentials authorize() for unverified users. */
   unverifiedErrorCode?: string;
   /** Custom provider ids if you renamed them. */
+  /** Pass false to hide the Google button when GOOGLE_CLIENT_ID is not configured */
+  hasGoogle?: boolean;
   googleProviderId?: string;
   credentialsProviderId?: string;
 }
@@ -22,7 +24,8 @@ export default function LoginForm({
   callbackUrl: propCallback,
   unverifiedErrorCode = 'EmailNotVerified',
   googleProviderId = 'google',
-  credentialsProviderId = 'credentials'
+  credentialsProviderId = 'credentials',
+  hasGoogle = true
 }: LoginFormProps) {
   const router = useRouter();
   const sp = useSearchParams();
@@ -33,6 +36,11 @@ export default function LoginForm({
   const [showPw, setShowPw] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [showMagic, setShowMagic] = useState(false);
+  const [magicEmail, setMagicEmail] = useState('');
+  const [magicPending, setMagicPending] = useState(false);
+  const [magicSent, setMagicSent] = useState(false);
+  const [magicErr, setMagicErr] = useState<string | null>(null);
 
   // Build current full URL (path + query) for callbackUrl default
   const currentFull = useMemo(() => {
@@ -98,6 +106,30 @@ export default function LoginForm({
     }
   }
 
+  async function sendMagicLink(e: React.FormEvent) {
+    e.preventDefault();
+    setMagicErr(null);
+    setMagicPending(true);
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: magicEmail, next: callbackUrl })
+      });
+      const _data = await res.json().catch(() => ({}));
+      if (res.status === 429) {
+        setMagicErr('Too many attempts. Please try again later.');
+        return;
+      }
+      // Always show success (avoid enumeration)
+      setMagicSent(true);
+    } catch {
+      setMagicErr('Could not send link. Try again.');
+    } finally {
+      setMagicPending(false);
+    }
+  }
+
   // For the switch link, keep existing params but flip to modal=signup
   const qsObj = Object.fromEntries(sp ?? []);
   const switchHref = {
@@ -159,9 +191,16 @@ export default function LoginForm({
           <label className={styles.label} htmlFor="password">
             Password
           </label>
-          <Link href="/forgot-password" className={styles.helper}>
-            Forgot?
-          </Link>
+          <button
+            type="button"
+            className={styles.helper}
+            onClick={() => {
+              setShowMagic(true);
+              setMagicEmail(email);
+            }}
+          >
+            Forgot / sign in by email link
+          </button>
         </div>
 
         <div className={styles.field}>
@@ -199,13 +238,15 @@ export default function LoginForm({
         <span>or</span>
       </div>
 
-      <button
-        type="button"
-        onClick={() => signIn(googleProviderId, { callbackUrl })}
-        className={styles.googleBtn}
-      >
-        Continue with Google
-      </button>
+      {hasGoogle && (
+        <button
+          type="button"
+          onClick={() => signIn(googleProviderId, { callbackUrl })}
+          className={styles.googleBtn}
+        >
+          Continue with Google
+        </button>
+      )}
 
       <p className={styles.switchAuth}>
         New here?{' '}
@@ -213,6 +254,46 @@ export default function LoginForm({
           Sign up now
         </Link>
       </p>
+
+      {showMagic && (
+        <div className={styles.magicOverlay}>
+          <div className={styles.magicBox}>
+            <h3 className={styles.magicTitle}>Sign in with a link</h3>
+            <p className={styles.magicSub}>
+              We&apos;ll email you a one-click sign-in link — no password needed.
+            </p>
+            {magicSent ? (
+              <p className={styles.ok}>✅ Check your inbox — a sign-in link is on its way.</p>
+            ) : (
+              <form onSubmit={sendMagicLink} className={styles.form}>
+                <input
+                  type="email"
+                  placeholder="your@email.com"
+                  value={magicEmail}
+                  onChange={(e) => setMagicEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  className={styles.input}
+                />
+                {magicErr && <p className={styles.error}>{magicErr}</p>}
+                <button type="submit" className={styles.primaryBtn} disabled={magicPending}>
+                  {magicPending ? 'Sending…' : 'Send sign-in link'}
+                </button>
+              </form>
+            )}
+            <button
+              type="button"
+              className={styles.helper}
+              onClick={() => {
+                setShowMagic(false);
+                setMagicSent(false);
+              }}
+            >
+              ← Back to password login
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,9 +1,9 @@
-"use client";
+'use client';
 import React from 'react';
 
-import Link from "next/link";
-import { FaFacebookF, FaTwitter, FaInstagram } from "react-icons/fa";
-import styles from "./Footer.module.scss";
+import Link from 'next/link';
+import { FaFacebookF, FaInstagram } from 'react-icons/fa';
+import styles from './Footer.module.scss';
 
 const Footer: React.FC = () => {
   return (
@@ -19,42 +19,32 @@ const Footer: React.FC = () => {
 
         {/* Social Icons */}
         <div className={styles.socialIcons}>
-          <a href="#" aria-label="Facebook">
+          <a
+            href="https://www.facebook.com/princefoodsuk"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Facebook"
+          >
             <FaFacebookF />
           </a>
-          {/* Example:
-          <a href="https://facebook.com/yourpage" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
-            <FaFacebookF />
-          </a>
-          */}
-
-          <a href="#" aria-label="Twitter">
-            <FaTwitter />
-          </a>
-          {/* Example:
-          <a href="https://twitter.com/yourhandle" target="_blank" rel="noopener noreferrer" aria-label="Twitter">
-            <FaTwitter />
-          </a>
-          */}
-
-          <a href="#" aria-label="Instagram">
+          <a
+            href="https://www.instagram.com/princefoodsuk/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Instagram"
+          >
             <FaInstagram />
           </a>
-          {/* Example:
-          <a href="https://instagram.com/yourprofile" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
-            <FaInstagram />
-          </a>
-          */}
         </div>
 
         {/* Copyright */}
         <p className={styles.copyright}>
-          &copy; {new Date().getFullYear()} YourSite. All rights reserved.
+          &copy; {new Date().getFullYear()} Prince Foods. All rights reserved.
         </p>
 
         {/* Credit */}
         <p className={styles.credit}>
-          Website created by{" "}
+          Website created by{' '}
           <a href="https://adaptiveworks.net" target="_blank" rel="noopener noreferrer">
             AWC
           </a>

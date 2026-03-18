@@ -1,6 +1,7 @@
 // src/components/checkout/PaymentStep.tsx
 'use client';
 
+import Link from 'next/link';
 import styles from './PaymentStep.module.scss';
 import type { Delivery } from './types';
 
@@ -17,7 +18,9 @@ export default function PaymentStep({
   onPayWithStripe,
   onPayWithStripeTest,
   onPlaceTestOrder,
-  grandTotalPence
+  grandTotalPence,
+  agreedToTerms,
+  setAgreedToTerms
 }: {
   delivery: Delivery;
   setDelivery: (d: Delivery) => void;
@@ -26,27 +29,24 @@ export default function PaymentStep({
   mounted: boolean;
   err: string | null;
   onEditAddress: () => void;
-
   onPlaceOrder: () => Promise<void> | void;
-
   isAdmin: boolean;
-
   onPayWithStripe: () => Promise<void> | void;
   onPayWithStripeTest: () => Promise<void> | void;
-
   onPlaceTestOrder: () => Promise<void> | void;
-
   grandTotalPence: number;
+  agreedToTerms: boolean;
+  setAgreedToTerms: (v: boolean) => void;
 }) {
   void delivery;
   void setDelivery;
 
-  const disabled = placing || (mounted ? !formValid : true);
-
   const totalPence = Math.max(0, Math.trunc(grandTotalPence ?? 0));
   const isFreeOrder = totalPence <= 0;
 
-  // ✅ isolate click handling (prevents any weird parent/overlay bubbling)
+  // Bug 8: T&C must be agreed before placing
+  const disabled = placing || (mounted ? !formValid : true) || !agreedToTerms;
+
   const handleLiveClick: React.MouseEventHandler<HTMLButtonElement> = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -107,14 +107,12 @@ export default function PaymentStep({
             <div className={styles.summaryTitle}>Delivery</div>
             <div className={styles.summaryValue}>Standard delivery</div>
             <div className={styles.summaryHint}>
-              Calculated automatically from your address and basket (dry/frozen weight rules).
+              Calculated automatically from your address and basket.
             </div>
           </div>
-
           <div style={{ textAlign: 'right' }}>
             <div className={styles.summaryTitle}>Service</div>
             <div className={styles.summaryValue}>STANDARD</div>
-            <div className={styles.summaryHint}>No express option</div>
           </div>
         </div>
 
@@ -126,11 +124,10 @@ export default function PaymentStep({
             <div className={styles.summaryValue}>{isFreeOrder ? 'None' : 'Card'}</div>
             <div className={styles.summaryHint}>
               {isFreeOrder
-                ? 'No payment is required for this order.'
-                : 'You’ll be redirected to Stripe to complete payment.'}
+                ? 'No payment required for this order.'
+                : "You'll be redirected to Stripe to complete payment securely."}
             </div>
           </div>
-
           <div style={{ textAlign: 'right' }}>
             <div className={styles.summaryTitle}>Security</div>
             <div className={styles.summaryValue}>Encrypted</div>
@@ -138,6 +135,26 @@ export default function PaymentStep({
           </div>
         </div>
       </div>
+
+      {/* Bug 8: T&C checkbox */}
+      <label className={styles.termsRow}>
+        <input
+          type="checkbox"
+          checked={agreedToTerms}
+          onChange={(e) => setAgreedToTerms(e.target.checked)}
+          className={styles.termsCheck}
+        />
+        <span>
+          I agree to the{' '}
+          <Link href="/terms-of-service" target="_blank" className={styles.termsLink}>
+            Terms & Conditions
+          </Link>{' '}
+          and{' '}
+          <Link href="/privacy-policy" target="_blank" className={styles.termsLink}>
+            Privacy Policy
+          </Link>
+        </span>
+      </label>
 
       <div className={styles.stepActions} style={{ position: 'relative', zIndex: 1 }}>
         {isFreeOrder ? (
@@ -147,28 +164,19 @@ export default function PaymentStep({
             disabled={disabled}
             aria-disabled={disabled}
             onClick={handlePlaceOrder}
-            title="Places your order without payment (total is £0)."
             data-testid="pay-free"
             style={{ pointerEvents: 'auto' }}
           >
             {placing ? 'Placing…' : 'Place order'}
           </button>
         ) : (
-          <div
-            style={{
-              display: 'grid',
-              gap: 12,
-              position: 'relative',
-              zIndex: 2
-            }}
-          >
+          <div style={{ display: 'grid', gap: 12, position: 'relative', zIndex: 2 }}>
             <button
               type="button"
               className={styles.primaryBtn}
               disabled={disabled}
               aria-disabled={disabled}
               onClick={handleLiveClick}
-              title="Redirects to Stripe Checkout (LIVE) to complete payment."
               data-testid="pay-live"
               style={{ pointerEvents: 'auto' }}
             >
@@ -182,7 +190,6 @@ export default function PaymentStep({
                 disabled={disabled}
                 aria-disabled={disabled}
                 onClick={handleTestClick}
-                title="Admin-only: Redirects to Stripe Checkout (TEST)."
                 data-testid="pay-test"
                 style={{ pointerEvents: 'auto' }}
               >
@@ -190,6 +197,10 @@ export default function PaymentStep({
               </button>
             )}
           </div>
+        )}
+
+        {!agreedToTerms && (
+          <p className={styles.termsWarning}>Please agree to the Terms & Conditions to continue.</p>
         )}
 
         <p className={styles.muted}>
@@ -203,7 +214,6 @@ export default function PaymentStep({
             onClick={handlePlaceTestOrder}
             disabled={placing || !formValid}
             aria-disabled={placing || !formValid}
-            title="Admin-only: writes a paid test order directly (skips Stripe)."
             data-testid="place-test-order"
             style={{ pointerEvents: 'auto' }}
           >

@@ -494,7 +494,7 @@ function evalBOGOF(
       reason: 'FREE'
     });
 
-    if (data.autoAddGetItem) {
+    if (data.autoAddGetItem !== false) {
       autoAdd.push({
         reasonOfferId: offerKey(offer),
         productId: ln.productId ?? null,

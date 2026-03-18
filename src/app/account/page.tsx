@@ -8,16 +8,11 @@ import styles from './TabsAccount.module.scss';
 
 export const dynamic = 'force-dynamic';
 
-type Tab = 'overview' | 'profile' | 'orders' | 'addresses' | 'wallet' | 'security';
+type Tab = 'overview' | 'profile' | 'orders' | 'addresses' | 'security';
 
 function isTab(v: unknown): v is Tab {
   return (
-    v === 'overview' ||
-    v === 'profile' ||
-    v === 'orders' ||
-    v === 'addresses' ||
-    v === 'wallet' ||
-    v === 'security'
+    v === 'overview' || v === 'profile' || v === 'orders' || v === 'addresses' || v === 'security'
   );
 }
 
@@ -51,10 +46,22 @@ export default async function AccountPage({
 
   if (!user) redirect('/?modal=signup&next=/account');
 
+  // Fix 8: only pass isVerified bool, not the raw timestamp
+  const userForClient = {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    phoneE164: user.phoneE164,
+    isVerified: !!user.emailVerified,
+    createdAt: user.createdAt.toISOString()
+  };
+
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
-        <AccountClient user={JSON.parse(JSON.stringify(user))} initialTab={initialTab} />
+        <AccountClient user={userForClient} initialTab={initialTab} />
       </div>
     </main>
   );

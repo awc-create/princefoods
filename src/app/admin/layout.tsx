@@ -1,4 +1,4 @@
-// src/app/admin/AdminLayout.tsx
+// src/app/admin/layout.tsx
 'use client';
 
 import NotificationBell from '@/components/admin/NotificationBell';
@@ -7,13 +7,11 @@ import SetupPush from './SetupPush';
 import '@/styles/Global.scss';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import React, { useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import React, { useMemo, useState } from 'react';
 import styles from './Admin.module.scss';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
-
-// ✅ Improved grouping (adds Promotions + makes sections cleaner)
 type GroupKey = 'dashboard' | 'site' | 'catalog' | 'operations' | 'marketing' | 'admin';
 
 interface UserWithRole {
@@ -34,12 +32,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const safePath = pathname ?? '/admin';
   const onLogin = isLoginPath(safePath);
 
-  const router = useRouter();
-  const { status, data } = useSession();
+  // Session is READ-ONLY here — middleware already blocked unauthenticated access
+  // No redirect logic, no loading gate = no flash
+  const { data } = useSession();
+  const role = hasRole(data?.user) ? ((data!.user.role as Role | null) ?? null) : null;
 
-  const [role, setRole] = useState<Role | null>(null);
+  const canEditSite = role === 'HEAD' || role === 'STAFF';
+  const canManageAdmin = role === 'HEAD';
+  const canManageMarketing = role === 'HEAD' || role === 'STAFF';
 
-  // sensible defaults (operations + marketing visible)
   const [open, setOpen] = useState<Record<GroupKey, boolean>>({
     dashboard: false,
     site: true,
@@ -49,42 +50,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     admin: false
   });
 
-  useEffect(() => {
-    if (onLogin || status === 'loading') return;
-
-    const r: Role | undefined = hasRole(data?.user)
-      ? ((data!.user.role as Role | null) ?? undefined)
-      : undefined;
-
-    if (!data?.user || !r) {
-      router.replace(`/admin/login?callbackUrl=${encodeURIComponent(safePath)}`);
-      return;
-    }
-    setRole(r);
-  }, [onLogin, status, data, router, safePath]);
-
-  const canEditSite = role === 'HEAD' || role === 'STAFF';
-  const canManageAdmin = role === 'HEAD'; // keep HEAD-only for sensitive settings
-  const canManageMarketing = role === 'HEAD' || role === 'STAFF';
-
   const groups = useMemo(() => {
     const list: Array<{
       key: GroupKey;
       title: string;
-      items: Array<{ href: string; label: string; roles?: Role[] }>;
+      items: Array<{ href: string; label: string }>;
       hide?: boolean;
     }> = [
-      {
-        key: 'dashboard',
-        title: 'Dashboard',
-        items: [{ href: '/admin', label: 'Overview' }]
-      },
+      { key: 'dashboard', title: 'Dashboard', items: [{ href: '/admin', label: 'Overview' }] },
       {
         key: 'site',
         title: 'Site Editing',
         hide: !canEditSite,
         items: [
-          { href: '/admin/site/home', label: 'Home (Hero/Delivery/etc)' },
+          { href: '/admin/site/home', label: 'Home' },
           { href: '/admin/site/about', label: 'About' },
           { href: '/admin/site/faq', label: 'FAQ' },
           { href: '/admin/site/contact', label: 'Contact' },
@@ -109,8 +88,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           { href: '/admin/shipments', label: 'Shipments' },
           { href: '/admin/shipping', label: 'Shipping' },
           { href: '/admin/orders/exceptions', label: 'Delivery Exceptions' },
-          { href: '/admin/customers', label: 'Customers' },
-          { href: '/admin/sales', label: 'Sales' }
+          { href: '/admin/customers', label: 'Customers' }
         ]
       },
       {
@@ -118,7 +96,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         title: 'Marketing',
         hide: !canManageMarketing,
         items: [
-          // ✅ PROMOTIONS ADMIN PAGE INTEGRATION
           { href: '/admin/promotions', label: 'Promotions' },
           { href: '/admin/offers', label: 'Offers' },
           { href: '/admin/customer-discounts', label: 'Customer Discounts' }
@@ -134,25 +111,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         ]
       }
     ];
-
     return list.filter((g) => !g.hide);
   }, [canEditSite, canManageAdmin, canManageMarketing]);
 
   if (onLogin) return <>{children}</>;
-  if (status === 'loading' || !role) return <div style={{ padding: '2rem' }}>Loading...</div>;
 
   const toggle = (k: GroupKey) => setOpen((o) => ({ ...o, [k]: !o[k] }));
 
   return (
     <div className={styles.adminWrapper}>
       <aside className={styles.adminSidebar}>
-        {/* Logged in info + bell */}
-        {hasRole(data?.user) && data.user.email && (
+        {hasRole(data?.user) && data?.user?.email && (
           <div className={styles.loggedInRow}>
             <div className={styles.loggedIn}>
               Logged in as:
               <br />
               <strong>{data.user.email}</strong>
+              {role && <span className={styles.rolePill}>{role}</span>}
             </div>
             <NotificationBell />
           </div>
@@ -171,16 +146,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {open[g.key] ? '−' : '+'}
               </span>
             </button>
-
             {open[g.key] && (
               <nav className={styles.nav}>
                 {g.items.map((it) => (
                   <Link
                     key={it.href}
                     href={it.href}
-                    className={`${styles.navLink} ${
-                      isActivePath(safePath, it.href) ? styles.active : ''
-                    }`}
+                    className={`${styles.navLink} ${isActivePath(safePath, it.href) ? styles.active : ''}`}
                   >
                     {it.label}
                   </Link>

@@ -225,3 +225,71 @@
     display: none;
   }
 }
+
+/* ═══════════════════════════════════════
+   MOBILE IMPROVEMENTS
+   ═══════════════════════════════════════ */
+@media (max-width: 600px) {
+  .wrap {
+    padding: 0;
+  }
+
+  .card {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .top {
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-start;
+  }
+
+  .leftTop {
+    flex-direction: row;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .rightTop {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .id {
+    font-size: 1rem;
+  }
+
+  .date {
+    font-size: 0.78rem;
+  }
+
+  .badge,
+  .badgeMuted {
+    font-size: 0.72rem;
+    padding: 3px 7px;
+  }
+
+  .total {
+    font-size: 0.95rem;
+  }
+
+  .bottom {
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .thumbStack {
+    gap: 2px;
+  }
+
+  .thumb {
+    width: 36px;
+    height: 36px;
+  }
+
+  .items {
+    font-size: 0.78rem;
+  }
+}

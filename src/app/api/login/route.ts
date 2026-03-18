@@ -2,6 +2,8 @@
 import { getFeaturedCategories } from '@/lib/catalog';
 import { sendWelcomeVerifyEmail } from '@/lib/email';
 import { prisma } from '@/lib/prisma';
+import { magicLinkLimiter } from '@/lib/rate-limit';
+import { getClientIp, tooManyRequests } from '@/lib/rate-limit-response';
 import { issueEmailVerification } from '@/lib/verify';
 import { NextResponse } from 'next/server';
 
@@ -85,6 +87,10 @@ function buildLegacyVerifyUrl(params: {
 
 export async function POST(req: Request) {
   try {
+    const ip = getClientIp(req);
+    const rl = magicLinkLimiter(ip);
+    if (!rl.allowed) return tooManyRequests(rl);
+
     const { email, next } = (await req.json()) as { email: string; next?: string };
 
     const emailNorm = String(email ?? '')

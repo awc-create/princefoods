@@ -2,6 +2,7 @@
 
 import Slider from '@/components/slider/Slider';
 import { Oswald } from 'next/font/google';
+import Link from 'next/link';
 import styles from './Hero.module.scss';
 
 const oswald = Oswald({ weight: '500', subsets: ['latin'] });
@@ -15,7 +16,7 @@ export default function Hero({
   title = 'South Asian Groceries, Delivered.',
   subtitle = 'Since 2007—authentic Indian & Sri Lankan favourites at everyday low prices. Premium spices, snacks, frozen specialties and more with fast UK & Ireland delivery.',
   primaryCta = { label: 'Shop Best Sellers', href: '/shop' },
-  secondaryCta = { label: 'Browse Collections', href: '/collections' },
+  secondaryCta = { label: 'Browse Shop', href: '/shop' },
   floatingTag = 'Welcome To Prince Foods',
   images = ['/assets/96bfc4_3547f98fa8f54128b23c97aa34bf83b9~mv2.avif']
 }: {
@@ -24,9 +25,8 @@ export default function Hero({
   primaryCta?: Cta;
   secondaryCta?: Cta;
   floatingTag?: string;
-  images?: string[]; // array for slider
+  images?: string[];
 }) {
-  // Adapt images -> Slider's Slide shape (fill unused fields)
   const slides = images.map((image) => ({
     image,
     siteLink: '',
@@ -45,13 +45,13 @@ export default function Hero({
           <p>{subtitle}</p>
 
           <div className={styles.ctaRow}>
-            <a className={styles.ctaPrimary} href={primaryCta.href}>
+            <Link className={styles.ctaPrimary} href={primaryCta.href}>
               {primaryCta.label}
-            </a>
+            </Link>
             {secondaryCta && (
-              <a className={styles.ctaGhost} href={secondaryCta.href}>
+              <Link className={styles.ctaGhost} href={secondaryCta.href}>
                 {secondaryCta.label}
-              </a>
+              </Link>
             )}
           </div>
 
@@ -63,11 +63,9 @@ export default function Hero({
         </div>
 
         <div className={styles.right}>
-          {/* Your existing Embla slider */}
           <div className={styles.heroCard} aria-hidden>
             <Slider slides={slides} />
           </div>
-
           {floatingTag && <div className={styles.floatingTag}>{floatingTag}</div>}
         </div>
       </div>

@@ -12,15 +12,13 @@ export default function LineItemRow({
   onInc,
   onSetQty,
   onRemove,
-  // offers info
   usingOffers,
   freeQty,
   offerNames,
+  productBadges = [],
   safeOfferDiscount,
-  // customer info
   customerPct,
   custLineDiscount,
-  // price
   showWasNow,
   wasPence,
   nowPence,
@@ -33,15 +31,13 @@ export default function LineItemRow({
   onInc: () => void;
   onSetQty: (qty: number) => void;
   onRemove: () => void;
-
   usingOffers: boolean;
   freeQty: number;
   offerNames: string[];
+  productBadges?: string[];
   safeOfferDiscount: number;
-
   customerPct: number;
   custLineDiscount: number;
-
   showWasNow: boolean;
   wasPence: number;
   nowPence: number;
@@ -51,6 +47,8 @@ export default function LineItemRow({
     it.imageUrl ??
     (it as unknown as { image?: string | null }).image ??
     '/assets/prince-foods-logo.png';
+
+  const paidQty = Math.max(1, Math.trunc(it.quantity));
 
   return (
     <li className={styles.itemRow}>
@@ -103,26 +101,37 @@ export default function LineItemRow({
             </button>
           </div>
 
-          {usingOffers && freeQty > 0 && (
-            <div className={styles.offerLineHint}>
-              Includes <strong>{freeQty}</strong> free item{freeQty === 1 ? '' : 's'}
+          {/* Red offer badges — always visible */}
+          {productBadges.length > 0 && (
+            <div className={styles.badgeRow}>
+              {productBadges.map((b) => (
+                <span key={b} className={styles.offerBadgePill}>
+                  {b}
+                </span>
+              ))}
             </div>
           )}
 
-          {usingOffers && safeOfferDiscount > 0 && (
+          {/* Free item count */}
+          {freeQty > 0 && (
+            <div className={styles.freeTag}>
+              🎁 {freeQty} free — you pay for {paidQty}
+            </div>
+          )}
+
+          {usingOffers && safeOfferDiscount > 0 && freeQty === 0 && (
             <div className={styles.offerLineHint}>
-              Offer applied: <strong>-{penceToGBP(safeOfferDiscount)}</strong>
+              Offer saving: <strong>-{penceToGBP(safeOfferDiscount)}</strong>
             </div>
           )}
 
           {customerPct > 0 && custLineDiscount > 0 && (
             <div className={styles.offerLineHint}>
-              Customer discount: <strong>{customerPct}% off</strong> (−
-              {penceToGBP(custLineDiscount)})
+              Customer {customerPct}% off (−{penceToGBP(custLineDiscount)})
             </div>
           )}
 
-          {offerNames.length > 0 && (
+          {offerNames.length > 0 && productBadges.length === 0 && (
             <div className={styles.offerLineMeta}>
               {offerNames.map((n) => (
                 <div key={n} className={styles.offerLineMetaRow}>
@@ -137,8 +146,8 @@ export default function LineItemRow({
       <div className={styles.itemPrice}>
         {showWasNow ? (
           <div className={styles.priceBlock}>
-            <span className={styles.was}>Was {penceToGBP(wasPence)}</span>
-            <span className={styles.now}>Now {penceToGBP(nowPence)}</span>
+            <span className={styles.was}>{penceToGBP(wasPence)}</span>
+            <span className={styles.now}>{penceToGBP(nowPence)}</span>
             {savePence > 0 && <span className={styles.save}>Save {penceToGBP(savePence)}</span>}
           </div>
         ) : (

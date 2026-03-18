@@ -1,12 +1,7 @@
 .section {
   position: relative;
-  padding: clamp(28px, 4vw, 44px) 0 clamp(34px, 5vw, 56px);
-
-  background: var(--home-card);
-  border: 1px solid var(--home-card-border);
-  box-shadow: var(--home-card-shadow);
-  backdrop-filter: blur(10px);
-  border-radius: 18px;
+  padding: clamp(48px, 6vw, 80px) clamp(16px, 5vw, 72px);
+  background: #ffffff;
 }
 
 .inner {

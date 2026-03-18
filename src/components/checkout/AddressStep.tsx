@@ -292,7 +292,7 @@ export default function AddressStep({
 
           {saveToAccount && (
             <Field
-              label="Address name"
+              label="Address name (optional)"
               value={saveLabel}
               onChange={setSaveLabel}
               hint="e.g. Bob’s house, Office, Warehouse"

@@ -24,7 +24,9 @@ export async function GET() {
   }
 
   const orders = await prisma.order.findMany({
-    where: { userId: user.id },
+    where: {
+      OR: [{ userId: user.id }, { contactEmail: email }]
+    },
     orderBy: { createdAt: 'desc' },
     select: {
       id: true,

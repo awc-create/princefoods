@@ -144,6 +144,35 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
+    async signIn({ user, account }) {
+      // For OAuth providers (Google etc.), manually upsert the user since
+      // JWT strategy bypasses the adapter's createUser/linkAccount hooks
+      if (
+        account?.provider &&
+        account.provider !== 'credentials' &&
+        account.provider !== 'admin-credentials'
+      ) {
+        const email = user.email?.toLowerCase().trim();
+        if (!email) return false;
+
+        await prisma.user.upsert({
+          where: { email },
+          create: {
+            email,
+            name: user.name ?? email,
+            emailVerified: new Date(), // OAuth email is pre-verified
+            role: 'VIEWER'
+          },
+          update: {
+            // Update name if not set, mark email verified
+            name: user.name ? { set: user.name } : undefined,
+            emailVerified: new Date()
+          }
+        });
+      }
+      return true;
+    },
+
     async jwt({ token, user }) {
       const t = token as AppJWT;
 
@@ -179,8 +208,8 @@ export const authOptions: NextAuthOptions = {
   },
 
   pages: {
-    signIn: '/admin/login',
-    error: '/admin/login'
+    signIn: '/login',
+    error: '/login'
   },
 
   secret: process.env.NEXTAUTH_SECRET

@@ -1,5 +1,7 @@
 // src/app/api/promotions/evaluate/route.ts
 import { prisma } from '@/lib/prisma';
+import { promoLimiter } from '@/lib/rate-limit';
+import { getClientIp, tooManyRequests } from '@/lib/rate-limit-response';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -76,6 +78,9 @@ async function logAttempt(args: {
 }
 
 export async function POST(req: Request) {
+  const rl = promoLimiter(getClientIp(req));
+  if (!rl.allowed) return tooManyRequests(rl);
+
   const body = (await req.json().catch(() => null)) as unknown;
   if (!body || typeof body !== 'object') return bad('BAD_REQUEST');
 

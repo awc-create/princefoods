@@ -422,13 +422,13 @@ export default async function Home() {
       id: 'tmp-1',
       name: 'Prince Foods Nadan Chappathi 400g',
       price: 1.99,
-      productImageUrl: '/assets/fallback/chappathi.jpg'
+      productImageUrl: '/assets/prince-foods-logo.png'
     },
     {
       id: 'tmp-2',
       name: 'Prince Foods Malabar Murukku 150g',
       price: 2.29,
-      productImageUrl: '/assets/fallback/murukku.jpg'
+      productImageUrl: '/assets/prince-foods-logo.png'
     }
   ];
 
@@ -509,6 +509,7 @@ export default async function Home() {
 
   return (
     <main className={styles.homeContainer}>
+      {/* 1. Promotion banner (if active) */}
       {promotionBanner ? (
         <HomePromotionBanner
           title={promotionBanner.title}
@@ -520,6 +521,10 @@ export default async function Home() {
         />
       ) : null}
 
+      {/* 2. Instagram */}
+      <InstagramGrid usernameUrl={instagramUsernameUrl} />
+
+      {/* 3. Hero */}
       <Hero
         title={heroTitle}
         subtitle={heroSubtitle}
@@ -538,6 +543,16 @@ export default async function Home() {
         images={heroImages}
       />
 
+      {/* 4. Delivery */}
+      <Delivery
+        cards={cardsForDelivery}
+        gbFreeThreshold={deliveryBase.gbFreeThreshold ?? 30}
+        niFreeThreshold={deliveryBase.niFreeThreshold ?? 40}
+        frozenFee={deliveryBase.frozenFee ?? 3.99}
+        message={deliveryMessage}
+      />
+
+      {/* 5. Celebration sections (if any active) */}
       {celebrationBlocks.map(({ section, products }) => (
         <CelebrationSection
           key={section.id}
@@ -552,16 +567,6 @@ export default async function Home() {
           products={products}
         />
       ))}
-
-      <Delivery
-        cards={cardsForDelivery}
-        gbFreeThreshold={deliveryBase.gbFreeThreshold ?? 30}
-        niFreeThreshold={deliveryBase.niFreeThreshold ?? 40}
-        frozenFee={deliveryBase.frozenFee ?? 3.99}
-        message={deliveryMessage}
-      />
-
-      <InstagramGrid usernameUrl={instagramUsernameUrl} />
 
       {enabledSliders.length > 0 ? (
         enabledSliders.map((s) => (

@@ -282,6 +282,7 @@ export default function CheckoutClient({ email }: { email: string | null }) {
   const [saveLabel, setSaveLabel] = useState('');
 
   const [placing, setPlacing] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const [shippingPence, setShippingPence] = useState<number>(0);
@@ -685,7 +686,7 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, promoCartKey, promo]);
 
-  function makeOrderBody() {
+  function makeOrderBody(grandTotal?: number) {
     const ship = packAddress(shipping);
     const bill = billingSame ? undefined : packAddress(billing);
 
@@ -712,9 +713,9 @@ export default function CheckoutClient({ email }: { email: string | null }) {
       totals: {
         subtotal: liveSubtotal,
         shipping: shippingPence,
-        discount: 0,
+        discount: discountShown + customerDiscountTotal,
         tax: 0,
-        grandTotal: 0
+        grandTotal: Math.max(0, grandTotal ?? 0)
       },
       currency: 'GBP',
       contactEmail: emailForOrder,
@@ -729,25 +730,37 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     if (!isLoggedIn) return;
     if (!saveToAccount) return;
 
-    const label = saveLabel.trim();
-    if (!label) return;
+    const label = saveLabel.trim() || 'Home';
+    const addr = packAddress(shipping);
 
     const payload = {
       label,
       kind: billingSame ? 'SHIPPING' : 'BOTH',
       isDefault: false,
-      address: packAddress(shipping),
-      billing: billingSame ? undefined : packAddress(billing)
+      // Flat structure matching the API schema
+      firstName: addr.firstName,
+      lastName: addr.lastName,
+      line1: addr.line1,
+      line2: addr.line2 ?? null,
+      town: addr.town ?? null,
+      city: addr.city,
+      postcode: addr.postcode,
+      country: addr.country,
+      phoneE164: addr.phoneE164 ?? null
     };
 
     try {
-      await fetch('/api/account/addresses', {
+      const res = await fetch('/api/account/addresses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-    } catch {
-      // ignore
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error('[saveAddress] failed:', err);
+      }
+    } catch (e) {
+      console.error('[saveAddress] error:', e);
     }
   }
 
@@ -790,17 +803,19 @@ export default function CheckoutClient({ email }: { email: string | null }) {
 
     setPlacing(true);
     try {
-      await maybeSaveAddressToAccount();
-
       const res = await fetch('/api/checkout/place-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(makeOrderBody())
+        body: JSON.stringify(makeOrderBody(grand))
       });
       const json = (await res.json()) as PlaceOrderResponse;
 
       if (!res.ok || !json.orderId) throw new Error(json?.error ?? 'Could not place order.');
 
+      // Bug 7 fix: save address only after order succeeds
+      await maybeSaveAddressToAccount();
+      // Bug 4 fix: clear guest email after successful order
+      localStorage.removeItem(LS_CONTACT_KEY);
       clear();
       router.replace(
         `/order-confirmation/${json.orderId}?d=${encodeURIComponent(json.displayId ?? '')}`
@@ -823,23 +838,31 @@ export default function CheckoutClient({ email }: { email: string | null }) {
     }
 
     setPlacing(true);
+    let placedOrderId: string | null = null;
     try {
-      await maybeSaveAddressToAccount();
-
       const res = await fetch('/api/checkout/place-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(makeOrderBody())
+        body: JSON.stringify(makeOrderBody(grand))
       });
 
       const json = (await res.json()) as { orderId?: string; displayId?: string; error?: string };
-
       if (!res.ok || !json?.orderId) throw new Error(json?.error ?? 'Could not place order.');
 
-      // ❌ DO NOT clear here
+      placedOrderId = json.orderId;
+      // Bug 7: save address only after order succeeds
+      await maybeSaveAddressToAccount();
+      // Bug 4: clear guest email before leaving
+      localStorage.removeItem(LS_CONTACT_KEY);
       await payWithStripeLive(json.orderId);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Could not start Stripe Checkout.');
+      if (placedOrderId) {
+        setErr(
+          `Payment could not start. Your order has been saved (ref: ${placedOrderId}). Please contact us or try again.`
+        );
+      } else {
+        setErr(e instanceof Error ? e.message : 'Could not start Stripe Checkout.');
+      }
     } finally {
       setPlacing(false);
     }
@@ -857,19 +880,18 @@ export default function CheckoutClient({ email }: { email: string | null }) {
 
     setPlacing(true);
     try {
-      await maybeSaveAddressToAccount();
-
       const res = await fetch('/api/checkout/place-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(makeOrderBody())
+        body: JSON.stringify(makeOrderBody(grand))
       });
 
       const json = (await res.json()) as { orderId?: string; displayId?: string; error?: string };
-
       if (!res.ok || !json?.orderId) throw new Error(json?.error ?? 'Could not place order.');
 
-      // ❌ DO NOT clear here
+      // Bug 7: save address after order succeeds
+      await maybeSaveAddressToAccount();
+      localStorage.removeItem(LS_CONTACT_KEY);
       await payWithStripeTest(json.orderId);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not start Stripe TEST Checkout.');
@@ -894,7 +916,7 @@ export default function CheckoutClient({ email }: { email: string | null }) {
       const res = await fetch('/api/checkout/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...makeOrderBody(), notes: 'Placed from checkout test button' })
+        body: JSON.stringify({ ...makeOrderBody(grand), notes: 'Placed from checkout test button' })
       });
       const json = (await res.json()) as PlaceOrderResponse;
 
@@ -935,7 +957,12 @@ export default function CheckoutClient({ email }: { email: string | null }) {
   };
 
   const emailForPromo = needEmail ? contactEmail.trim() : (email ?? sessionEmail ?? '');
-  const shippingKind: 'DRY' | 'FROZEN' | 'MIXED' = 'DRY';
+  // Derive shipping kind from item names — frozen items contain "frozen" in name or sku
+  const shippingKind: 'DRY' | 'FROZEN' | 'MIXED' = useMemo(() => {
+    if (!mounted) return 'DRY';
+    const hasFrozen = items.some((i) => /frozen/i.test(i.name) || /frozen/i.test(i.sku ?? ''));
+    return hasFrozen ? 'FROZEN' : 'DRY';
+  }, [items, mounted]);
 
   const promoRecheckKey = useMemo(() => {
     const c = (shipping.country ?? '').trim().toUpperCase();
@@ -1105,20 +1132,12 @@ export default function CheckoutClient({ email }: { email: string | null }) {
             <span className={styles.modeSub}>No account required</span>
           </button>
 
-          <Link
-            href="/?modal=login&callbackUrl=/checkout"
-            className={`${styles.modeBtn} ${mode === 'login' ? styles.modeActive : ''}`}
-            onClick={() => setMode('login')}
-          >
+          <Link href="/?modal=login&callbackUrl=/checkout" className={styles.modeBtn}>
             <span className={styles.modeTitle}>Log in</span>
             <span className={styles.modeSub}>Use your Prince Foods account</span>
           </Link>
 
-          <Link
-            href="/?modal=signup&callbackUrl=/checkout"
-            className={`${styles.modeBtn} ${mode === 'signup' ? styles.modeActive : ''}`}
-            onClick={() => setMode('signup')}
-          >
+          <Link href="/?modal=signup&callbackUrl=/checkout" className={styles.modeBtn}>
             <span className={styles.modeTitle}>Create account</span>
             <span className={styles.modeSub}>Faster checkout next time</span>
           </Link>
@@ -1187,12 +1206,14 @@ export default function CheckoutClient({ email }: { email: string | null }) {
               mounted={mounted}
               err={err ?? (shippingErr ? `Shipping: ${shippingErr}` : null)}
               onEditAddress={() => goStep('address')}
-              onPlaceOrder={placeOrder} // ✅ used when total is £0
+              onPlaceOrder={placeOrder}
               isAdmin={isAdmin}
-              onPayWithStripe={placeOrderAndPayWithStripe} // ✅ LIVE
-              onPayWithStripeTest={placeOrderAndPayWithStripeTest} // ✅ TEST (admin only)
-              onPlaceTestOrder={placeTestOrder} // ✅ skips payment
-              grandTotalPence={grand} // ✅ important
+              onPayWithStripe={placeOrderAndPayWithStripe}
+              onPayWithStripeTest={placeOrderAndPayWithStripeTest}
+              onPlaceTestOrder={placeTestOrder}
+              grandTotalPence={grand}
+              agreedToTerms={agreedToTerms}
+              setAgreedToTerms={setAgreedToTerms}
             />
           )}
         </section>

@@ -180,3 +180,162 @@
   background: #b21e2b;
   color: #fff;
 }
+
+/* Truncate name to one line */
+.name {
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+/* Offer badges — red pills, always visible */
+.badgeRow {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+}
+
+.offerBadge {
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.saving {
+  font-size: 11px;
+  color: #16a34a;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+/* Free item tag — prominent green */
+.freeTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #15803d;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 999px;
+  margin-top: 4px;
+  animation: popIn 0.25s ease forwards;
+}
+
+@keyframes popIn {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Was/Now price block */
+.wasnow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.was {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.now {
+  font-size: 13px;
+  font-weight: 800;
+  color: #15803d;
+}
+
+/* Qty free note */
+.qtyFreeNote {
+  font-size: 10px;
+  font-weight: 600;
+  color: #15803d;
+  margin-left: 2px;
+}
+
+.savingsBanner {
+  margin: 0 16px 8px;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #15803d;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.nudge {
+  font-size: 0.68rem;
+  color: var(--primary);
+  font-weight: 600;
+  margin-top: 3px;
+}
+
+.summaryPrice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.summaryWas {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.summaryNow {
+  color: #15803d;
+}
+
+/* ═══════════════════════════════════════
+   MOBILE IMPROVEMENTS
+   ═══════════════════════════════════════ */
+@media (max-width: 480px) {
+  /* Full-width drawer on very small screens */
+  .drawer {
+    width: 100vw !important;
+    max-width: 100vw;
+    border-radius: 0;
+  }
+
+  .item {
+    gap: 10px;
+  }
+
+  .summaryPrice,
+  .summaryNow,
+  .summaryWas {
+    font-size: 1rem;
+  }
+
+  .checkoutBtn,
+  .viewCartBtn {
+    font-size: 0.95rem;
+    padding: 13px 16px;
+  }
+}

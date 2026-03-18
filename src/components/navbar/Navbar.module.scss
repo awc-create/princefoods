@@ -176,3 +176,147 @@
     }
   }
 }
+
+/* ── Search autocomplete dropdown ── */
+.dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  z-index: 200;
+  overflow: hidden;
+  min-width: 320px;
+}
+
+.dropItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+
+  &:last-of-type {
+    border-bottom: none;
+  }
+}
+
+.dropItemActive,
+.dropItem:hover {
+  background: #fef2f2;
+}
+
+.dropImg {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: #f9f8f6;
+  border: 1px solid #f0ece5;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dropMeta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dropName {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.dropPrice {
+  font-size: 0.8rem;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.dropViewAll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: #f9fafb;
+  border: none;
+  border-top: 1px solid #f0ede6;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--primary);
+  font-weight: 600;
+  text-align: left;
+  transition: background 0.1s;
+
+  &:hover {
+    background: #fef2f2;
+  }
+}
+
+/* ═══════════════════════════════════════
+   MOBILE IMPROVEMENTS
+   ═══════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  .navbar {
+    padding-bottom: 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.08);
+  }
+
+  .navbar .topRow {
+    padding: 0.6rem 1rem;
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+  }
+
+  .navbar .topRow .logo {
+    justify-content: flex-start;
+  }
+
+  .navbar .topRow .searchWrapper {
+    padding-top: 0;
+    align-items: stretch;
+    justify-self: stretch;
+  }
+
+  .navbar .topRow .searchWrapper .ribbonAbove {
+    display: none;
+  }
+
+  .navbar .topRow .searchWrapper .search {
+    max-width: 100%;
+    width: 100%;
+    border-radius: 10px;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .dropdown {
+    min-width: unset;
+    width: calc(100vw - 2rem);
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}

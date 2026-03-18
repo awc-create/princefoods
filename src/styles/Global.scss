@@ -436,3 +436,70 @@ footer.site-footer {
   color: var(--text-muted);
   font-size: var(--font-size-1);
 }
+
+/* ═══════════════════════════════════════
+   GLOBAL MOBILE IMPROVEMENTS
+   ═══════════════════════════════════════ */
+
+/* Prevent horizontal overflow on mobile */
+html,
+body {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Better tap targets globally */
+@media (max-width: 768px) {
+  button,
+  a,
+  [role='button'] {
+    min-height: 40px;
+    min-width: 40px;
+  }
+
+  /* Prevent input zoom on iOS */
+  input[type='text'],
+  input[type='email'],
+  input[type='tel'],
+  input[type='number'],
+  input[type='password'],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Smoother scrolling */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* iOS safe area support */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .sticky-bottom-bar,
+  .stickyAddBar {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Login / signup modals full-screen on mobile */
+@media (max-width: 540px) {
+  .modal-backdrop {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .modal-sheet {
+    border-radius: 24px 24px 0 0;
+    max-height: 92vh;
+    overflow-y: auto;
+    width: 100%;
+  }
+}
+
+/* Better OrdersTab on mobile */
+@media (max-width: 600px) {
+  .ordersTab .li {
+    padding: 0;
+  }
+}

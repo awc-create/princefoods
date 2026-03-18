@@ -25,7 +25,8 @@ export default function CategorySidebar({
   onPriceChange
 }: {
   selected: string | null;
-  onSelect: (slug: string | null) => void;
+  // Fix 2: pass name alongside slug so heading can show proper label
+  onSelect: (slug: string | null, name?: string | null) => void;
   priceBounds: { min: number; max: number } | null;
   currentPrice: { min: number | null; max: number | null };
   onPriceChange: (min: number | null, max: number | null) => void;
@@ -33,31 +34,24 @@ export default function CategorySidebar({
   const [cats, setCats] = useState<Parent[]>([]);
   const [openParent, setOpenParent] = useState<string | null>(null);
 
-  // ✅ local slider state (dragging does NOT trigger fetch)
   const [draftPrice, setDraftPrice] = useState<{ min: number | null; max: number | null }>({
     min: null,
     max: null
   });
 
-  // Fetch category tree
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const res = await fetch('/api/shop/categories', { cache: 'no-store' });
-      const data = (await res.json().catch(() => ({ categories: [] }))) as {
-        categories?: unknown;
-      };
+      const data = (await res.json().catch(() => ({ categories: [] }))) as { categories?: unknown };
       if (cancelled) return;
-
       setCats(Array.isArray(data.categories) ? (data.categories as Parent[]) : []);
     })();
-
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Expand correct parent
   useEffect(() => {
     if (!selected) {
       setOpenParent(null);
@@ -72,21 +66,14 @@ export default function CategorySidebar({
     if (parentOfChild) setOpenParent(parentOfChild.slug);
   }, [selected, cats]);
 
-  // bounds
   const minLimit = useMemo(() => (priceBounds ? Math.floor(priceBounds.min) : 0), [priceBounds]);
   const maxLimit = useMemo(() => {
     if (!priceBounds) return 0;
-    const mn = Math.floor(priceBounds.min);
-    const mx = Math.ceil(priceBounds.max);
-    return Math.max(mx, mn);
+    return Math.max(Math.ceil(priceBounds.max), Math.floor(priceBounds.min));
   }, [priceBounds]);
 
-  // sync draft when parent filter changes (or bounds change)
   useEffect(() => {
-    setDraftPrice({
-      min: currentPrice.min,
-      max: currentPrice.max
-    });
+    setDraftPrice({ min: currentPrice.min, max: currentPrice.max });
   }, [currentPrice.min, currentPrice.max, minLimit, maxLimit]);
 
   const minVal = draftPrice.min ?? minLimit;
@@ -94,8 +81,6 @@ export default function CategorySidebar({
 
   const currency = (n: number) =>
     new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n);
-
-  const parentsOnly = useMemo(() => cats, [cats]);
 
   const sliderDisabled = maxLimit <= minLimit;
 
@@ -106,28 +91,26 @@ export default function CategorySidebar({
         <button
           className={`${styles.allBtn} ${!selected ? styles.active : ''}`}
           onClick={() => {
-            onSelect(null);
+            onSelect(null, null);
             setOpenParent(null);
           }}
           aria-pressed={!selected}
-          title="Display all products"
         >
           Display all
         </button>
       </div>
 
       <nav className={styles.nav} aria-label="Product categories">
-        {parentsOnly.map((p) => {
+        {cats.map((p) => {
           const isOpen = openParent === p.slug;
           const isSelectedParent = selected === p.slug;
           return (
             <div key={p.slug} className={styles.group}>
               <button
-                className={`${styles.parent} ${isSelectedParent ? styles.active : ''} ${
-                  isOpen ? styles.open : ''
-                }`}
+                className={`${styles.parent} ${isSelectedParent ? styles.active : ''} ${isOpen ? styles.open : ''}`}
                 onClick={() => {
-                  onSelect(p.slug);
+                  // Fix 2: pass the display name
+                  onSelect(p.slug, p.name);
                   setOpenParent(p.slug);
                 }}
                 aria-expanded={isOpen}
@@ -149,7 +132,8 @@ export default function CategorySidebar({
                       <li key={c.slug}>
                         <button
                           className={`${styles.child} ${isChildSelected ? styles.active : ''}`}
-                          onClick={() => onSelect(c.slug)}
+                          // Fix 2: pass child name too
+                          onClick={() => onSelect(c.slug, c.name)}
                           aria-current={isChildSelected ? 'true' : undefined}
                           title={`${c.count} products`}
                         >
@@ -168,9 +152,7 @@ export default function CategorySidebar({
           );
         })}
 
-        {!parentsOnly.length && (
-          <div className={styles.empty}>No categories with products yet.</div>
-        )}
+        {!cats.length && <div className={styles.empty}>No categories with products yet.</div>}
       </nav>
 
       <div className={styles.priceBox}>
@@ -193,26 +175,21 @@ export default function CategorySidebar({
             max={maxLimit}
             step={1}
             value={{ min: minVal, max: maxVal }}
-            onChange={({ min, max }) => setDraftPrice({ min, max })}
+            // Fix 4: apply immediately on drag-release
+            onChange={({ min, max }) => {
+              setDraftPrice({ min, max });
+              onPriceChange(min, max);
+            }}
           />
         </div>
 
         <div className={styles.priceBtns}>
-          <button
-            className={styles.primary}
-            onClick={() => onPriceChange(minVal, maxVal)}
-            title="Apply price filter"
-            disabled={sliderDisabled}
-          >
-            Apply
-          </button>
           <button
             className={styles.ghost}
             onClick={() => {
               setDraftPrice({ min: null, max: null });
               onPriceChange(null, null);
             }}
-            title="Clear price filter"
             disabled={sliderDisabled}
           >
             Clear

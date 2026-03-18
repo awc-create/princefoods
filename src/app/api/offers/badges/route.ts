@@ -124,7 +124,7 @@ function matchesRule(p: ProductMini, rule: OfferTargetRule): boolean {
   }
 }
 
-function matchesAnyPool(p: ProductMini, pools: OfferTargetRule[][]): boolean {
+function _matchesAnyPool(p: ProductMini, pools: OfferTargetRule[][]): boolean {
   for (const pool of pools) {
     if (!pool?.length) continue;
     if (pool.some((r) => matchesRule(p, r))) return true;
@@ -220,11 +220,60 @@ export async function POST(req: Request) {
   const offersAll: OfferAdminForm[] = await getOffers();
   const now = new Date();
 
-  // Filter to only offers that should show up as badges
   const offers = offersAll.filter((o) => isOfferActiveNow(o, now) && inVisibility(o.visibility));
+
+  // ── Expand CATEGORY_IDS to include children ──────────────────────────
+  // Collect all unique category IDs referenced by active offers
+  const referencedCatIds = new Set<string>();
+  for (const o of offers) {
+    for (const pool of payloadPools(o.payload)) {
+      for (const rule of pool ?? []) {
+        if (rule.type === 'CATEGORY_IDS') {
+          rule.ids.forEach((id) => referencedCatIds.add(id));
+        }
+      }
+    }
+  }
+
+  // For each referenced parent category, fetch its children and build an expansion map
+  const catExpansion = new Map<string, string[]>(); // parentId → [parentId, ...childIds]
+  if (referencedCatIds.size > 0) {
+    const children = await prisma.category.findMany({
+      where: { parentId: { in: Array.from(referencedCatIds) } },
+      select: { id: true, parentId: true }
+    });
+    for (const id of referencedCatIds) {
+      const childIds = children.filter((c) => c.parentId === id).map((c) => c.id);
+      catExpansion.set(id, [id, ...childIds]);
+    }
+  }
+
+  // Override matchesRule to use expanded category IDs
+  function matchesRuleExpanded(p: ProductMini, rule: OfferTargetRule): boolean {
+    if (rule.type === 'CATEGORY_IDS') {
+      if (!p.categoryId) return false;
+      // Check direct match AND child-of-targeted-parent match
+      return rule.ids.some((id) => {
+        const expanded = catExpansion.get(id) ?? [id];
+        return expanded.includes(p.categoryId!);
+      });
+    }
+    return matchesRule(p, rule);
+  }
+
+  function matchesAnyPoolExpanded(p: ProductMini, pools: OfferTargetRule[][]): boolean {
+    for (const pool of pools) {
+      if (!pool?.length) continue;
+      if (pool.some((r) => matchesRuleExpanded(p, r))) return true;
+    }
+    return false;
+  }
+  // ─────────────────────────────────────────────────────────────────────
 
   const badges: BadgesMap = {};
   const deals: DealsMap = {};
+  // bogof: productId → { buyQty, getQty } for direct drawer computation
+  const bogof: Record<string, { buyQty: number; getQty: number }> = {};
 
   for (const p of products) {
     badges[p.id] = [];
@@ -239,21 +288,29 @@ export async function POST(req: Request) {
     if (!pools.length) continue;
 
     for (const p of products) {
-      if (!matchesAnyPool(p, pools)) continue;
+      if (!matchesAnyPoolExpanded(p, pools)) continue;
 
       if (badge) {
         badges[p.id] = uniq([...(badges[p.id] ?? []), badge]);
       }
 
-      // pick strongest deal for price display (only for % / £ off)
       if (deal && typeof p.price === 'number' && Number.isFinite(p.price)) {
         const current = deals[p.id];
         const nextVal = dealValuePence(deal, p.price);
         const curVal = dealValuePence(current, p.price);
         if (nextVal > curVal) deals[p.id] = deal;
       }
+
+      // Expose BOGOF rule so the drawer can compute free qty directly
+      if (o.payload.kind === 'BOGOF' && !bogof[p.id]) {
+        const data = o.payload.data as { buyQty?: number; getQty?: number };
+        bogof[p.id] = {
+          buyQty: Math.max(1, Math.trunc(data.buyQty ?? 1)),
+          getQty: Math.max(1, Math.trunc(data.getQty ?? 1))
+        };
+      }
     }
   }
 
-  return NextResponse.json({ ok: true, badges, deals }, { status: 200 });
+  return NextResponse.json({ ok: true, badges, deals, bogof }, { status: 200 });
 }

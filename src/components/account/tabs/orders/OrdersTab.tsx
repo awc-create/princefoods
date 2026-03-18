@@ -24,10 +24,30 @@ function safeBadgeKey(v: string) {
     .replace(/[^A-Z0-9_]/g, '');
 }
 
-function titleCase(s: string) {
-  const t = String(s || '').trim();
-  if (!t) return '';
-  return t[0].toUpperCase() + t.slice(1).toLowerCase();
+function orderStatusLabel(s: string): string {
+  const map: Record<string, string> = {
+    PENDING: 'Order placed',
+    PAID: 'Payment received',
+    PROCESSING: 'Processing',
+    DISPATCHED: 'Dispatched',
+    DELIVERED: 'Delivered',
+    CANCELLED: 'Cancelled',
+    REFUNDED: 'Refunded',
+    ON_HOLD: 'On hold'
+  };
+  return map[s?.toUpperCase()] ?? s;
+}
+
+function paymentStatusLabel(s: string): string {
+  const map: Record<string, string> = {
+    PENDING: 'Awaiting payment',
+    AUTHORIZED: 'Authorised',
+    CAPTURED: 'Payment received',
+    PARTIAL_REFUND: 'Partially refunded',
+    REFUNDED: 'Refunded',
+    FAILED: 'Payment failed'
+  };
+  return map[s?.toUpperCase()] ?? s;
 }
 
 export default function OrdersTab() {
@@ -82,10 +102,10 @@ export default function OrdersTab() {
 
                   <div className={styles.rightTop}>
                     <span className={`${styles.badge} ${styles[`status_${statusKey}`] ?? ''}`}>
-                      {titleCase(o.status)}
+                      {orderStatusLabel(o.status)}
                     </span>
                     <span className={`${styles.badgeMuted} ${styles[`pay_${payKey}`] ?? ''}`}>
-                      {titleCase(o.paymentStatus)}
+                      {paymentStatusLabel(o.paymentStatus)}
                     </span>
                     <span className={styles.total}>{penceToGBP(o.grandTotal)}</span>
                   </div>

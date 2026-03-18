@@ -1,21 +1,36 @@
 'use client';
 
-import { FaTruck } from 'react-icons/fa';
+import { motion } from 'framer-motion';
+import { Snowflake, Truck, Zap } from 'lucide-react';
 import styles from './Delivery.module.scss';
 
 export interface DeliveryCard {
   id: string;
-  title: string; // e.g. "Delivery – Great Britain"
-  freeThreshold: number; // e.g. 30
-  frozenFee: number; // e.g. 3.99
-  message?: string; // optional per-card note/line under title
+  title: string;
+  freeThreshold: number;
+  frozenFee: number;
+  message?: string;
 }
 
-export default function Delivery({
-  // NEW: preferred, dynamic cards
-  cards,
+const fadeUp = {
+  hidden: { opacity: 0, y: 28 },
+  show: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.55, delay: i * 0.12, ease: 'easeOut' as const }
+  })
+};
 
-  // LEGACY: keep current props as fallback (matches your existing behavior)
+const lineGrow = {
+  hidden: { scaleX: 0 },
+  show: {
+    scaleX: 1,
+    transition: { duration: 0.7, delay: 0.2, ease: 'easeOut' as const }
+  }
+};
+
+export default function Delivery({
+  cards,
   gbFreeThreshold = 30,
   niFreeThreshold = 40,
   frozenFee = 3.99,
@@ -27,53 +42,67 @@ export default function Delivery({
   frozenFee?: number;
   message?: string;
 }) {
-  // Build the display list:
-  // - If cards provided & non-empty, use them.
-  // - Else, fall back to the two legacy cards (GB + NI) you previously rendered.
   const list: DeliveryCard[] =
     cards && cards.length > 0
       ? cards
       : [
-          {
-            id: 'gb',
-            title: 'Delivery – Great Britain',
-            freeThreshold: gbFreeThreshold,
-            frozenFee
-          },
-          {
-            id: 'ni',
-            title: 'Delivery – Northern Ireland',
-            freeThreshold: niFreeThreshold,
-            frozenFee
-          }
+          { id: 'gb', title: 'Great Britain', freeThreshold: gbFreeThreshold, frozenFee },
+          { id: 'ni', title: 'Northern Ireland', freeThreshold: niFreeThreshold, frozenFee }
         ];
 
   return (
-    <section className={styles.deliveryWrapper} aria-labelledby="delivery-heading">
-      <div className={styles.container}>
-        <div className={styles.headingBlock}>
+    <section className={styles.section} aria-labelledby="delivery-heading">
+      <div className={styles.inner}>
+        <motion.div
+          className={styles.headingBlock}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, amount: 0.4 }}
+          variants={fadeUp}
+          custom={0}
+        >
+          <span className={styles.eyebrow}>
+            <Zap size={13} strokeWidth={2.5} />
+            Delivery
+          </span>
           <h2 id="delivery-heading">Fast, Reliable UK &amp; Ireland Delivery</h2>
+          <motion.div className={styles.headingLine} variants={lineGrow} style={{ originX: 0.5 }} />
           <p>{message}</p>
-        </div>
+        </motion.div>
 
-        <div className={styles.grid} role="list">
-          {list.map((card) => (
-            <article key={card.id} className={styles.card} role="listitem">
-              <FaTruck size={40} />
-              <div>
+        <div className={styles.grid}>
+          {list.map((card, i) => (
+            <motion.article
+              key={card.id}
+              className={styles.card}
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true, amount: 0.3 }}
+              variants={fadeUp}
+              custom={i + 1}
+              whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            >
+              <div className={styles.cardIcon}>
+                <Truck size={22} strokeWidth={1.8} />
+              </div>
+
+              <div className={styles.cardBody}>
                 <h3>{card.title}</h3>
                 {card.message && <p className={styles.cardNote}>{card.message}</p>}
-                <ul>
-                  <li>
-                    Free delivery on orders above{' '}
-                    <strong>£{Number(card.freeThreshold).toFixed(0)}</strong>
-                  </li>
-                  <li>
-                    Frozen packing fee <strong>£{Number(card.frozenFee).toFixed(2)}</strong>
-                  </li>
-                </ul>
+
+                <div className={styles.pills}>
+                  <span className={styles.pill}>
+                    Free over <strong>£{Number(card.freeThreshold).toFixed(0)}</strong>
+                  </span>
+                  <span className={`${styles.pill} ${styles.pillFrozen}`}>
+                    <Snowflake size={11} strokeWidth={2} />
+                    Frozen +<strong>£{Number(card.frozenFee).toFixed(2)}</strong>
+                  </span>
+                </div>
               </div>
-            </article>
+
+              <div className={styles.cardGlow} aria-hidden />
+            </motion.article>
           ))}
         </div>
       </div>

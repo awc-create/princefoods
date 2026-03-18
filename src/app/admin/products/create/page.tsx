@@ -101,7 +101,13 @@ export default function CreateProductPage() {
       body: JSON.stringify(body),
       headers: { 'Content-Type': 'application/json' }
     });
-    res.ok ? alert('Product created') : alert('Failed to create product');
+    if (res.ok) {
+      const data = await res.json();
+      window.location.href = `/admin/products/${data.product?.id ?? ''}`;
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err?.error ?? 'Failed to create product');
+    }
   };
 
   return (

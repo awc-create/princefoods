@@ -12,6 +12,11 @@ import TotalsBlock from './TotalsBlock';
 import type { EvalItem, EvaluateErr, EvaluateResp, OffersSnapshot, ShippingKind } from './types';
 import { clampPct, itemKeyOf } from './utils';
 
+interface BogofRule {
+  buyQty: number;
+  getQty: number;
+}
+
 function normCode(v: string) {
   return v.trim().toUpperCase().replace(/\s+/g, '');
 }
@@ -117,6 +122,28 @@ export default function OrderSummary({
     | { status: 'error'; message: string }
   >({ status: 'idle' });
 
+  // Fetch offer badges + BOGOF rules directly (same as drawer/cart)
+  const [badgesById, setBadgesById] = useState<Record<string, string[]>>({});
+  const [bogofById, setBogofById] = useState<Record<string, BogofRule>>({});
+
+  const itemsKey = items.map((i) => `${i.productId ?? i.id}:${i.quantity}`).join('|');
+  useEffect(() => {
+    if (!mounted || !items.length) return;
+    const ids = [...new Set(items.map((i) => i.productId ?? i.id).filter(Boolean))];
+    fetch('/api/offers/badges', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productIds: ids })
+    })
+      .then((r) => r.json())
+      .then((d: { badges?: Record<string, string[]>; bogof?: Record<string, BogofRule> }) => {
+        setBadgesById(d.badges ?? {});
+        setBogofById(d.bogof ?? {});
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, itemsKey]);
+
   const offers = useMemo<OffersSnapshot>(
     () =>
       offersSnap ?? {
@@ -181,6 +208,20 @@ export default function OrderSummary({
   }, [offers.discountPence, offers.applied]);
 
   const offerTotalShown = Math.max(0, Math.trunc(offerDiscountTotal ?? offersTotalComputed ?? 0));
+
+  // Compute full price (what it would cost without BOGOF free items)
+  const fullPricePence = useMemo(() => {
+    let total = 0;
+    for (const it of items) {
+      const productId = it.productId ?? it.id;
+      const bogofRule = bogofById[productId];
+      const paidQty = Math.max(1, Math.trunc(it.quantity));
+      const unitPence = Math.max(0, Math.trunc(it.unitPrice));
+      const freeQty = bogofRule ? Math.floor(paidQty / bogofRule.buyQty) * bogofRule.getQty : 0;
+      total += unitPence * (paidQty + freeQty);
+    }
+    return total;
+  }, [items, bogofById]);
 
   // ✅ the row that "wins"
   const effectiveDiscountShown = usingOffers ? offerTotalShown : promoTotalShown;
@@ -387,40 +428,53 @@ export default function OrderSummary({
           items.map((it) => {
             const sku = (it as unknown as { sku?: string | null }).sku ?? null;
             const key = itemKeyOf({ productId: it.productId ?? null, sku, name: it.name });
+            const productId = it.productId ?? it.id;
 
             const offerNames = offerNamesByItemKey.get(key) ?? [];
-            const freeQty = usingOffers ? (freeQtyByItemKey.get(key) ?? 0) : 0;
+            const productBadges = badgesById[productId] ?? [];
 
-            const displayQty = Math.max(1, Math.trunc(it.quantity)) + Math.max(0, freeQty);
+            // Use direct BOGOF math (same as drawer/cart) for reliable was/now
+            const bogofRule = bogofById[productId];
             const paidQty = Math.max(1, Math.trunc(it.quantity));
+            const unitPence = Math.max(0, Math.trunc(it.unitPrice));
+
+            let directFreeQty = 0;
+            if (bogofRule) {
+              directFreeQty = Math.floor(paidQty / bogofRule.buyQty) * bogofRule.getQty;
+            }
+
+            // Fall back to engine freeQty if no direct bogof rule
+            const freeQty: number =
+              directFreeQty > 0
+                ? directFreeQty
+                : usingOffers
+                  ? Math.max(0, freeQtyByItemKey.get(key) ?? 0)
+                  : 0;
+
+            const displayQty = paidQty + Math.max(0, freeQty);
             const fullQty = paidQty + Math.max(0, freeQty);
 
-            const unit = Math.max(0, Math.trunc(it.unitPrice));
-            const paidTotalPence = unit * paidQty;
-            const fullTotalPence = unit * fullQty;
+            const paidTotalPence = unitPence * paidQty;
+            const fullTotalPence = unitPence * fullQty;
 
             const safeOfferDiscount = usingOffers
               ? Math.max(0, offerDiscountByItemKey.get(key) ?? 0)
               : 0;
 
             const afterOfferPence = Math.max(0, paidTotalPence - safeOfferDiscount);
-
             const custLineDiscount =
               customerPct > 0 ? Math.round((afterOfferPence * customerPct) / 100) : 0;
-
             const afterCustomerPence = Math.max(0, afterOfferPence - custLineDiscount);
 
-            const showWasForBogof = usingOffers && freeQty > 0 && fullTotalPence > paidTotalPence;
-            const showWasForOfferDiscount = usingOffers && freeQty === 0 && safeOfferDiscount > 0;
+            const showWasForBogof = freeQty > 0 && fullTotalPence > paidTotalPence;
+            const showWasForOfferDiscount = freeQty === 0 && safeOfferDiscount > 0;
             const showWasForCustomer = customerPct > 0 && afterCustomerPence < afterOfferPence;
-
             const showWasNow = showWasForBogof || showWasForOfferDiscount || showWasForCustomer;
 
             const wasPence = showWasForBogof ? fullTotalPence : paidTotalPence;
             const nowPence = afterCustomerPence;
             const savePence = Math.max(0, wasPence - nowPence);
-
-            const lockQtyInput = freeQty > 0 && usingOffers;
+            const lockQtyInput = freeQty > 0;
 
             return (
               <LineItemRow
@@ -430,11 +484,12 @@ export default function OrderSummary({
                 lockQtyInput={lockQtyInput}
                 onDec={() => onDecQty(it.id)}
                 onInc={() => onIncQty(it.id)}
-                onSetQty={(q) => onSetQty(it.id, q)}
+                onSetQty={(qty) => onSetQty(it.id, qty)}
                 onRemove={() => onRemove(it.id)}
                 usingOffers={usingOffers}
                 freeQty={freeQty}
                 offerNames={offerNames}
+                productBadges={productBadges}
                 safeOfferDiscount={safeOfferDiscount}
                 customerPct={customerPct}
                 custLineDiscount={custLineDiscount}
@@ -467,7 +522,10 @@ export default function OrderSummary({
       {promoState.status === 'error' && <p className={styles.err}>{promoState.message}</p>}
 
       <TotalsBlock
+        items={items}
+        bogofById={bogofById}
         liveSubtotal={liveSubtotal}
+        fullPricePence={fullPricePence}
         shippingCost={shippingCost}
         usingOffers={usingOffers}
         effectiveDiscountShown={effectiveDiscountShown}

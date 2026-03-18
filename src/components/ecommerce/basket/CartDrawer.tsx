@@ -4,37 +4,68 @@ import { useCart } from '@/lib/cart-store';
 import { penceToGBP } from '@/lib/money';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import styles from './CartDrawer.module.scss';
 
+interface BogofRule {
+  buyQty: number;
+  getQty: number;
+}
+
 export default function CartDrawer() {
-  const {
-    items,
-    isOpen,
-    toggle,
-    updateQty,
-    remove,
-    subtotal,
-    displayQty,
-    freeQty,
-    refreshOffers,
-    offers,
-    offerNames,
-    offerDiscountForLine
-  } = useCart();
+  const { items, isOpen, toggle, updateQty, remove } = useCart();
 
+  const [badges, setBadges] = useState<Record<string, string[]>>({});
+  const [bogof, setBogof] = useState<Record<string, BogofRule>>({});
+
+  // Fetch offer data whenever drawer opens or items change
+  const itemsKey = items.map((i) => `${i.productId ?? i.id}:${i.quantity}`).join('|');
   useEffect(() => {
-    if (!isOpen) return;
-    void refreshOffers();
-  }, [isOpen, refreshOffers]);
-
-  const hasAnyOffer = (offers.applied?.length ?? 0) > 0 || (offers.autoAdd?.length ?? 0) > 0;
-
-  const paidSubtotal = Math.max(0, Math.trunc(subtotal()));
-  const offerDiscount = Math.max(0, Math.trunc(offers.discountPence ?? 0));
-  const totalAfterOffers = Math.max(0, paidSubtotal - offerDiscount);
+    if (!isOpen || !items.length) return;
+    const ids = [...new Set(items.map((i) => i.productId ?? i.id).filter(Boolean))];
+    fetch('/api/offers/badges', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productIds: ids })
+    })
+      .then((r) => r.json())
+      .then((d: { badges?: Record<string, string[]>; bogof?: Record<string, BogofRule> }) => {
+        setBadges(d.badges ?? {});
+        setBogof(d.bogof ?? {});
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, itemsKey]);
 
   if (!isOpen) return null;
+
+  // Compute totals with local BOGOF math
+  let subtotalPence = 0;
+  let fullPricePence = 0; // what it would cost without the free items
+
+  const lineData = items.map((it) => {
+    const productId = it.productId ?? it.id;
+    const rule = bogof[productId];
+    const paidQty = Math.max(1, Math.trunc(it.quantity));
+    const unitPence = Math.max(0, Math.trunc(it.unitPrice));
+
+    let freeQty = 0;
+    if (rule) {
+      const groups = Math.floor(paidQty / rule.buyQty);
+      freeQty = groups * rule.getQty;
+    }
+
+    const totalQty = paidQty + freeQty;
+    const paidPence = unitPence * paidQty;
+    const fullPence = unitPence * totalQty; // what you'd pay without offer
+
+    subtotalPence += paidPence;
+    fullPricePence += fullPence;
+
+    return { it, paidQty, freeQty, totalQty, unitPence, paidPence, fullPence, rule };
+  });
+
+  const savedPence = fullPricePence - subtotalPence;
 
   return (
     <aside className={styles.host} aria-modal="true" role="dialog" aria-label="Basket">
@@ -48,136 +79,119 @@ export default function CartDrawer() {
         </header>
 
         <ul className={styles.list}>
-          {items.map((it) => {
-            const paidQty = Math.max(1, Math.trunc(it.quantity));
-            const dispQty = Math.max(1, Math.trunc(displayQty(it.id)));
-            const free = Math.max(0, Math.trunc(freeQty(it.id)));
-            const names = offerNames(it.id);
+          {lineData.map(
+            ({ it, paidQty, freeQty, totalQty, unitPence, paidPence, fullPence, rule }) => {
+              const productId = it.productId ?? it.id;
+              const productBadges = badges[productId] ?? [];
 
-            const unit = Math.max(0, Math.trunc(it.unitPrice));
-            const paidTotal = unit * paidQty;
-            const fullTotal = unit * (paidQty + free);
-
-            const lineOfferDiscount = Math.max(0, Math.trunc(offerDiscountForLine(it.id) ?? 0));
-            const discountedNow = Math.max(0, paidTotal - lineOfferDiscount);
-
-            const showWasBogof = free > 0 && fullTotal > paidTotal;
-            const showWasDiscount =
-              free === 0 && lineOfferDiscount > 0 && discountedNow < paidTotal;
-
-            return (
-              <li key={it.id} className={styles.line}>
-                <div className={styles.thumb}>
-                  {it.image ? (
-                    <Image src={it.image} alt={it.name} width={56} height={56} />
-                  ) : (
-                    <div className={styles.ph} />
-                  )}
-                </div>
-
-                <div className={styles.meta}>
-                  <div className={styles.name} title={it.name}>
-                    {it.name}
+              return (
+                <li key={it.id} className={styles.line}>
+                  <div className={styles.thumb}>
+                    {it.image ? (
+                      <Image src={it.image} alt={it.name} width={56} height={56} />
+                    ) : (
+                      <div className={styles.ph} />
+                    )}
                   </div>
 
-                  {it.sku ? <div className={styles.sku}>{it.sku}</div> : null}
-
-                  <div className={styles.unit}>{penceToGBP(it.unitPrice)}</div>
-
-                  {/* Offer name(s) */}
-                  {names.length > 0 ? (
-                    <div className={styles.offerText} title={names.join(', ')}>
-                      Offer: <strong>{names.join(' • ')}</strong>
+                  <div className={styles.meta}>
+                    <div className={styles.name} title={it.name}>
+                      {it.name}
                     </div>
-                  ) : null}
+                    <div className={styles.unit}>{penceToGBP(unitPence)} each</div>
 
-                  {/* Free items hint */}
-                  {free > 0 ? (
-                    <div className={styles.freeHint}>
-                      Includes <strong>{free}</strong> free item{free === 1 ? '' : 's'}
-                    </div>
-                  ) : null}
+                    {/* Offer badges */}
+                    {productBadges.length > 0 && (
+                      <div className={styles.badgeRow}>
+                        {productBadges.map((b) => (
+                          <span key={b} className={styles.offerBadge}>
+                            {b}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
-                  {/* Per-line discount hint */}
-                  {lineOfferDiscount > 0 ? (
-                    <div className={styles.offerText}>
-                      Offer applied: <strong>-{penceToGBP(lineOfferDiscount)}</strong>
-                    </div>
-                  ) : null}
-                </div>
+                    {/* Free item tag — appears once threshold is met */}
+                    {freeQty > 0 && <div className={styles.freeTag}>🎁 {freeQty} free!</div>}
 
-                <div className={styles.qtyRow}>
-                  <button onClick={() => updateQty(it.id, paidQty - 1)} aria-label="Decrease">
-                    −
-                  </button>
+                    {/* How many more needed to unlock */}
+                    {rule && freeQty === 0 && (
+                      <div className={styles.nudge}>
+                        Add {rule.buyQty - (paidQty % rule.buyQty)} more for a free one
+                      </div>
+                    )}
+                  </div>
 
-                  <span
-                    className={styles.qty}
-                    title={free > 0 ? `Paid ${paidQty} + Free ${free}` : undefined}
+                  <div className={styles.qtyRow}>
+                    <button
+                      onClick={() => (paidQty <= 1 ? remove(it.id) : updateQty(it.id, paidQty - 1))}
+                      aria-label={paidQty <= 1 ? 'Remove' : 'Decrease'}
+                    >
+                      −
+                    </button>
+                    <span className={styles.qty}>
+                      {totalQty}
+                      {freeQty > 0 && (
+                        <span className={styles.qtyFreeNote}>
+                          {' '}
+                          ({paidQty}+{freeQty})
+                        </span>
+                      )}
+                    </span>
+                    <button onClick={() => updateQty(it.id, paidQty + 1)} aria-label="Increase">
+                      +
+                    </button>
+                  </div>
+
+                  {/* Price: if free items, show was/now */}
+                  <div className={styles.lineTotal}>
+                    {freeQty > 0 ? (
+                      <div className={styles.wasnow}>
+                        <span className={styles.was}>{penceToGBP(fullPence)}</span>
+                        <span className={styles.now}>{penceToGBP(paidPence)}</span>
+                      </div>
+                    ) : (
+                      penceToGBP(paidPence)
+                    )}
+                  </div>
+
+                  <button
+                    className={styles.remove}
+                    onClick={() => remove(it.id)}
+                    aria-label="Remove"
                   >
-                    {dispQty}
-                  </span>
-
-                  <button onClick={() => updateQty(it.id, paidQty + 1)} aria-label="Increase">
-                    +
+                    ×
                   </button>
-                </div>
-
-                {/* ✅ line total: Was / Now */}
-                <div className={styles.lineTotal}>
-                  {showWasBogof ? (
-                    <div style={{ display: 'grid', justifyItems: 'end', gap: 2 }}>
-                      <span style={{ textDecoration: 'line-through', opacity: 0.65, fontSize: 12 }}>
-                        Was {penceToGBP(fullTotal)}
-                      </span>
-                      <span>Now {penceToGBP(paidTotal)}</span>
-                    </div>
-                  ) : showWasDiscount ? (
-                    <div style={{ display: 'grid', justifyItems: 'end', gap: 2 }}>
-                      <span style={{ textDecoration: 'line-through', opacity: 0.65, fontSize: 12 }}>
-                        Was {penceToGBP(paidTotal)}
-                      </span>
-                      <span>Now {penceToGBP(discountedNow)}</span>
-                    </div>
-                  ) : (
-                    penceToGBP(paidTotal)
-                  )}
-                </div>
-
-                <button className={styles.remove} onClick={() => remove(it.id)} aria-label="Remove">
-                  ×
-                </button>
-              </li>
-            );
-          })}
+                </li>
+              );
+            }
+          )}
 
           {items.length === 0 && <li className={styles.empty}>Your basket is empty.</li>}
         </ul>
 
+        {/* Summary */}
+        {savedPence > 0 && (
+          <div className={styles.savingsBanner}>
+            🎉 You're saving {penceToGBP(savedPence)} with offers!
+          </div>
+        )}
+
         <div className={styles.summary}>
           <span>Subtotal</span>
-          <strong>{penceToGBP(paidSubtotal)}</strong>
+          <div className={styles.summaryPrice}>
+            {savedPence > 0 && (
+              <span className={styles.summaryWas}>{penceToGBP(fullPricePence)}</span>
+            )}
+            <strong className={savedPence > 0 ? styles.summaryNow : undefined}>
+              {penceToGBP(subtotalPence)}
+            </strong>
+          </div>
         </div>
 
-        {offerDiscount > 0 && (
-          <div style={{ padding: '0 16px 12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#16a34a', fontSize: 12 }}>Offers</span>
-              <span style={{ color: '#16a34a', fontSize: 12 }}>-{penceToGBP(offerDiscount)}</span>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
-              <span>Total</span>
-              <span>{penceToGBP(totalAfterOffers)}</span>
-            </div>
-          </div>
-        )}
-
-        {hasAnyOffer && offerDiscount === 0 && (
-          <div style={{ padding: '0 16px 12px', color: '#6b7280', fontSize: 12 }}>
-            🎁 Offers available
-          </div>
-        )}
+        <p style={{ padding: '0 16px 8px', margin: 0, fontSize: 12, color: '#9ca3af' }}>
+          + Shipping calculated at checkout
+        </p>
 
         <footer className={styles.footer}>
           <Link href="/cart" onClick={toggle} className={styles.linkBtn}>

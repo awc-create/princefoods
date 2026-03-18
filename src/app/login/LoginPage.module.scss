@@ -204,3 +204,44 @@
   color: #b91c1c;
   font-size: 13px;
 }
+
+/* Magic link overlay */
+.magicOverlay {
+  position: absolute;
+  inset: 0;
+  background: var(--surface, #fff);
+  border-radius: inherit;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 28px 24px;
+  z-index: 10;
+}
+
+.magicBox {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.magicTitle {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.magicSub {
+  font-size: 0.875rem;
+  color: var(--text-muted, #6b7280);
+  margin: 0;
+}
+
+.ok {
+  color: #15803d;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 10px 12px;
+  background: #f0fdf4;
+  border-radius: 8px;
+  border: 1px solid #bbf7d0;
+}

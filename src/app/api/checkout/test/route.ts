@@ -2,6 +2,8 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+import { evaluateOffers } from '@/lib/offers-engine';
+import { getOffers } from '@/lib/offers-store';
 import { prisma } from '@/lib/prisma';
 import { getToken } from 'next-auth/jwt';
 import type { NextRequest } from 'next/server';
@@ -138,12 +140,75 @@ export async function POST(req: NextRequest) {
   const billErr = requireCourierFields(billing, 'billing');
   if (billErr) return bad(billErr);
 
-  // ---------- 3) Recompute totals on server ----------
-  const subtotal = items.reduce((sum, it) => {
-    const unit = Math.max(0, Math.trunc(it.unitPrice));
-    const qty = Math.max(1, Math.trunc(it.quantity));
-    return sum + unit * qty;
-  }, 0);
+  // ---------- 3) Evaluate offers + add free items ----------
+  // Fetch product categories for matching
+  const productIds = items.map((i) => i.productId).filter(Boolean) as string[];
+  const products = productIds.length
+    ? await prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, categoryId: true, price: true }
+      })
+    : [];
+
+  // ✅ SECURITY: validate prices against DB
+  const priceById = new Map(products.map((p) => [p.id, Math.round((p.price ?? 0) * 100)]));
+  for (const it of items) {
+    if (!it.productId) continue;
+    const dbPricePence = priceById.get(it.productId);
+    if (dbPricePence && dbPricePence > 0 && it.unitPrice !== dbPricePence) {
+      return bad(`Price mismatch for item — expected ${dbPricePence}p, got ${it.unitPrice}p.`);
+    }
+  }
+
+  // Expand child → parent category for offer matching
+  const childCatIds = [...new Set(products.map((p) => p.categoryId).filter(Boolean) as string[])];
+  const parentCatMap = new Map<string, string>();
+  if (childCatIds.length) {
+    const cats = await prisma.category.findMany({
+      where: { id: { in: childCatIds }, parentId: { not: null } },
+      select: { id: true, parentId: true }
+    });
+    for (const c of cats) {
+      if (c.parentId) parentCatMap.set(c.id, c.parentId);
+    }
+  }
+  const catById = new Map(
+    products.map((p) => [
+      p.id,
+      p.categoryId ? (parentCatMap.get(p.categoryId) ?? p.categoryId) : null
+    ])
+  );
+
+  const offersAll = await getOffers();
+  const offerResult = evaluateOffers(offersAll, {
+    lines: items.map((it) => ({
+      productId: it.productId ?? undefined,
+      name: it.name,
+      unitPricePence: Math.trunc(it.unitPrice),
+      qty: Math.max(1, Math.trunc(it.quantity)),
+      categoryId: it.productId ? (catById.get(it.productId) ?? undefined) : undefined
+    }))
+  });
+
+  // Merge free items from BOGOF into the items list
+  const allItems = [...items];
+  for (const a of offerResult.autoAdd) {
+    allItems.push({
+      productId: a.productId ?? null,
+      sku: a.sku ?? null,
+      name: a.name,
+      unitPrice: 0,
+      quantity: Math.max(1, Math.trunc(a.qty)),
+      imageUrl: null
+    });
+  }
+
+  // ---------- 4) Recompute totals on server ----------
+  const subtotal = allItems
+    .filter((it) => it.unitPrice > 0)
+    .reduce((sum, it) => {
+      return sum + Math.max(0, Math.trunc(it.unitPrice)) * Math.max(1, Math.trunc(it.quantity));
+    }, 0);
 
   const shippingTotal = Number.isFinite(body.totals?.shipping)
     ? Math.max(0, Math.trunc(body.totals!.shipping!))
@@ -158,7 +223,7 @@ export async function POST(req: NextRequest) {
   const grandTotal = subtotal + shippingTotal - discountTotal + taxTotal;
   if (grandTotal <= 0) return bad('TOTAL_LEQ_ZERO');
 
-  // ---------- 4) Create order + lines + addresses + test payment ----------
+  // ---------- 5) Create order + lines + addresses + test payment ----------
   try {
     let created: { id: string; displayId: string } | null = null;
     let lastErr: unknown;
@@ -215,7 +280,7 @@ export async function POST(req: NextRequest) {
             },
 
             items: {
-              create: items.map((it) => ({
+              create: allItems.map((it) => ({
                 productId: it.productId ?? null,
                 sku: it.sku ?? null,
                 name: it.name,

@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
 
     const collectionParam = (url.searchParams.get('collection') ?? '').trim();
+    const searchQuery = (url.searchParams.get('q') ?? '').trim();
     const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 10));
     const limit = Math.min(
       48,
@@ -58,37 +59,30 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    /**
-     * ✅ Bounds should:
-     * - respect visibility + category selection
-     * - NOT be affected by current min/max filter (so slider always shows full range)
-     */
+    // Search query filter — name contains match only
+    const searchFilter: Prisma.ProductWhereInput = searchQuery
+      ? { name: { contains: searchQuery, mode: 'insensitive' } }
+      : {};
+
     const whereForBounds: Prisma.ProductWhereInput = {
       visible: true,
-      ...categoryFilter
+      ...categoryFilter,
+      ...searchFilter
     };
 
     const where: Prisma.ProductWhereInput = {
       visible: true,
       ...priceFilter,
-      ...categoryFilter
+      ...categoryFilter,
+      ...searchFilter
     };
 
-    // Sorting
+    // Sorting — only customer-facing options accepted
     const sort = (url.searchParams.get('sort') ?? '').toLowerCase();
     let orderBy: Prisma.ProductOrderByWithRelationInput[] = [{ createdAt: 'desc' }];
     switch (sort) {
       case 'best':
         orderBy = [{ unitsSold: 'desc' }, { revenuePence: 'desc' }];
-        break;
-      case 'worst':
-        orderBy = [{ unitsSold: 'asc' }, { clicks: 'desc' }]; // low sales despite attention
-        break;
-      case 'most_clicked':
-        orderBy = [{ clicks: 'desc' }];
-        break;
-      case 'least_clicked':
-        orderBy = [{ clicks: 'asc' }];
         break;
       case 'price_asc':
         orderBy = [{ price: 'asc' }];
@@ -152,7 +146,7 @@ export async function GET(req: NextRequest) {
     }) =>
       Boolean(
         (r.ribbon && /best|special|hot|deal/i.test(r.ribbon)) ??
-          (r.discountMode && r.discountValue && r.discountValue > 0)
+        (r.discountMode && r.discountValue && r.discountValue > 0)
       );
 
     const products = rows.map((r) => ({

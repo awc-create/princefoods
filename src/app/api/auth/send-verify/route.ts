@@ -1,6 +1,8 @@
 import { getFeaturedCategories } from '@/lib/catalog';
 import { sendWelcomeVerifyEmail } from '@/lib/email';
 import { prisma } from '@/lib/prisma';
+import { verifyEmailLimiter } from '@/lib/rate-limit';
+import { getClientIp, tooManyRequests } from '@/lib/rate-limit-response';
 import { issueEmailVerification } from '@/lib/verify';
 import { NextResponse } from 'next/server';
 
@@ -17,6 +19,10 @@ export async function POST(req: Request) {
       next?: string;
       resend?: boolean;
     };
+
+    // Rate limit: 5 verification emails per hour per email address
+    const rl = verifyEmailLimiter(email?.toLowerCase?.() ?? getClientIp(req));
+    if (!rl.allowed) return tooManyRequests(rl);
 
     const user = await prisma.user.findUnique({
       where: { email },

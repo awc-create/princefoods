@@ -1,13 +1,46 @@
 // src/app/product/[id]/page.tsx
+import ProductSlider from '@/components/products/ProductSlider';
 import { prisma } from '@/lib/prisma';
+import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import ProductBuyBox from './product-buy-box';
 import styles from './product.module.scss';
 import ViewTracker from './view-tracker';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const p = await prisma.product.findUnique({
+    where: { id, visible: true },
+    select: { name: true, description: true, productImageUrl: true }
+  });
+  if (!p) return { title: 'Product not found' };
+  const img = p.productImageUrl?.trim() ? p.productImageUrl : null;
+  return {
+    title: p.name,
+    description:
+      p.description?.slice(0, 155) ?? `Buy ${p.name} from Prince Foods — fast UK delivery.`,
+    openGraph: {
+      title: p.name,
+      description: p.description?.slice(0, 155) ?? `Buy ${p.name} from Prince Foods.`,
+      ...(img ? { images: [{ url: img }] } : {})
+    }
+  };
+}
+
+function parseInventory(inv: string | null): number | null {
+  if (!inv) return null;
+  const n = Number(inv);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+}
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -24,103 +57,135 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       brand: true,
       inventory: true,
       ribbon: true,
-      discountMode: true,
-      discountValue: true
+      visible: true,
+      categoryId: true
     }
   });
 
-  if (!p) {
-    return (
-      <div style={{ padding: 24 }}>
-        <p>Not found.</p>
-        <Link href="/shop">Back to shop</Link>
-      </div>
-    );
-  }
+  if (!p || !p.visible) notFound();
 
   const img = p.productImageUrl?.trim() ? p.productImageUrl : '/assets/prince-foods-logo.png';
-  const priceText = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(
-    p.price ?? 0
-  );
+  const inventoryCount = parseInventory(p.inventory);
+
+  const category = p.categoryId
+    ? await prisma.category.findUnique({
+        where: { id: p.categoryId },
+        select: {
+          name: true,
+          slug: true,
+          parentId: true,
+          parent: { select: { name: true, slug: true } }
+        }
+      })
+    : null;
+
+  const relatedRows = p.categoryId
+    ? await prisma.product.findMany({
+        where: { categoryId: p.categoryId, visible: true, NOT: { id: p.id } },
+        orderBy: { unitsSold: 'desc' },
+        take: 8,
+        select: { id: true, name: true, price: true, productImageUrl: true }
+      })
+    : [];
+
+  const relatedProducts = relatedRows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    price: r.price ?? 0,
+    productImageUrl: r.productImageUrl
+  }));
 
   return (
     <main className={styles.page}>
       <ViewTracker productId={p.id} />
 
-      <div className={styles.container}>
-        <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
-          <Link href="/shop" className={styles.crumbLink}>
-            Shop
-          </Link>
-          <span className={styles.crumbSep}>/</span>
-          <span className={styles.crumbCurrent}>{p.name}</span>
-        </nav>
+      <div className={styles.hero}>
+        <div className={styles.container}>
+          {/* Breadcrumb */}
+          <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
+            <Link href="/shop" className={styles.crumbLink}>
+              Shop
+            </Link>
+            {category?.parent && (
+              <>
+                <span className={styles.crumbSep}>/</span>
+                <Link
+                  href={`/shop?collection=${category.parent.slug}`}
+                  className={styles.crumbLink}
+                >
+                  {category.parent.name}
+                </Link>
+              </>
+            )}
+            {category && (
+              <>
+                <span className={styles.crumbSep}>/</span>
+                <Link href={`/shop?collection=${category.slug}`} className={styles.crumbLink}>
+                  {category.name}
+                </Link>
+              </>
+            )}
+            <span className={styles.crumbSep}>/</span>
+            <span className={styles.crumbCurrent}>{p.name}</span>
+          </nav>
 
-        <div className={styles.grid}>
-          {/* LEFT: media */}
-          <section className={styles.mediaCard} aria-label="Product images">
-            <div className={styles.imageWrap}>
-              <Image
-                src={img}
-                alt={p.name}
-                fill
-                sizes="(max-width: 960px) 92vw, 560px"
-                className={styles.image}
-                priority
-              />
+          <div className={styles.grid}>
+            {/* LEFT: image */}
+            <div className={styles.mediaCol}>
+              <div className={styles.imageMain}>
+                <Image
+                  src={img}
+                  alt={p.name}
+                  fill
+                  sizes="(max-width: 860px) 92vw, 50vw"
+                  className={styles.image}
+                  priority
+                />
+              </div>
             </div>
-          </section>
 
-          {/* RIGHT: details */}
-          <aside className={styles.panelCard}>
-            <header className={styles.header}>
+            {/* RIGHT: info */}
+            <div className={styles.infoCol}>
+              {/* Category link */}
+              {category && (
+                <Link href={`/shop?collection=${category.slug}`} className={styles.categoryTag}>
+                  ↗ {category.parent ? `${category.parent.name} · ` : ''}
+                  {category.name}
+                </Link>
+              )}
+
               <h1 className={styles.title}>{p.name}</h1>
 
-              <div className={styles.priceRow}>
-                <div className={styles.price}>{priceText}</div>
-
-                {(p.ribbon ?? (p.discountMode && typeof p.discountValue === 'number')) && (
-                  <div className={styles.badges}>
-                    {p.ribbon && <span className={styles.pill}>{p.ribbon}</span>}
-                    {p.discountMode && typeof p.discountValue === 'number' && (
-                      <span className={`${styles.pill} ${styles.pillSecondary}`}>Offer</span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {(p.sku ?? p.brand ?? typeof p.inventory === 'number') && (
+              {/* Meta chips */}
+              {(p.sku ?? p.brand) && (
                 <div className={styles.metaRow}>
                   {p.sku && (
-                    <div className={styles.metaItem}>
+                    <span className={styles.metaChip}>
                       <span className={styles.metaKey}>SKU</span>
                       <span className={styles.metaVal}>{p.sku}</span>
-                    </div>
+                    </span>
                   )}
                   {p.brand && (
-                    <div className={styles.metaItem}>
+                    <span className={styles.metaChip}>
                       <span className={styles.metaKey}>Brand</span>
                       <span className={styles.metaVal}>{p.brand}</span>
-                    </div>
+                    </span>
                   )}
-                  {typeof p.inventory === 'number' && (
-                    <div className={styles.metaItem}>
+                  {inventoryCount != null && (
+                    <span className={styles.metaChip}>
                       <span className={styles.metaKey}>Stock</span>
-                      <span className={styles.metaVal}>{p.inventory}</span>
-                    </div>
+                      <span className={styles.metaVal}>{inventoryCount}</span>
+                    </span>
                   )}
                 </div>
               )}
-            </header>
 
-            {p.description && (
-              <section className={styles.description}>
-                <h2 className={styles.sectionTitle}>Description</h2>
-                <p className={styles.desc}>{p.description}</p>
-              </section>
-            )}
+              {/* Description */}
+              {p.description && <p className={styles.description}>{p.description}</p>}
 
-            <section className={styles.buyArea} aria-label="Purchase options">
+              <div className={styles.divider} />
+
+              {/* Buy box — handles live price + offer fetch */}
               <ProductBuyBox
                 product={{
                   id: p.id,
@@ -128,22 +193,49 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                   price: p.price ?? 0,
                   imageUrl: p.productImageUrl ?? null,
                   sku: p.sku ?? null,
-                  inventory: typeof p.inventory === 'number' ? p.inventory : null,
+                  inventory: inventoryCount,
                   ribbon: p.ribbon ?? null,
-                  discountMode: p.discountMode ?? null,
-                  discountValue: typeof p.discountValue === 'number' ? p.discountValue : null
+                  discountMode: null,
+                  discountValue: null
                 }}
               />
 
+              {/* Trust strip */}
+              <div className={styles.trust}>
+                <div className={styles.trustItem}>
+                  <span>🚚</span>
+                  <span>Fast UK delivery</span>
+                </div>
+                <div className={styles.trustItem}>
+                  <span>❄️</span>
+                  <span>Insulated frozen packing</span>
+                </div>
+                <div className={styles.trustItem}>
+                  <span>✅</span>
+                  <span>Established 2007</span>
+                </div>
+              </div>
+
               <div className={styles.actions}>
                 <Link href="/shop" className={styles.ghost}>
-                  Back to Shop
+                  ← Back to Shop
                 </Link>
               </div>
-            </section>
-          </aside>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Related products */}
+      {relatedProducts.length > 0 && (
+        <div className={styles.relatedSection}>
+          <ProductSlider
+            title="You might also like"
+            subtitle={category ? `More from ${category.name}` : undefined}
+            products={relatedProducts}
+          />
+        </div>
+      )}
     </main>
   );
 }

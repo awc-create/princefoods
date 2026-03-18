@@ -165,7 +165,9 @@ async function markOrderCaptured(args: {
         status: 'PAID',
         paymentStatus: 'CAPTURED',
         paymentProvider: providerLabel,
-        paymentIntentId: finalIntentId ?? undefined
+        paymentIntentId: finalIntentId ?? undefined,
+        // Fix 3: set grandTotal from Stripe's confirmed amount
+        ...(amountPence > 0 ? { grandTotal: amountPence } : {})
       }
     });
 
@@ -236,6 +238,71 @@ async function markOrderCaptured(args: {
   // Only log once
   if (!alreadyCaptured) {
     await logActivity(orderId, 'PAID', 'Stripe payment captured', context);
+  }
+}
+
+async function sendOrderConfirmationEmail(orderId: string) {
+  const key = process.env.RESEND_API_KEY?.trim();
+  const from = process.env.EMAIL_FROM?.trim() ?? 'Prince Foods <no-reply@prince-foods.com>';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? 'https://www.prince-foods.com';
+
+  if (!key) return;
+
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        displayId: true,
+        createdAt: true,
+        contactEmail: true,
+        currency: true,
+        subtotal: true,
+        shippingTotal: true,
+        discountTotal: true,
+        grandTotal: true,
+        items: {
+          select: { name: true, sku: true, quantity: true, lineTotal: true }
+        }
+      }
+    });
+
+    if (!order?.contactEmail) return;
+
+    const { Resend } = await import('resend');
+    const { render } = await import('@react-email/render');
+    const { default: OrderConfirmationEmail } = await import('@/emails/OrderConfirmationEmail');
+
+    const html = await render(
+      OrderConfirmationEmail({
+        displayId: order.displayId ?? order.id.slice(-8).toUpperCase(),
+        createdAt: new Date(order.createdAt).toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        }),
+        items: order.items,
+        subtotal: order.subtotal ?? 0,
+        shippingTotal: order.shippingTotal ?? 0,
+        discountTotal: order.discountTotal ?? 0,
+        grandTotal: order.grandTotal ?? 0,
+        currency: order.currency ?? 'GBP',
+        brand: { siteUrl }
+      })
+    );
+
+    const resend = new Resend(key);
+    await resend.emails.send({
+      from,
+      to: order.contactEmail,
+      subject: `Order confirmed — #${order.displayId ?? order.id.slice(-8).toUpperCase()}`,
+      html
+    });
+
+    await logActivity(orderId, 'NOTE', 'Order confirmation email sent');
+  } catch (e) {
+    // Don't fail the webhook if email fails
+    console.error('Order confirmation email failed:', e);
   }
 }
 
@@ -313,6 +380,9 @@ export async function POST(req: NextRequest) {
           currency: session.currency,
           context: asJson({ sessionId: session.id, intentId: intentId ?? undefined })
         });
+
+        // Send order confirmation email
+        await sendOrderConfirmationEmail(orderId);
       }
     } else if (type === 'payment_intent.succeeded') {
       const pi = event.data.object as Stripe.PaymentIntent;

@@ -9,9 +9,31 @@ import styles from './TabsAccount.module.scss';
 import AddressesTab from '@/components/account/tabs/addresses/AddressesTab';
 import OrdersTab from '@/components/account/tabs/orders/OrdersTab';
 
-type Tab = 'overview' | 'profile' | 'orders' | 'addresses' | 'wallet' | 'security';
+type Tab = 'overview' | 'profile' | 'orders' | 'addresses' | 'security';
 
-const ALL_TABS: Tab[] = ['overview', 'profile', 'orders', 'addresses', 'wallet', 'security'];
+const ALL_TABS: Tab[] = ['overview', 'profile', 'orders', 'addresses', 'security'];
+
+// Fix 4: human-friendly status labels
+
+// Fix 6: E.164 phone normalisation
+function normalisePhone(raw: string): string {
+  const t = raw.trim();
+  if (!t) return '';
+  // Already E.164
+  if (/^\+\d{7,15}$/.test(t)) return t;
+  // UK 07xxx → +447xxx
+  const digits = t.replace(/\D/g, '');
+  if (digits.startsWith('07') && digits.length === 11) return '+44' + digits.slice(1);
+  if (digits.startsWith('447') && digits.length === 12) return '+' + digits;
+  // Anything that looks like a full international number
+  if (digits.length >= 7 && digits.length <= 15) return '+' + digits;
+  return t; // return as-is, validation will catch it
+}
+
+function isValidPhone(v: string): boolean {
+  if (!v) return true; // optional
+  return /^\+\d{7,15}$/.test(v);
+}
 
 interface UserDTO {
   id: string;
@@ -20,7 +42,8 @@ interface UserDTO {
   firstName: string | null;
   lastName: string | null;
   phoneE164: string | null;
-  emailVerified: string | null;
+  // Fix 8: boolean, not raw timestamp
+  isVerified: boolean;
   createdAt: string | Date;
 }
 
@@ -46,10 +69,12 @@ export default function AccountClient({
     firstName: user.firstName ?? '',
     lastName: user.lastName ?? '',
     name: user.name ?? '',
-    phoneE164: user.phoneE164 ?? ''
+    phoneE164: user.phoneE164 ?? '',
+    email: user.email ?? ''
   });
 
-  const verified = !!user.emailVerified;
+  const emailChanged = profile.email.trim().toLowerCase() !== user.email.toLowerCase();
+  const verified = user.isVerified && !emailChanged;
 
   function gotoTab(next: Tab) {
     setTab(next);
@@ -83,6 +108,18 @@ export default function AccountClient({
   function saveProfile() {
     setMsg(null);
     setErr(null);
+
+    // Validate email
+    const newEmail = profile.email.trim();
+    if (!newEmail || !/^\S+@\S+\.\S+$/.test(newEmail)) {
+      setErr('Please enter a valid email address.');
+      return;
+    }
+    if (profile.phoneE164 && !isValidPhone(normalisePhone(profile.phoneE164))) {
+      setErr('Please enter a valid phone number.');
+      return;
+    }
+
     startSaving(async () => {
       try {
         const res = await fetch('/api/account/profile', {
@@ -90,9 +127,25 @@ export default function AccountClient({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(profile)
         });
-        const data = (await res.json()) as { ok?: boolean; error?: string };
-        if (data.ok) setMsg('Profile updated');
-        else setErr(data.error ?? 'Could not update profile');
+        const data = (await res.json()) as { ok?: boolean; error?: string; emailChanged?: boolean };
+        if (!data.ok) {
+          setErr(data.error ?? 'Could not update profile');
+          return;
+        }
+
+        // If email changed, trigger verification to new address
+        if (data.emailChanged) {
+          await fetch('/api/auth/send-verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: newEmail, next: '/account?tab=profile' })
+          });
+          setMsg(
+            `Profile updated. A verification email has been sent to ${newEmail} — please check your inbox.`
+          );
+        } else {
+          setMsg('Profile updated.');
+        }
       } catch {
         setErr('Could not update profile');
       }
@@ -291,12 +344,38 @@ export default function AccountClient({
             </div>
 
             <div className={styles.formRow}>
+              <label>Email address</label>
+              <input
+                type="email"
+                value={profile.email}
+                onChange={(e) => onChange('email', e.target.value)}
+                autoComplete="email"
+              />
+              {emailChanged && (
+                <p className={styles.fieldWarn}>
+                  ⚠️ Changing your email will require re-verification. A code will be sent to the
+                  new address.
+                </p>
+              )}
+            </div>
+
+            <div className={styles.formRow}>
               <label>Phone</label>
               <input
-                placeholder="+44…"
+                placeholder="+44 7700 900000"
                 value={profile.phoneE164}
                 onChange={(e) => onChange('phoneE164', e.target.value)}
+                onBlur={(e) => {
+                  const normalised = normalisePhone(e.target.value);
+                  onChange('phoneE164', normalised);
+                }}
+                type="tel"
               />
+              {profile.phoneE164 && !isValidPhone(profile.phoneE164) && (
+                <p className={styles.fieldErr}>
+                  Enter a valid phone number (e.g. +44 7700 900000 or 07700 900000)
+                </p>
+              )}
             </div>
 
             {err && <p className={styles.error}>{err}</p>}
@@ -318,7 +397,8 @@ export default function AccountClient({
                     firstName: user.firstName ?? '',
                     lastName: user.lastName ?? '',
                     name: user.name ?? '',
-                    phoneE164: user.phoneE164 ?? ''
+                    phoneE164: user.phoneE164 ?? '',
+                    email: user.email ?? ''
                   })
                 }
                 className={`${styles.btn} ${styles.btnGhost}`}
@@ -335,8 +415,6 @@ export default function AccountClient({
 
         {/* ADDRESSES */}
         {tab === 'addresses' && <AddressesTab />}
-
-        {tab === 'wallet' && <p className={styles.muted}>Wallet settings here…</p>}
 
         {/* SECURITY */}
         {tab === 'security' && (
@@ -368,11 +446,14 @@ export default function AccountClient({
               </div>
             )}
 
-            <div className={styles.rowBtns}>
-              <Link className={`${styles.btn} ${styles.btnGhost}`} href="/reset-password">
-                Change password
-              </Link>
-            </div>
+            {/* Fix 2: magic-link sign-in is the password reset for this app */}
+            <p className={styles.muted} style={{ marginTop: 16 }}>
+              This account uses passwordless sign-in. To change your email address or access, please{' '}
+              <Link href={`/verify?email=${encodeURIComponent(user.email)}&next=/account`}>
+                request a new sign-in code
+              </Link>{' '}
+              or contact <a href="mailto:support@prince-foods.com">support@prince-foods.com</a>.
+            </p>
           </>
         )}
       </section>

@@ -29,10 +29,10 @@ interface ProductTeaser {
 
 export default function WelcomeEmail({
   name,
-  siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com',
+  siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-foods.com',
   Brand = {
     logo:
-      `${process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-v.com'}` +
+      `${process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? 'https://prince-foods.com'}` +
       '/assets/prince-foods-logo.png',
     primary: '#111111'
   },

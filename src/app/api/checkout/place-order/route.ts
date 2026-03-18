@@ -3,6 +3,8 @@ import { authOptions } from '@/lib/auth-options';
 import { logOfferAttemptsBulk } from '@/lib/offer-attempts';
 import { logActivity } from '@/lib/order-activity';
 import { prisma } from '@/lib/prisma';
+import { checkoutLimiter } from '@/lib/rate-limit';
+import { getClientIp, tooManyRequests } from '@/lib/rate-limit-response';
 import { quoteShipping, type ShippingService, type ShippingTemp } from '@/lib/shipping';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
@@ -253,6 +255,11 @@ interface CustomerDiscountRecord {
 
 export async function POST(req: Request) {
   try {
+    // Rate limit: 20 orders per hour per IP
+    const ip = getClientIp(req);
+    const rl = checkoutLimiter(ip);
+    if (!rl.allowed) return tooManyRequests(rl) as unknown as ReturnType<typeof Response.json>;
+
     const session = await getServerSession(authOptions);
 
     const body = (await req.json()) as {
@@ -344,6 +351,7 @@ export async function POST(req: Request) {
       id: string;
       name: string;
       sku: string | null;
+      price: number | null;
       categoryId: string | null;
       shippingTemp: ShippingTemp;
       shippingWeightGrams: number | null;
@@ -355,6 +363,7 @@ export async function POST(req: Request) {
               id: true,
               name: true,
               sku: true,
+              price: true,
               categoryId: true,
               shippingTemp: true,
               shippingWeightGrams: true
@@ -363,7 +372,44 @@ export async function POST(req: Request) {
         : [];
 
     const byId = new Map(products.map((p) => [p.id, p]));
+
+    // ✅ SECURITY: validate client-sent unitPrice against DB price
+    // Prevents inspect-element / API manipulation to get items for free
+    for (const it of body.items) {
+      if (!it.productId) continue; // skip lines without a productId (custom items)
+      const dbProduct = byId.get(it.productId);
+      if (!dbProduct) continue; // unknown product — will fail downstream
+      const dbPricePence = Math.round((dbProduct.price ?? 0) * 100);
+      if (dbPricePence > 0 && it.unitPrice !== dbPricePence) {
+        return bad(
+          `Price mismatch for "${dbProduct.name}": expected ${dbPricePence}p, got ${it.unitPrice}p.`,
+          400
+        );
+      }
+    }
     const catById = new Map(products.map((p) => [p.id, p.categoryId]));
+
+    // Expand child categoryIds to parent so parent-targeted offers match products in child categories
+    const childCatIds = Array.from(
+      new Set(products.map((p) => p.categoryId).filter(Boolean) as string[])
+    );
+    const parentCatMap = new Map<string, string>(); // childId → parentId
+    if (childCatIds.length) {
+      const cats = await prisma.category.findMany({
+        where: { id: { in: childCatIds }, parentId: { not: null } },
+        select: { id: true, parentId: true }
+      });
+      for (const c of cats) {
+        if (c.parentId) parentCatMap.set(c.id, c.parentId);
+      }
+    }
+    // effectiveCatById: use parent ID when available so offer targeting parent matches child products
+    const effectiveCatById = new Map<string, string | null>(
+      products.map((p) => [
+        p.id,
+        p.categoryId ? (parentCatMap.get(p.categoryId) ?? p.categoryId) : null
+      ])
+    );
 
     type EnrichedLine = Line & {
       unitWeightGrams: number;
@@ -397,7 +443,7 @@ export async function POST(req: Request) {
       name: it.name,
       unitPricePence: it.unitPrice,
       qty: it.quantity,
-      categoryId: it.productId ? (catById.get(it.productId) ?? undefined) : undefined
+      categoryId: it.productId ? (effectiveCatById.get(it.productId) ?? undefined) : undefined
     }));
 
     const offerResult = evaluateOffers(offersAll, {
@@ -802,8 +848,8 @@ export async function POST(req: Request) {
 
             ...(safeUserId ? { user: { connect: { id: safeUserId } } } : {}),
 
-            status: 'PLACED',
-            paymentStatus: 'PENDING',
+            status: grandTotal <= 0 ? 'PAID' : 'PLACED',
+            paymentStatus: grandTotal <= 0 ? 'CAPTURED' : 'PENDING',
             currency,
 
             subtotal: computedSubtotal,
