@@ -34,10 +34,15 @@ async function checkPassword(email: string, password: string) {
 
 // ✅ IMPORTANT: only set cookie domain in production real domains.
 // For localhost/admin.localhost, DO NOT set Domain=... or browser may drop it.
+// Must have leading dot (e.g. .prince-v.com) for subdomain sharing (admin.prince-v.com)
 const cookieDomain =
   process.env.NODE_ENV === 'production' && process.env.AUTH_COOKIE_DOMAIN
-    ? process.env.AUTH_COOKIE_DOMAIN
+    ? process.env.AUTH_COOKIE_DOMAIN.startsWith('.')
+      ? process.env.AUTH_COOKIE_DOMAIN // already has leading dot
+      : `.${process.env.AUTH_COOKIE_DOMAIN}` // add leading dot
     : undefined;
+
+const isProd = process.env.NODE_ENV === 'production';
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -46,13 +51,11 @@ export const authOptions: NextAuthOptions = {
 
   cookies: {
     sessionToken: {
-      name:
-        process.env.NODE_ENV === 'production'
-          ? '__Secure-next-auth.session-token'
-          : 'next-auth.session-token',
+      // __Secure- prefix requires HTTPS — don't use it on localhost
+      name: isProd ? '__Secure-next-auth.session-token' : 'next-auth.session-token',
       options: {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: isProd,
         sameSite: 'lax',
         path: '/',
         ...(cookieDomain ? { domain: cookieDomain } : {})
@@ -60,12 +63,9 @@ export const authOptions: NextAuthOptions = {
     },
 
     callbackUrl: {
-      name:
-        process.env.NODE_ENV === 'production'
-          ? '__Secure-next-auth.callback-url'
-          : 'next-auth.callback-url',
+      name: isProd ? '__Secure-next-auth.callback-url' : 'next-auth.callback-url',
       options: {
-        secure: process.env.NODE_ENV === 'production',
+        secure: isProd,
         sameSite: 'lax',
         path: '/',
         ...(cookieDomain ? { domain: cookieDomain } : {})
@@ -73,16 +73,14 @@ export const authOptions: NextAuthOptions = {
     },
 
     csrfToken: {
-      name:
-        process.env.NODE_ENV === 'production'
-          ? '__Host-next-auth.csrf-token'
-          : 'next-auth.csrf-token',
+      // __Host- prefix requires HTTPS + no domain + path=/ — only safe in prod
+      name: isProd ? '__Host-next-auth.csrf-token' : 'next-auth.csrf-token',
       options: {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: isProd,
         sameSite: 'lax',
         path: '/'
-        // ✅ DO NOT set domain here (especially not for localhost)
+        // ✅ DO NOT set domain on csrfToken (__Host- prefix forbids it)
       }
     }
   },
