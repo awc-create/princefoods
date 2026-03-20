@@ -206,8 +206,8 @@ export const authOptions: NextAuthOptions = {
   },
 
   pages: {
-    signIn: '/login',
-    error: '/login'
+    signIn: '/admin/login', // admin subdomain uses this; public /login is handled by middleware
+    error: '/admin/login'
   },
 
   secret: process.env.NEXTAUTH_SECRET
