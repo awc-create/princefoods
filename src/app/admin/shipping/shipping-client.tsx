@@ -6,6 +6,7 @@ import {
   ALL_UK_POSTCODE_AREAS,
   PRESET_AREAS,
   PRESET_LABELS,
+  UK_AREA_NAMES,
   normalizeAreaPrefix,
   normalizeOutcode,
   type PresetKey
@@ -680,11 +681,26 @@ export default function ShippingAdminClient() {
         {/* Create zone */}
         <section className={styles.panel}>
           <div className={styles.panelHead}>
-            <div className={styles.panelTitle}>Create shipping zone</div>
-            <div className={styles.panelSub}>Define coverage first. Then add rates.</div>
+            <div className={styles.panelIcon}>➕</div>
+            <div>
+              <div className={styles.panelTitle}>Create a shipping zone</div>
+              <div className={styles.panelSub}>
+                A zone defines <strong>where</strong> you ship. After creating it, add a rate to set{' '}
+                <strong>how much</strong> it costs.
+              </div>
+            </div>
           </div>
 
           <div className={styles.form}>
+            <div className={styles.stepGuide}>
+              <span>① Name your zone</span>
+              <span className={styles.stepArrow}>→</span>
+              <span>② Set which postcodes it covers</span>
+              <span className={styles.stepArrow}>→</span>
+              <span>③ Click Create zone</span>
+              <span className={styles.stepArrow}>→</span>
+              <span>④ Add a rate to it</span>
+            </div>
             <div className={styles.formRow}>
               <label>Zone name</label>
               <input
@@ -693,7 +709,8 @@ export default function ShippingAdminClient() {
                 placeholder="e.g. UK Mainland, London, Birmingham, Manchester…"
               />
               <div className={styles.hint}>
-                City zones should use outcodes for accuracy (B1, M1, SW1A).
+                Tip: For city-specific zones, use outcode prefixes like B1, M1, SW1A for precise
+                targeting.
               </div>
             </div>
 
@@ -705,7 +722,10 @@ export default function ShippingAdminClient() {
                   value={priority}
                   onChange={(e) => setPriority(Number(e.target.value))}
                 />
-                <div className={styles.hint}>Higher wins when multiple zones match.</div>
+                <div className={styles.hint}>
+                  When a customer's address matches multiple zones, the highest priority number
+                  wins.
+                </div>
               </div>
 
               <div className={styles.formRow}>
@@ -729,7 +749,8 @@ export default function ShippingAdminClient() {
                   </label>
                 </div>
                 <div className={styles.hint}>
-                  Blocked zones should have no rates and checkout should fail.
+                  Use this to explicitly block sales to certain areas (e.g. remote islands, outside
+                  delivery range).
                 </div>
               </div>
             </div>
@@ -743,7 +764,8 @@ export default function ShippingAdminClient() {
                 <option value="IE">Republic of Ireland (IE)</option>
               </select>
               <div className={styles.hint}>
-                ROI is country-only for now (Eircode can be added later).
+                Republic of Ireland uses country-level matching only. City-level targeting coming
+                soon.
               </div>
             </div>
 
@@ -759,73 +781,107 @@ export default function ShippingAdminClient() {
                     ))}
                   </select>
                   <div className={styles.hint}>
-                    Presets are a starting point — refine with areas/outcodes below.
+                    Start with a preset (e.g. all UK), then optionally exclude or include specific
+                    areas below.
                   </div>
                 </div>
 
-                <div className={styles.row2}>
-                  <div className={styles.formRow}>
-                    <label>Include postcode areas</label>
-                    <input
-                      value={includeAreasRaw}
-                      onChange={(e) => setIncludeAreasRaw(e.target.value)}
-                      placeholder="Comma-separated, e.g. B,M,SW,EC"
-                    />
-                    <div className={styles.hint}>
-                      Areas are 1–2 letters (B, SW, BT). Good for broad zones.
+                <div className={styles.areaPicker}>
+                  <div className={styles.areaPickerHead}>
+                    <div>
+                      <div className={styles.areaPickerTitle}>Select postcode areas</div>
+                      <div className={styles.areaPickerSub}>
+                        Click to include · Right-click or Shift+click to exclude ·{' '}
+                        <b>{previewAreas.length}</b> areas included
+                      </div>
+                    </div>
+                    <div className={styles.areaPickerLegend}>
+                      <span className={styles.legendIncluded}>■ Included</span>
+                      <span className={styles.legendExcluded}>■ Excluded</span>
+                      <span className={styles.legendNeutral}>■ Not in zone</span>
                     </div>
                   </div>
 
-                  <div className={styles.formRow}>
-                    <label>Exclude postcode areas</label>
-                    <input
-                      value={excludeAreasRaw}
-                      onChange={(e) => setExcludeAreasRaw(e.target.value)}
-                      placeholder="e.g. SW,EC"
-                    />
-                    <div className={styles.hint}>
-                      Stored as tagged regex (requires matcher support).
+                  <div className={styles.areaGrid}>
+                    {ALL_UK_POSTCODE_AREAS.map((a) => {
+                      const inc = includeAreasRaw
+                        ? parseCsv(includeAreasRaw).map(normalizeAreaPrefix).includes(a)
+                        : false;
+                      const exc = excludeAreasRaw
+                        ? parseCsv(excludeAreasRaw).map(normalizeAreaPrefix).includes(a)
+                        : false;
+                      const inPreset = previewAreas.includes(a);
+                      const status = exc
+                        ? 'excluded'
+                        : inc || (inPreset && !exc)
+                          ? 'included'
+                          : 'neutral';
+
+                      const toggle = (e: React.MouseEvent) => {
+                        e.preventDefault();
+                        if (e.shiftKey || e.button === 2) {
+                          // Shift+click or right-click = toggle exclude
+                          const excList = parseCsv(excludeAreasRaw)
+                            .map(normalizeAreaPrefix)
+                            .filter(Boolean);
+                          if (excList.includes(a)) {
+                            setExcludeAreasRaw(excList.filter((x) => x !== a).join(','));
+                          } else {
+                            setExcludeAreasRaw([...excList, a].join(','));
+                          }
+                        } else {
+                          // Left-click = toggle include
+                          const incList = parseCsv(includeAreasRaw)
+                            .map(normalizeAreaPrefix)
+                            .filter(Boolean);
+                          if (incList.includes(a)) {
+                            setIncludeAreasRaw(incList.filter((x) => x !== a).join(','));
+                          } else {
+                            setIncludeAreasRaw([...incList, a].join(','));
+                          }
+                        }
+                      };
+
+                      return (
+                        <button
+                          key={a}
+                          type="button"
+                          className={`${styles.areaPill} ${styles[`area_${status}`]}`}
+                          title={`${a}${UK_AREA_NAMES[a] ? ` — ${UK_AREA_NAMES[a]}` : ''}\nClick to include · Shift+click to exclude`}
+                          onClick={toggle}
+                          onContextMenu={toggle}
+                        >
+                          <span className={styles.areaPillCode}>{a}</span>
+                          {UK_AREA_NAMES[a] && (
+                            <span className={styles.areaPillName}>{UK_AREA_NAMES[a]}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Keep hidden inputs synced for the underlying state */}
+                  <details className={styles.rawInputs}>
+                    <summary>Edit as text</summary>
+                    <div className={styles.row2} style={{ marginTop: 8 }}>
+                      <div className={styles.formRow}>
+                        <label>Include areas (raw)</label>
+                        <input
+                          value={includeAreasRaw}
+                          onChange={(e) => setIncludeAreasRaw(e.target.value)}
+                          placeholder="B,M,SW"
+                        />
+                      </div>
+                      <div className={styles.formRow}>
+                        <label>Exclude areas (raw)</label>
+                        <input
+                          value={excludeAreasRaw}
+                          onChange={(e) => setExcludeAreasRaw(e.target.value)}
+                          placeholder="BT,HS,ZE"
+                        />
+                      </div>
                     </div>
-                  </div>
-
-                  <div className={styles.formRow}>
-                    <label>Include outcodes (city-level)</label>
-                    <input
-                      value={includeOutcodesRaw}
-                      onChange={(e) => setIncludeOutcodesRaw(e.target.value)}
-                      placeholder="e.g. B1,B21,M1,SW1A"
-                    />
-                    <div className={styles.hint}>Outcodes give true city/area targeting.</div>
-                  </div>
-
-                  <div className={styles.formRow}>
-                    <label>Exclude outcodes</label>
-                    <input
-                      value={excludeOutcodesRaw}
-                      onChange={(e) => setExcludeOutcodesRaw(e.target.value)}
-                      placeholder="e.g. SW1A,B21"
-                    />
-                    <div className={styles.hint}>
-                      Stored as tagged regex (requires matcher support).
-                    </div>
-                  </div>
-                </div>
-
-                <div className={styles.preview}>
-                  <div className={styles.previewTitle}>Coverage preview</div>
-                  <div className={styles.previewSub}>
-                    Recognised postcode areas included: <b>{previewAreas.length}</b>
-                  </div>
-                  <div className={styles.pills}>
-                    {previewAreas.slice(0, 20).map((a) => (
-                      <span className={styles.pill} key={a}>
-                        {a}
-                      </span>
-                    ))}
-                    {previewAreas.length > 20 && (
-                      <span className={styles.pillMuted}>+{previewAreas.length - 20} more</span>
-                    )}
-                  </div>
+                  </details>
                 </div>
               </>
             )}
@@ -841,9 +897,13 @@ export default function ShippingAdminClient() {
         {/* Existing zones */}
         <section className={styles.panel}>
           <div className={styles.panelHead}>
-            <div className={styles.panelTitle}>Existing zones</div>
-            <div className={styles.panelSub}>
-              Add rates to zones. Use priority so city zones override national zones.
+            <div className={styles.panelIcon}>🗺️</div>
+            <div>
+              <div className={styles.panelTitle}>Your shipping zones</div>
+              <div className={styles.panelSub}>
+                Higher priority zones win when multiple match. Add rates to each zone so customers
+                can checkout.
+              </div>
             </div>
           </div>
 
@@ -908,39 +968,65 @@ export default function ShippingAdminClient() {
                     </div>
                   </div>
 
+                  {z.rates.length === 0 && !isBlocked(z.notes) && (
+                    <div className={styles.noRatesWarning}>
+                      ⚠️ <strong>No rates yet</strong> — customers can&apos;t checkout for this zone
+                      until you add a rate.
+                    </div>
+                  )}
+
                   {z.rates.length > 0 && (
                     <div className={styles.ratesPreview}>
-                      {z.rates.map((r) => (
-                        <div key={r.id} className={styles.rateRow}>
-                          <div className={styles.rateLeft}>
-                            <div className={styles.rateTitle}>
-                              {r.temp} / {r.service}
+                      {z.rates.map((r) => {
+                        const tempIcon = r.temp === 'FROZEN' ? '❄️' : '📦';
+                        const serviceLabel = r.service === 'EXPRESS' ? '⚡ Express' : '🚚 Standard';
+                        return (
+                          <div key={r.id} className={styles.rateRow}>
+                            <div className={styles.rateLeft}>
+                              <div className={styles.rateTitle}>
+                                {tempIcon} {r.temp === 'FROZEN' ? 'Frozen/chilled' : 'Ambient/dry'}{' '}
+                                · {serviceLabel}
+                              </div>
+                              <div className={styles.rateSub}>
+                                {r.freeOverPence == null
+                                  ? 'No free threshold'
+                                  : `✅ Free over ${money(r.freeOverPence)}`}
+                                {' · '}
+                                {r.tiers.length} weight tier{r.tiers.length !== 1 ? 's' : ''}
+                              </div>
                             </div>
-                            <div className={styles.rateSub}>
-                              {r.freeOverPence == null
-                                ? 'No free shipping threshold'
-                                : `Free over ${money(r.freeOverPence)}`}
+                            <div className={styles.rateRight}>
+                              <span className={styles.badge}>{r.currency}</span>
                             </div>
                           </div>
-                          <div className={styles.rateRight}>
-                            <span className={styles.badge}>{r.currency}</span>
-                            <span className={styles.badge}>{r.tiers.length} tiers</span>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
                   <div className={styles.rulesPreview}>
-                    <div className={styles.rulesTitle}>Coverage rules</div>
+                    <div className={styles.rulesTitle}>📍 Covers these postcode areas</div>
                     <div className={styles.rulesList}>
-                      {z.rules.slice(0, 12).map((r) => (
-                        <span key={r.id} className={styles.pill}>
-                          {r.countryCode}
-                          {r.postcodePrefix ? `:${r.postcodePrefix}` : ''}
-                          {r.postcodeRegex ? ':re' : ''}
-                        </span>
-                      ))}
+                      {z.rules.slice(0, 12).map((r) => {
+                        const prefix = r.postcodePrefix ?? '';
+                        const label =
+                          r.countryCode === 'GB' && prefix
+                            ? (UK_AREA_NAMES[prefix] ?? null)
+                            : r.countryCode === 'IE'
+                              ? 'Republic of Ireland'
+                              : null;
+                        const pillText =
+                          r.countryCode +
+                          (prefix ? `:${prefix}` : '') +
+                          (r.postcodeRegex ? ':re' : '');
+                        const tooltip = label ? `${prefix || r.countryCode} — ${label}` : pillText;
+                        return (
+                          <span key={r.id} className={styles.pillTooltip} title={tooltip}>
+                            {pillText}
+                            {label && <span className={styles.pillLabel}>{label}</span>}
+                          </span>
+                        );
+                      })}
                       {z.rules.length > 12 && (
                         <span className={styles.pillMuted}>+{z.rules.length - 12} more</span>
                       )}

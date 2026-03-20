@@ -32,9 +32,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const safePath = pathname ?? '/admin';
   const onLogin = isLoginPath(safePath);
 
-  // Session is READ-ONLY here — middleware already blocked unauthenticated access
-  // No redirect logic, no loading gate = no flash
-  const { data } = useSession();
+  // Middleware already blocks unauthenticated access — no redirect needed here
+  const { data, status } = useSession();
   const role = hasRole(data?.user) ? ((data!.user.role as Role | null) ?? null) : null;
 
   const canEditSite = role === 'HEAD' || role === 'STAFF';

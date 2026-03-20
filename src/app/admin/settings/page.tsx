@@ -464,111 +464,85 @@ function ShippingSettings() {
 
   if (loading) return <p className={styles.muted}>Loading shipping settings…</p>;
 
+  const field = (
+    label: string,
+    key: keyof ShipForm,
+    opts: { type?: string; required?: boolean; maxLength?: number; placeholder?: string } = {}
+  ) => (
+    <div className={styles.shipField}>
+      <label className={styles.shipLabel}>
+        {label}
+        {opts.required && <span className={styles.req}>*</span>}
+      </label>
+      <input
+        className={styles.shipInput}
+        type={opts.type ?? 'text'}
+        value={form[key] ?? ''}
+        placeholder={opts.placeholder}
+        maxLength={opts.maxLength}
+        required={opts.required}
+        onChange={(e) =>
+          setForm({
+            ...form,
+            [key]: opts.maxLength === 2 ? e.target.value.toUpperCase() : e.target.value
+          })
+        }
+      />
+    </div>
+  );
+
   return (
-    <form onSubmit={save} className={styles.card}>
-      <div className={styles.cardHeader}>
+    <form onSubmit={save} className={styles.shipForm}>
+      {/* Header */}
+      <div className={styles.shipHeader}>
         <div>
-          <h2 className={styles.cardTitle}>APC Warehouse (Pickup)</h2>
-          <p className={styles.cardSub}>
-            Used by default when creating APC labels. You can still override it at label time.
+          <h2 className={styles.shipTitle}>🚚 APC Pickup Warehouse</h2>
+          <p className={styles.shipSub}>
+            Default warehouse address used when generating APC shipping labels. Can be overridden
+            per shipment.
           </p>
         </div>
-        <button type="submit" disabled={saving} className={styles.primary}>
-          {saving ? 'Saving…' : 'Save'}
+        <button type="submit" disabled={saving} className={styles.shipSaveBtn}>
+          {saving ? 'Saving…' : '💾 Save changes'}
         </button>
       </div>
 
-      {error && (
-        <div
-          className={styles.toast}
-          style={{ background: '#fff1f1', color: '#991b1b', borderColor: '#fecaca' }}
-        >
-          ❌ {error}
+      {error && <div className={styles.shipError}>❌ {error}</div>}
+      {toast && <div className={styles.shipToast}>{toast}</div>}
+
+      {/* Contact section */}
+      <div className={styles.shipSection}>
+        <div className={styles.shipSectionTitle}>📋 Contact details</div>
+        <div className={styles.shipGrid}>
+          {field('Company name', 'companyName', {
+            required: true,
+            placeholder: 'Prince Foods Ltd'
+          })}
+          {field('Contact name', 'contactName', { required: true, placeholder: 'Jacob Varghese' })}
+          {field('Phone', 'phone', { required: true, type: 'tel', placeholder: '+44 7700 900000' })}
+          {field('Email', 'email', { type: 'email', placeholder: 'warehouse@princefoods.com' })}
         </div>
-      )}
-      {toast && <div className={styles.toast}>{toast}</div>}
+      </div>
 
-      <div className={styles.grid}>
-        <label>
-          Company Name
-          <input
-            value={form.companyName}
-            onChange={(e) => setForm({ ...form, companyName: e.target.value })}
-            required
-          />
-        </label>
-
-        <label>
-          Contact Name
-          <input
-            value={form.contactName}
-            onChange={(e) => setForm({ ...form, contactName: e.target.value })}
-            required
-          />
-        </label>
-
-        <label>
-          Pickup Phone
-          <input
-            value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            required
-          />
-        </label>
-
-        <label>
-          Contact Email
-          <input
-            type="email"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-          />
-        </label>
-
-        <label>
-          Address Line 1
-          <input
-            value={form.address1}
-            onChange={(e) => setForm({ ...form, address1: e.target.value })}
-            required
-          />
-        </label>
-
-        <label>
-          Address Line 2
-          <input
-            value={form.address2}
-            onChange={(e) => setForm({ ...form, address2: e.target.value })}
-          />
-        </label>
-
-        <label>
-          City
-          <input
-            value={form.city}
-            onChange={(e) => setForm({ ...form, city: e.target.value })}
-            required
-          />
-        </label>
-
-        <label>
-          Postcode
-          <input
-            value={form.postcode}
-            onChange={(e) => setForm({ ...form, postcode: e.target.value })}
-            required
-          />
-        </label>
-
-        <label>
-          Country Code
-          <input
-            value={form.countryCode}
-            maxLength={2}
-            onChange={(e) => setForm({ ...form, countryCode: e.target.value.toUpperCase() })}
-            required
-          />
-        </label>
+      {/* Address section */}
+      <div className={styles.shipSection}>
+        <div className={styles.shipSectionTitle}>📍 Warehouse address</div>
+        <div className={styles.shipGridFull}>
+          {field('Address line 1', 'address1', {
+            required: true,
+            placeholder: '123 Warehouse Road'
+          })}
+          {field('Address line 2', 'address2', { placeholder: 'Unit 4, Industrial Estate' })}
+        </div>
+        <div className={styles.shipGrid} style={{ marginTop: 12 }}>
+          {field('City', 'city', { required: true, placeholder: 'Birmingham' })}
+          {field('Postcode', 'postcode', { required: true, placeholder: 'B1 1AA' })}
+          {field('Country code', 'countryCode', {
+            required: true,
+            maxLength: 2,
+            placeholder: 'GB'
+          })}
+        </div>
       </div>
     </form>
   );

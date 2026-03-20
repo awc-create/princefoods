@@ -24,7 +24,7 @@ export default function AdminLoginClient() {
   const [err, setErr] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  const { status } = useSession();
+  const { data, status } = useSession();
   const sp = useSearchParams();
   const router = useRouter();
 
@@ -53,12 +53,16 @@ export default function AdminLoginClient() {
     }
   }, [rawCb]);
 
-  // Already authenticated → dashboard
+  // Already authenticated as staff → dashboard. Non-staff authenticated users stay on login.
   useEffect(() => {
     if (status === 'authenticated') {
-      router.replace(callbackUrl);
-      router.refresh();
+      const role = (data?.user as { role?: string } | undefined)?.role;
+      if (role === 'HEAD' || role === 'STAFF') {
+        router.replace(callbackUrl);
+        router.refresh();
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, callbackUrl, router]);
 
   async function onSubmit(e: React.FormEvent) {
