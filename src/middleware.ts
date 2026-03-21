@@ -21,7 +21,6 @@ const ADMIN_HOSTS = new Set([
   'admin.127.0.0.1'
 ]);
 
-// Dev hosts where both public and admin routes coexist on the same origin
 const DEV_HOSTS = new Set(['localhost', '127.0.0.1']);
 
 const ADMIN_ROOT = '/admin';
@@ -40,36 +39,11 @@ function getHostNoPort(req: NextRequest) {
   return raw.split(',')[0]!.trim().replace(/:\d+$/, '');
 }
 
-function redirectToAdminLogin(req: NextRequest, pathname: string, search: string) {
-  const url = req.nextUrl.clone();
-  url.pathname = '/admin/login';
-  url.search = '';
-  const cb = isLoginPath(pathname) ? ADMIN_ROOT : `${pathname}${search || ''}` || ADMIN_ROOT;
-  url.searchParams.set('callbackUrl', cb);
-  return NextResponse.redirect(url);
-}
-
-function redirectToLogin(req: NextRequest, callbackUrl: string) {
-  const url = req.nextUrl.clone();
-  url.pathname = '/login';
-  url.search = '';
-  url.searchParams.set('callbackUrl', callbackUrl);
-  return NextResponse.redirect(url);
-}
-
-async function gateAdmin(req: NextRequest, pathname: string, search: string) {
-  const token = (await getToken({ req, secret: process.env.NEXTAUTH_SECRET })) as Token;
-  const role = token?.role;
-  const authorised = !!token && (role === 'HEAD' || role === 'STAFF');
-  if (!authorised) return redirectToAdminLogin(req, pathname, search);
-  return null; // authorised — proceed
-}
-
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const host = getHostNoPort(req);
 
-  // ── Always bypass: static, API, auth, login pages ──
+  // ── Always bypass ──
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/assets') ||
@@ -85,48 +59,85 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // ── Dedicated admin subdomain (prod) ──
-  if (ADMIN_HOSTS.has(host)) {
-    // Bare root → /admin
-    if (pathname === '/' || pathname === '') {
-      const url = req.nextUrl.clone();
-      url.pathname = ADMIN_ROOT;
-      url.search = '';
-      return NextResponse.redirect(url);
-    }
-    if (isAdminPath(pathname)) {
-      const block = await gateAdmin(req, pathname, search);
-      if (block) return block;
-    }
-    return NextResponse.next();
-  }
+  const isAdmin = ADMIN_HOSTS.has(host) || DEV_HOSTS.has(host) || !PUBLIC_HOSTS.has(host);
+  const isPublicProd = PUBLIC_HOSTS.has(host);
 
-  // ── Public production hosts ──
-  if (PUBLIC_HOSTS.has(host)) {
-    // Hard-block /admin on the public domain
+  // ── Public production: hard-block /admin ──
+  if (isPublicProd) {
     if (isAdminPath(pathname)) {
       const url = req.nextUrl.clone();
       url.pathname = '/';
       url.search = '';
       return NextResponse.redirect(url);
     }
-    // Gate /account
     if (pathname === '/account' || pathname.startsWith('/account/')) {
-      const token = (await getToken({ req, secret: process.env.NEXTAUTH_SECRET })) as Token;
-      if (!token) return redirectToLogin(req, `${pathname}${search || ''}`);
+      const token = (await getToken({
+        req,
+        secret: process.env.NEXTAUTH_SECRET,
+        cookieName:
+          process.env.NODE_ENV === 'production'
+            ? '__Secure-next-auth.session-token'
+            : 'next-auth.session-token'
+      })) as Token;
+      if (!token) {
+        const url = req.nextUrl.clone();
+        url.pathname = '/login';
+        url.search = '';
+        url.searchParams.set('callbackUrl', `${pathname}${search || ''}`);
+        return NextResponse.redirect(url);
+      }
     }
     return NextResponse.next();
   }
 
-  // ── Dev / localhost / preview — both public + admin on same origin ──
-  if (DEV_HOSTS.has(host) || !PUBLIC_HOSTS.has(host)) {
-    if (isAdminPath(pathname)) {
-      const block = await gateAdmin(req, pathname, search);
-      if (block) return block;
+  // ── Admin subdomain: bare / → /admin ──
+  if (ADMIN_HOSTS.has(host) && (pathname === '/' || pathname === '')) {
+    const url = req.nextUrl.clone();
+    url.pathname = ADMIN_ROOT;
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
+
+  // ── Gate /admin/* on admin subdomains + dev ──
+  if (isAdmin && isAdminPath(pathname)) {
+    const secret = process.env.NEXTAUTH_SECRET;
+    const token = (await getToken({ req, secret })) as Token;
+    const role = token?.role;
+    const authorised = !!token && (role === 'HEAD' || role === 'STAFF');
+
+    console.log(
+      `[middleware] ${host}${pathname} token=${!!token} role=${role ?? 'none'} auth=${authorised}`
+    );
+
+    if (!authorised) {
+      const url = req.nextUrl.clone();
+      url.pathname = '/admin/login';
+      url.search = '';
+      const cb = isLoginPath(pathname) ? ADMIN_ROOT : `${pathname}${search || ''}` || ADMIN_ROOT;
+      url.searchParams.set('callbackUrl', cb);
+      return NextResponse.redirect(url);
     }
-    if (pathname === '/account' || pathname.startsWith('/account/')) {
-      const token = (await getToken({ req, secret: process.env.NEXTAUTH_SECRET })) as Token;
-      if (!token) return redirectToLogin(req, `${pathname}${search || ''}`);
+  }
+
+  // ── Gate /account/* on dev/preview ──
+  if (
+    (DEV_HOSTS.has(host) || !PUBLIC_HOSTS.has(host)) &&
+    (pathname === '/account' || pathname.startsWith('/account/'))
+  ) {
+    const token = (await getToken({
+      req,
+      secret: process.env.NEXTAUTH_SECRET,
+      cookieName:
+        process.env.NODE_ENV === 'production'
+          ? '__Secure-next-auth.session-token'
+          : 'next-auth.session-token'
+    })) as Token;
+    if (!token) {
+      const url = req.nextUrl.clone();
+      url.pathname = '/login';
+      url.search = '';
+      url.searchParams.set('callbackUrl', `${pathname}${search || ''}`);
+      return NextResponse.redirect(url);
     }
   }
 
