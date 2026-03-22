@@ -7,9 +7,9 @@ import styles from './AccountMenu.module.scss';
 
 const items = [
   { href: '/account?tab=overview', label: 'Overview' },
+  { href: '/account?tab=profile', label: 'Profile' },
   { href: '/account?tab=orders', label: 'Orders' },
   { href: '/account?tab=addresses', label: 'Addresses' },
-  { href: '/account?tab=wallet', label: 'Wallet' },
   { href: '/account?tab=security', label: 'Security' }
 ] as const;
 

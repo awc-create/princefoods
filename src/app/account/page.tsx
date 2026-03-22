@@ -23,7 +23,7 @@ export default async function AccountPage({
 }) {
   const session = await getServerSession(authOptions);
   const email = session?.user?.email;
-  if (!email) redirect('/?modal=login&next=/account');
+  if (!email) redirect('/?modal=login&callbackUrl=/account');
 
   const sp = (await searchParams) ?? {};
   const tabParam = Array.isArray(sp.tab) ? sp.tab[0] : sp.tab;
@@ -44,7 +44,7 @@ export default async function AccountPage({
     }
   });
 
-  if (!user) redirect('/?modal=signup&next=/account');
+  if (!user) redirect('/?modal=signup&callbackUrl=/account');
 
   // Fix 8: only pass isVerified bool, not the raw timestamp
   const userForClient = {

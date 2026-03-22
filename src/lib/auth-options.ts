@@ -143,8 +143,8 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async signIn({ user, account }) {
-      // For OAuth providers (Google etc.), manually upsert the user since
-      // JWT strategy bypasses the adapter's createUser/linkAccount hooks
+      // For OAuth providers (Google etc.), manually upsert the user AND account
+      // since JWT strategy bypasses the adapter's createUser/linkAccount hooks
       if (
         account?.provider &&
         account.provider !== 'credentials' &&
@@ -153,20 +153,51 @@ export const authOptions: NextAuthOptions = {
         const email = user.email?.toLowerCase().trim();
         if (!email) return false;
 
-        await prisma.user.upsert({
-          where: { email },
-          create: {
-            email,
-            name: user.name ?? email,
-            emailVerified: new Date(), // OAuth email is pre-verified
-            role: 'VIEWER'
-          },
-          update: {
-            // Update name if not set, mark email verified
-            name: user.name ? { set: user.name } : undefined,
-            emailVerified: new Date()
-          }
-        });
+        try {
+          const dbUser = await prisma.user.upsert({
+            where: { email },
+            create: {
+              email,
+              name: user.name ?? email,
+              emailVerified: new Date(),
+              role: 'VIEWER'
+            },
+            update: {
+              name: user.name ? { set: user.name } : undefined,
+              emailVerified: new Date()
+            },
+            select: { id: true }
+          });
+
+          // Also upsert the Account so adapter_getUserByAccount resolves correctly
+          await prisma.account.upsert({
+            where: {
+              provider_providerAccountId: {
+                provider: account.provider,
+                providerAccountId: account.providerAccountId
+              }
+            },
+            create: {
+              userId: dbUser.id,
+              type: account.type,
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+              access_token: account.access_token,
+              expires_at: account.expires_at,
+              token_type: account.token_type,
+              scope: account.scope,
+              id_token: account.id_token
+            },
+            update: {
+              access_token: account.access_token,
+              expires_at: account.expires_at,
+              id_token: account.id_token
+            }
+          });
+        } catch (err) {
+          console.error('[signIn callback] upsert error:', err);
+          return false;
+        }
       }
       return true;
     },
@@ -180,14 +211,23 @@ export const authOptions: NextAuthOptions = {
         if (maybeRole) t.role = maybeRole;
       }
 
+      // Backfill id/role from DB if missing — wrapped in try/catch so a
+      // database outage never crashes /api/auth/session (which would cause
+      // the NextAuth client to throw CLIENT_FETCH_ERROR "Failed to fetch").
       if ((!t.role || !t.id) && token.email) {
-        const db = await prisma.user.findUnique({
-          where: { email: String(token.email).toLowerCase() },
-          select: { id: true, role: true }
-        });
-        if (db) {
-          t.id = t.id ?? db.id;
-          t.role = (t.role ?? db.role) as Role;
+        try {
+          const db = await prisma.user.findUnique({
+            where: { email: String(token.email).toLowerCase() },
+            select: { id: true, role: true }
+          });
+          if (db) {
+            t.id = t.id ?? db.id;
+            t.role = (t.role ?? db.role) as Role;
+          }
+        } catch (err) {
+          // Log but do NOT re-throw — returning the token as-is keeps the
+          // session alive and avoids a network-level failure on the client.
+          console.error('[jwt] prisma lookup failed, continuing without db fields:', err);
         }
       }
 

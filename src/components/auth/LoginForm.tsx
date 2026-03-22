@@ -50,6 +50,19 @@ export default function LoginForm({
 
   const callbackUrl = propCallback ?? safePublicCallbackUrl(sp?.get('callbackUrl') ?? currentFull);
 
+  // Clean callbackUrl for OAuth — strip modal/login UI params so we don't reopen the modal after login
+  const oauthCallbackUrl = useMemo(() => {
+    try {
+      const url = new URL(callbackUrl, 'http://x');
+      url.searchParams.delete('modal');
+      url.searchParams.delete('callbackUrl');
+      const clean = url.pathname + (url.search !== '?' ? url.search : '');
+      return clean || '/';
+    } catch {
+      return '/';
+    }
+  }, [callbackUrl]);
+
   // --- Close modal helper: drop ?modal and drop callbackUrl if it's just "/" ---
   function closeModal() {
     const params = new URLSearchParams(window.location.search);
@@ -116,7 +129,7 @@ export default function LoginForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: magicEmail, next: callbackUrl })
       });
-      const _data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({}));
       if (res.status === 429) {
         setMagicErr('Too many attempts. Please try again later.');
         return;
@@ -241,7 +254,7 @@ export default function LoginForm({
       {hasGoogle && (
         <button
           type="button"
-          onClick={() => signIn(googleProviderId, { callbackUrl })}
+          onClick={() => signIn(googleProviderId, { callbackUrl: oauthCallbackUrl })}
           className={styles.googleBtn}
         >
           Continue with Google

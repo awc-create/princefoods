@@ -1,8 +1,10 @@
 // src/app/layout.tsx (SERVER)
 import { absUrl } from '@/lib/abs-url';
+import { authOptions } from '@/lib/auth-options';
 import { urlFrom } from '@/lib/url';
 import '@/styles/Global.scss';
 import type { Metadata } from 'next';
+import { getServerSession } from 'next-auth';
 import { Suspense } from 'react';
 import ClientShell from './ClientShell';
 import ModalLayer from './ModalLayer';
@@ -19,18 +21,23 @@ export const metadata: Metadata = {
   alternates: { canonical: absUrl('/') }
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
   modal
 }: {
   children: React.ReactNode;
   modal: React.ReactNode;
 }) {
+  // Fetch the session on the server so SessionProvider can seed useSession()
+  // immediately — no client-side fetch, no loading flash, nav shows the
+  // correct state (AccountMenu vs LoginButton) on first render after OAuth.
+  const session = await getServerSession(authOptions).catch(() => null);
+
   return (
     <html lang="en" suppressHydrationWarning>
       {/* ✅ suppress hydration warnings from extensions (Grammarly, etc.) */}
       <body className="no-transitions" suppressHydrationWarning>
-        <Providers>
+        <Providers session={session}>
           <div className="page-wrapper">
             <Suspense fallback={<div style={{ height: 64 }} />}>
               <ClientShell modal={modal}>{children}</ClientShell>
