@@ -423,12 +423,6 @@ export default async function Home() {
       name: 'Prince Foods Nadan Chappathi 400g',
       price: 1.99,
       productImageUrl: '/assets/prince-foods-logo.png'
-    },
-    {
-      id: 'tmp-2',
-      name: 'Prince Foods Malabar Murukku 150g',
-      price: 2.29,
-      productImageUrl: '/assets/prince-foods-logo.png'
     }
   ];
 
