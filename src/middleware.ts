@@ -32,6 +32,17 @@ const isFile = (p: string) => /\.[a-zA-Z0-9]+$/.test(p);
 const isLoginPath = (p: string) =>
   p === '/login' || p === '/login/' || p === '/admin/login' || p === '/admin/login/';
 
+function withPathname(req: NextRequest, pathname: string): NextResponse {
+  return NextResponse.next({
+    request: {
+      headers: new Headers({
+        ...Object.fromEntries(req.headers.entries()),
+        'x-pathname': pathname
+      })
+    }
+  });
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const host = getHostNoPort(req);
@@ -48,7 +59,7 @@ export async function middleware(req: NextRequest) {
     isLoginPath(pathname) ||
     pathname.startsWith('/signup')
   ) {
-    return NextResponse.next();
+    return withPathname(req, pathname);
   }
 
   // Admin subdomain: bare / → /admin (no auth check — AdminGate handles that)
@@ -95,10 +106,7 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Inject pathname header so server layouts can read current route
-  const res = NextResponse.next();
-  res.headers.set('x-pathname', pathname);
-  return res;
+  return withPathname(req, pathname);
 }
 
 export const config = {
