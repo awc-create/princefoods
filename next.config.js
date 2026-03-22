@@ -3,7 +3,7 @@
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
-  trailingSlash: true,
+  trailingSlash: false,
   eslint: { ignoreDuringBuilds: true },
 
   images: {
