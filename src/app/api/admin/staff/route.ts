@@ -1,5 +1,4 @@
 import AdminInviteEmail from '@/emails/AdminInviteEmail';
-import { absUrl } from '@/lib/abs-url';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { getResend } from '@/lib/resend';
@@ -81,10 +80,9 @@ export async function POST(req: Request) {
           data: { userId: user.id, token, expiresAt }
         });
 
-        const setPasswordUrl = new URL(absUrl('/admin/reset-password'));
-        setPasswordUrl.searchParams.set('token', token);
-
         const adminUrl = process.env.NEXTAUTH_URL_ADMIN ?? 'https://admin.prince-v.com';
+        const setPasswordUrl = new URL('/admin/reset-password', adminUrl);
+        setPasswordUrl.searchParams.set('token', token);
         const logoUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://prince-v.com'}/assets/prince-foods-logo.png`;
         const invitedBy = (session?.user as { name?: string })?.name ?? undefined;
 
