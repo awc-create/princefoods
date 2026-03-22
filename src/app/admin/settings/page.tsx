@@ -103,7 +103,9 @@ function AccountInfo() {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role | ''>('');
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -122,25 +124,55 @@ function AccountInfo() {
     })();
   }, []);
 
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    setToast('');
+    try {
+      const res = await fetch('/api/admin/update-account', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setError(data.message ?? 'Update failed');
+        return;
+      }
+      setToast('✅ Account updated. You may need to sign in again if you changed your email.');
+      setTimeout(() => setToast(''), 5000);
+    } catch {
+      setError('Unexpected error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading) return <p className={styles.muted}>Loading account info…</p>;
-  if (error) return <p>{error}</p>;
+  if (error && !name) return <p>{error}</p>;
 
   const roleLabels: Record<Role, string> = { HEAD: 'Head Admin', STAFF: 'Staff', VIEWER: 'Viewer' };
 
   return (
-    <form className={styles.passwordForm}>
+    <form onSubmit={handleSave} className={styles.passwordForm}>
       <label>
         Full Name:
-        <input type="text" value={name} disabled />
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
       </label>
       <label>
         Email Address:
-        <input type="email" value={email} disabled />
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </label>
       <label>
         Role:
         <input type="text" value={role ? roleLabels[role as Role] : ''} disabled />
       </label>
+      {error && <p style={{ color: '#dc2626' }}>{error}</p>}
+      {toast && <div className={styles.toast}>{toast}</div>}
+      <button type="submit" disabled={saving}>
+        {saving ? 'Saving…' : 'Save changes'}
+      </button>
     </form>
   );
 }
@@ -585,15 +617,19 @@ function StaffPermissions() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form)
     });
+    const data = await res.json();
     if (res.ok) {
       await refresh();
       setForm({ name: '', email: '', password: '', role: 'STAFF' });
-      setMessage('✅ Staff user created');
+      setMessage(
+        data.emailSent
+          ? '✅ Staff user created. Welcome email sent.'
+          : '✅ Staff user created (email disabled — share credentials manually).'
+      );
     } else {
-      const err = await res.json();
-      setMessage(`❌ ${err.message}`);
+      setMessage(`❌ ${data.message}`);
     }
-    setTimeout(() => setMessage(''), 3500);
+    setTimeout(() => setMessage(''), 5000);
   }
 
   const startEdit = (u: StaffUser) => {
@@ -728,10 +764,9 @@ function StaffPermissions() {
           />
           <input
             type="password"
-            placeholder="Password"
+            placeholder="Password (optional — user will set via email)"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
-            required
           />
           <select
             value={form.role}
