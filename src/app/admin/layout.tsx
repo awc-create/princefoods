@@ -2,14 +2,12 @@
 'use client';
 
 import NotificationBell from '@/components/admin/NotificationBell';
-import SetupPush from './SetupPush';
-
-import '@/styles/Global.scss';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import React, { useEffect, useMemo, useState } from 'react';
 import styles from './Admin.module.scss';
+import SetupPush from './SetupPush';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
 type GroupKey = 'dashboard' | 'site' | 'catalog' | 'operations' | 'marketing' | 'admin';
