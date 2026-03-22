@@ -1,8 +1,5 @@
 'use client';
 // src/app/admin/AdminShell.tsx
-// All the client-side logic (useSession, usePathname, sidebar state) lives
-// here. The layout itself stays a Server Component to avoid the Next.js
-// 15.3.x clientModules RSC manifest bug caused by 'use client' layouts.
 
 import NotificationBell from '@/components/admin/NotificationBell';
 import { useSession } from 'next-auth/react';
@@ -29,7 +26,47 @@ function isActivePath(current: string, href: string) {
 
 const isLoginPage = (p: string) => p === '/admin/login' || p.startsWith('/admin/login');
 
-export default function AdminShell({ children }: { children: React.ReactNode }) {
+// ── Error boundary ────────────────────────────────────────────────────────────
+class AdminErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[AdminShell crash]', error, info.componentStack);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div
+          style={{
+            padding: '2rem',
+            fontFamily: 'monospace',
+            background: '#1a1a1a',
+            color: '#f87171',
+            minHeight: '100vh'
+          }}
+        >
+          <h2>AdminShell crashed</h2>
+          <p style={{ color: '#fbbf24' }}>{this.state.error.message}</p>
+          <pre style={{ fontSize: '0.75rem', whiteSpace: 'pre-wrap', color: '#e2e8f0' }}>
+            {this.state.error.stack}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ── Shell UI ──────────────────────────────────────────────────────────────────
+function AdminShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? '/admin';
   const router = useRouter();
   const { data, status } = useSession();
@@ -119,10 +156,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     return list.filter((g) => !g.hide);
   }, [canEditSite, canManageAdmin, canManageMarketing]);
 
-  // Login page — no sidebar
   if (isLoginPage(pathname)) return <>{children}</>;
 
-  // Loading / unauthenticated — blank while redirect fires
   if (status === 'loading' || status === 'unauthenticated') {
     return <div style={{ padding: '2rem', color: '#6b7280' }}>Loading…</div>;
   }
@@ -187,5 +222,14 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         {children}
       </main>
     </div>
+  );
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+export default function AdminShell({ children }: { children: React.ReactNode }) {
+  return (
+    <AdminErrorBoundary>
+      <AdminShellInner>{children}</AdminShellInner>
+    </AdminErrorBoundary>
   );
 }
