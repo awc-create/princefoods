@@ -3,6 +3,8 @@
 import React from 'react';
 import ProtectedAdminShell from './ProtectedAdminShell';
 
+export const dynamic = 'force-dynamic';
+
 export default function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
   return <ProtectedAdminShell>{children}</ProtectedAdminShell>;
 }
