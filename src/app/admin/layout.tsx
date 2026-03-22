@@ -1,51 +1,190 @@
 // src/app/admin/layout.tsx
-import { authOptions } from '@/lib/auth-options';
-import { getServerSession } from 'next-auth';
-import { headers } from 'next/headers';
-import { redirect } from 'next/navigation';
-import type { ReactNode } from 'react';
-import AdminShell from './AdminShell';
+'use client';
+
+import NotificationBell from '@/components/admin/NotificationBell';
+import SetupPush from './SetupPush';
+
+import '@/styles/Global.scss';
+import { useSession } from 'next-auth/react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import React, { useEffect, useMemo, useState } from 'react';
+import styles from './Admin.module.scss';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
+type GroupKey = 'dashboard' | 'site' | 'catalog' | 'operations' | 'marketing' | 'admin';
 
-export default async function AdminLayout({ children }: { children: ReactNode }) {
-  const headersList = await headers();
-  const pathname = headersList.get('x-pathname') ?? '';
+interface UserWithRole {
+  email?: string | null;
+  role?: Role | null;
+}
+const hasRole = (u: unknown): u is UserWithRole =>
+  !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
 
-  console.log('[AdminLayout] pathname from header:', JSON.stringify(pathname));
+function isActivePath(current: string, href: string) {
+  return current === href || current.startsWith(`${href}/`);
+}
 
-  // Let login page through
-  if (pathname.startsWith('/admin/login')) {
-    console.log('[AdminLayout] login page — bypassing auth');
-    return <>{children}</>;
+const isLoginPage = (p: string) => p === '/admin/login' || p.startsWith('/admin/login');
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname() ?? '/admin';
+  const router = useRouter();
+  const { data, status } = useSession();
+  const role = hasRole(data?.user) ? ((data!.user.role as Role | null) ?? null) : null;
+
+  // Redirect to login if unauthenticated (client-side, after session resolves)
+  useEffect(() => {
+    if (isLoginPage(pathname)) return;
+    if (status === 'loading') return;
+    if (status === 'unauthenticated') {
+      router.replace(`/admin/login?callbackUrl=${encodeURIComponent(pathname)}`);
+    }
+  }, [status, pathname, router]);
+
+  const canEditSite = role === 'HEAD' || role === 'STAFF';
+  const canManageAdmin = role === 'HEAD';
+  const canManageMarketing = role === 'HEAD' || role === 'STAFF';
+
+  const [open, setOpen] = useState<Record<GroupKey, boolean>>({
+    dashboard: false,
+    site: true,
+    catalog: false,
+    operations: true,
+    marketing: true,
+    admin: false
+  });
+
+  const groups = useMemo(() => {
+    const list = [
+      {
+        key: 'dashboard' as GroupKey,
+        title: 'Dashboard',
+        items: [{ href: '/admin', label: 'Overview' }]
+      },
+      {
+        key: 'site' as GroupKey,
+        title: 'Site Editing',
+        hide: !canEditSite,
+        items: [
+          { href: '/admin/site/home', label: 'Home' },
+          { href: '/admin/site/about', label: 'About' },
+          { href: '/admin/site/faq', label: 'FAQ' },
+          { href: '/admin/site/contact', label: 'Contact' },
+          { href: '/admin/media', label: 'Media Library' }
+        ]
+      },
+      {
+        key: 'catalog' as GroupKey,
+        title: 'Catalog',
+        items: [
+          { href: '/admin/products', label: 'All Products' },
+          ...(canEditSite ? [{ href: '/admin/products/create', label: 'Add Product' }] : []),
+          { href: '/admin/products/categories', label: 'Categories' },
+          { href: '/admin/analytics/products', label: 'Analytics' }
+        ]
+      },
+      {
+        key: 'operations' as GroupKey,
+        title: 'Operations',
+        items: [
+          { href: '/admin/orders', label: 'Orders' },
+          { href: '/admin/shipments', label: 'Shipments' },
+          { href: '/admin/shipping', label: 'Shipping' },
+          { href: '/admin/orders/exceptions', label: 'Delivery Exceptions' },
+          { href: '/admin/customers', label: 'Customers' }
+        ]
+      },
+      {
+        key: 'marketing' as GroupKey,
+        title: 'Marketing',
+        hide: !canManageMarketing,
+        items: [
+          { href: '/admin/promotions', label: 'Promotions' },
+          { href: '/admin/offers', label: 'Offers' },
+          { href: '/admin/customer-discounts', label: 'Customer Discounts' }
+        ]
+      },
+      {
+        key: 'admin' as GroupKey,
+        title: 'Admin',
+        hide: !canManageAdmin,
+        items: [
+          { href: '/admin/notifications', label: 'Notifications' },
+          { href: '/admin/settings', label: 'Settings' }
+        ]
+      }
+    ];
+    return list.filter((g) => !g.hide);
+  }, [canEditSite, canManageAdmin, canManageMarketing]);
+
+  // Show login page without sidebar
+  if (isLoginPage(pathname)) return <>{children}</>;
+
+  // Show loading state while session resolves — prevents flash
+  if (status === 'loading' || status === 'unauthenticated') {
+    return <div style={{ padding: '2rem', color: '#6b7280' }}>Loading…</div>;
   }
 
-  let session;
-  try {
-    session = await getServerSession(authOptions);
-    console.log(
-      '[AdminLayout] session:',
-      JSON.stringify({
-        exists: !!session,
-        email: session?.user?.email ?? null,
-        role: (session?.user as { role?: string } | undefined)?.role ?? null
-      })
-    );
-  } catch (err) {
-    console.error('[AdminLayout] getServerSession threw:', err);
-    redirect('/admin/login?error=session_error');
-  }
+  const toggle = (k: GroupKey) => setOpen((o) => ({ ...o, [k]: !o[k] }));
 
-  const role = (session?.user as { role?: Role } | undefined)?.role;
-  const authorised = !!session && (role === 'HEAD' || role === 'STAFF');
+  return (
+    <div className={styles.adminWrapper}>
+      <aside className={styles.adminSidebar}>
+        {hasRole(data?.user) && data?.user?.email && (
+          <div className={styles.loggedInRow}>
+            <div className={styles.loggedIn}>
+              Logged in as:
+              <br />
+              <strong>{data.user.email}</strong>
+              {role && <span className={styles.rolePill}>{role}</span>}
+            </div>
+            <NotificationBell />
+          </div>
+        )}
 
-  console.log('[AdminLayout] authorised:', authorised);
+        {groups.map((g) => (
+          <div key={g.key} className={styles.group}>
+            <button
+              type="button"
+              className={styles.groupHeaderBtn}
+              aria-expanded={open[g.key]}
+              onClick={() => toggle(g.key)}
+            >
+              <span className={styles.groupTitle}>{g.title}</span>
+              <span className={styles.groupIcon} aria-hidden>
+                {open[g.key] ? '−' : '+'}
+              </span>
+            </button>
+            {open[g.key] && (
+              <nav className={styles.nav}>
+                {g.items.map((it) => (
+                  <Link
+                    key={it.href}
+                    href={it.href}
+                    className={`${styles.navLink} ${isActivePath(pathname, it.href) ? styles.active : ''}`}
+                  >
+                    {it.label}
+                  </Link>
+                ))}
+              </nav>
+            )}
+          </div>
+        ))}
 
-  if (!authorised) {
-    const cb = encodeURIComponent(pathname || '/admin');
-    console.log('[AdminLayout] not authorised — redirecting to login');
-    redirect(`/admin/login?callbackUrl=${cb}`);
-  }
+        <div className={styles.group}>
+          <nav className={styles.nav}>
+            <Link href="/api/auth/signout?callbackUrl=/admin/login" className={styles.navLink}>
+              Log Out
+            </Link>
+          </nav>
+        </div>
+      </aside>
 
-  return <AdminShell>{children}</AdminShell>;
+      <main className={styles.adminMain}>
+        <SetupPush />
+        {children}
+      </main>
+    </div>
+  );
 }
