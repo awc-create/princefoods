@@ -101,6 +101,7 @@ export default function SettingsPage() {
 function AccountInfo() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [originalEmail, setOriginalEmail] = useState('');
   const [role, setRole] = useState<Role | ''>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -115,6 +116,7 @@ function AccountInfo() {
         const data = await res.json();
         setName(data.user?.name ?? '');
         setEmail(data.user?.email ?? '');
+        setOriginalEmail(data.user?.email ?? '');
         setRole((data.user?.role as Role) ?? '');
       } catch {
         setError('Failed to load account info');
@@ -123,6 +125,8 @@ function AccountInfo() {
       }
     })();
   }, []);
+
+  const emailChanged = email.trim().toLowerCase() !== originalEmail.toLowerCase();
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -140,8 +144,16 @@ function AccountInfo() {
         setError(data.message ?? 'Update failed');
         return;
       }
-      setToast('✅ Account updated. You may need to sign in again if you changed your email.');
-      setTimeout(() => setToast(''), 5000);
+      if (emailChanged) {
+        // JWT still holds the old email — force re-login with new email
+        setToast('✅ Email updated. Signing you out so you can log in with your new email…');
+        setTimeout(() => {
+          window.location.assign('/api/auth/signout?callbackUrl=/admin/login');
+        }, 2500);
+      } else {
+        setToast('✅ Account updated.');
+        setTimeout(() => setToast(''), 4000);
+      }
     } catch {
       setError('Unexpected error');
     } finally {
@@ -163,6 +175,11 @@ function AccountInfo() {
       <label>
         Email Address:
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        {emailChanged && (
+          <span style={{ fontSize: 12, color: '#d97706', marginTop: 4, display: 'block' }}>
+            ⚠️ Changing your email will sign you out — you'll log back in with the new address.
+          </span>
+        )}
       </label>
       <label>
         Role:
@@ -171,7 +188,7 @@ function AccountInfo() {
       {error && <p style={{ color: '#dc2626' }}>{error}</p>}
       {toast && <div className={styles.toast}>{toast}</div>}
       <button type="submit" disabled={saving}>
-        {saving ? 'Saving…' : 'Save changes'}
+        {saving ? 'Saving…' : emailChanged ? 'Save & sign out' : 'Save changes'}
       </button>
     </form>
   );
@@ -600,6 +617,8 @@ function StaffPermissions() {
     password?: string;
   } | null>(null);
 
+  const [resetting, setResetting] = useState<string | null>(null);
+
   useEffect(() => {
     refresh();
   }, []);
@@ -607,6 +626,29 @@ function StaffPermissions() {
     const res = await fetch('/api/admin/staff');
     const data = await res.json();
     setStaffList(data);
+  }
+
+  async function sendReset(u: StaffUser) {
+    if (!confirm(`Send a password reset link to ${u.name} (${u.email})?`)) return;
+    setResetting(u.id);
+    try {
+      const res = await fetch('/api/admin/staff/request-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: u.id })
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setMessage(`✅ Reset link sent to ${u.email}`);
+      } else {
+        setMessage(`❌ ${data.message ?? 'Failed to send reset link'}`);
+      }
+    } catch {
+      setMessage('❌ Unexpected error sending reset link');
+    } finally {
+      setResetting(null);
+      setTimeout(() => setMessage(''), 5000);
+    }
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -728,6 +770,15 @@ function StaffPermissions() {
                   <span className="email">{u.email}</span>
                 </div>
                 <div className={styles.actions}>
+                  <button
+                    className={styles.iconBtn}
+                    onClick={() => sendReset(u)}
+                    disabled={resetting === u.id}
+                    aria-label="Send reset link"
+                    title="Send password reset link"
+                  >
+                    {resetting === u.id ? '…' : '🔑'}
+                  </button>
                   <button className={styles.iconBtn} onClick={() => startEdit(u)} aria-label="Edit">
                     <Pencil size={16} />
                   </button>
