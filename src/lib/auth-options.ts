@@ -34,15 +34,10 @@ async function checkPassword(email: string, password: string) {
 
 // ✅ IMPORTANT: only set cookie domain in production real domains.
 // For localhost/admin.localhost, DO NOT set Domain=... or browser may drop it.
-// Must have leading dot (e.g. .prince-v.com) for subdomain sharing (admin.prince-v.com)
 const cookieDomain =
   process.env.NODE_ENV === 'production' && process.env.AUTH_COOKIE_DOMAIN
-    ? process.env.AUTH_COOKIE_DOMAIN.startsWith('.')
-      ? process.env.AUTH_COOKIE_DOMAIN // already has leading dot
-      : `.${process.env.AUTH_COOKIE_DOMAIN}` // add leading dot
+    ? process.env.AUTH_COOKIE_DOMAIN
     : undefined;
-
-const isProd = process.env.NODE_ENV === 'production';
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -51,11 +46,13 @@ export const authOptions: NextAuthOptions = {
 
   cookies: {
     sessionToken: {
-      // __Secure- prefix requires HTTPS — don't use it on localhost
-      name: isProd ? '__Secure-next-auth.session-token' : 'next-auth.session-token',
+      name:
+        process.env.NODE_ENV === 'production'
+          ? '__Secure-next-auth.session-token'
+          : 'next-auth.session-token',
       options: {
         httpOnly: true,
-        secure: isProd,
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
         ...(cookieDomain ? { domain: cookieDomain } : {})
@@ -63,9 +60,12 @@ export const authOptions: NextAuthOptions = {
     },
 
     callbackUrl: {
-      name: isProd ? '__Secure-next-auth.callback-url' : 'next-auth.callback-url',
+      name:
+        process.env.NODE_ENV === 'production'
+          ? '__Secure-next-auth.callback-url'
+          : 'next-auth.callback-url',
       options: {
-        secure: isProd,
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
         ...(cookieDomain ? { domain: cookieDomain } : {})
@@ -73,14 +73,16 @@ export const authOptions: NextAuthOptions = {
     },
 
     csrfToken: {
-      // __Host- prefix requires HTTPS + no domain + path=/ — only safe in prod
-      name: isProd ? '__Host-next-auth.csrf-token' : 'next-auth.csrf-token',
+      name:
+        process.env.NODE_ENV === 'production'
+          ? '__Host-next-auth.csrf-token'
+          : 'next-auth.csrf-token',
       options: {
         httpOnly: true,
-        secure: isProd,
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/'
-        // ✅ DO NOT set domain on csrfToken (__Host- prefix forbids it)
+        // ✅ DO NOT set domain here (especially not for localhost)
       }
     }
   },
@@ -211,23 +213,14 @@ export const authOptions: NextAuthOptions = {
         if (maybeRole) t.role = maybeRole;
       }
 
-      // Backfill id/role from DB if missing — wrapped in try/catch so a
-      // database outage never crashes /api/auth/session (which would cause
-      // the NextAuth client to throw CLIENT_FETCH_ERROR "Failed to fetch").
       if ((!t.role || !t.id) && token.email) {
-        try {
-          const db = await prisma.user.findUnique({
-            where: { email: String(token.email).toLowerCase() },
-            select: { id: true, role: true }
-          });
-          if (db) {
-            t.id = t.id ?? db.id;
-            t.role = (t.role ?? db.role) as Role;
-          }
-        } catch (err) {
-          // Log but do NOT re-throw — returning the token as-is keeps the
-          // session alive and avoids a network-level failure on the client.
-          console.error('[jwt] prisma lookup failed, continuing without db fields:', err);
+        const db = await prisma.user.findUnique({
+          where: { email: String(token.email).toLowerCase() },
+          select: { id: true, role: true }
+        });
+        if (db) {
+          t.id = t.id ?? db.id;
+          t.role = (t.role ?? db.role) as Role;
         }
       }
 
