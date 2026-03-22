@@ -59,7 +59,7 @@ export async function POST(req: Request) {
 
   // Password is optional — if not provided we generate a random one.
   // The user sets their real password via the welcome email link.
-  const plainPassword = password?.trim() || crypto.randomBytes(16).toString('hex');
+  const plainPassword = password?.trim() ?? crypto.randomBytes(16).toString('hex');
   const hashed = await bcrypt.hash(plainPassword, 12);
 
   const user = await prisma.user.create({
