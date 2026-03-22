@@ -2,6 +2,7 @@
 
 import styles from '@/app/login/LoginPage.module.scss';
 import { safePublicCallbackUrl } from '@/lib/auth-redirect';
+import { urlFrom } from '@/lib/url';
 import { signIn } from 'next-auth/react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -53,7 +54,7 @@ export default function LoginForm({
   // Clean callbackUrl for OAuth — strip modal/login UI params so we don't reopen the modal after login
   const oauthCallbackUrl = useMemo(() => {
     try {
-      const url = new URL(callbackUrl, 'http://x');
+      const url = urlFrom(callbackUrl, 'http://x');
       url.searchParams.delete('modal');
       url.searchParams.delete('callbackUrl');
       const clean = url.pathname + (url.search !== '?' ? url.search : '');
