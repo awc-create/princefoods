@@ -4,7 +4,6 @@
 import NotificationBell from '@/components/admin/NotificationBell';
 import SetupPush from './SetupPush';
 
-import '@/styles/Global.scss';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -25,7 +24,13 @@ function isActivePath(current: string, href: string) {
   return current === href || current.startsWith(`${href}/`);
 }
 
-const isLoginPage = (p: string) => p === '/admin/login' || p.startsWith('/admin/login');
+const isLoginPage = (p: string) =>
+  p === '/admin/login' ||
+  p.startsWith('/admin/login') ||
+  p === '/admin/reset-password' ||
+  p.startsWith('/admin/reset-password') ||
+  p === '/admin/set-password' ||
+  p.startsWith('/admin/set-password');
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? '/admin';
