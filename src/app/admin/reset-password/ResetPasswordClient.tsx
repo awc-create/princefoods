@@ -37,15 +37,15 @@ export default function ResetPasswordClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, newPassword })
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ ok: false, message: 'Server error' }));
       if (!res.ok || !data.ok) {
         setErr(data.message ?? 'Reset failed. The link may have expired.');
         return;
       }
       setSuccess(true);
       setTimeout(() => router.replace('/admin/login'), 3000);
-    } catch {
-      setErr('Unexpected error. Please try again.');
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Unexpected error. Please try again.');
     } finally {
       setPending(false);
     }

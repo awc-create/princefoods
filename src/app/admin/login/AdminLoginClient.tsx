@@ -23,6 +23,10 @@ export default function AdminLoginClient() {
   const [showPw, setShowPw] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotPending, setForgotPending] = useState(false);
+  const [forgotMsg, setForgotMsg] = useState<string | null>(null);
 
   const { data, status } = useSession();
   const sp = useSearchParams();
@@ -65,6 +69,27 @@ export default function AdminLoginClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, callbackUrl, router]);
 
+  async function sendForgotRequest(e: React.FormEvent) {
+    e.preventDefault();
+    setForgotPending(true);
+    setForgotMsg(null);
+    try {
+      await fetch('/api/admin/staff/request-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail })
+      });
+      // Always show success to avoid enumeration
+      setForgotMsg(
+        '✅ If that email belongs to a staff account, the head admin has been notified.'
+      );
+    } catch {
+      setForgotMsg('❌ Could not send request. Please try again.');
+    } finally {
+      setForgotPending(false);
+    }
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
@@ -73,7 +98,7 @@ export default function AdminLoginClient() {
     try {
       console.log('[ADMIN LOGIN] submitting', { email: email.trim(), callbackUrl });
 
-      const res = await signIn('credentials', {
+      const res = await signIn('admin-credentials', {
         email: email.trim(),
         password,
         redirect: false,
@@ -207,6 +232,56 @@ export default function AdminLoginClient() {
             {pending ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+
+        <div style={{ marginTop: 16, textAlign: 'center' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setShowForgot((s) => !s);
+              setForgotMsg(null);
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#6b7280',
+              fontSize: 13,
+              cursor: 'pointer',
+              textDecoration: 'underline'
+            }}
+          >
+            Forgot password?
+          </button>
+        </div>
+
+        {showForgot && (
+          <form onSubmit={sendForgotRequest} style={{ marginTop: 16, display: 'grid', gap: 10 }}>
+            <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
+              Enter your email — the head admin will be notified to reset your password.
+            </p>
+            <input
+              type="email"
+              placeholder="your@email.com"
+              value={forgotEmail}
+              onChange={(e) => setForgotEmail(e.target.value)}
+              required
+              className={styles.input}
+            />
+            {forgotMsg && (
+              <p
+                style={{
+                  fontSize: 13,
+                  margin: 0,
+                  color: forgotMsg.startsWith('✅') ? '#16a34a' : '#dc2626'
+                }}
+              >
+                {forgotMsg}
+              </p>
+            )}
+            <button type="submit" className={styles.primaryBtn} disabled={forgotPending}>
+              {forgotPending ? 'Sending…' : 'Send reset request'}
+            </button>
+          </form>
+        )}
 
         <p className={styles.meta}>
           By signing in you agree to our{' '}
