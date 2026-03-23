@@ -21,9 +21,9 @@ export default function ClientShell({
 
   return (
     <>
-      <Navbar />
+      {!isAdmin && <Navbar />}
       <main>{children}</main>
-      {modal}
+      {!isAdmin && modal}
 
       {/* Crisp web widget (hide in admin) */}
       {!isAdmin && (
@@ -32,10 +32,10 @@ export default function ClientShell({
           <CrispTriggers />
         </>
       )}
-      <Footer />
+      {!isAdmin && <Footer />}
 
-      {/* Basket drawer lives globally */}
-      <CartDrawer />
+      {/* Basket drawer lives globally (not needed in admin) */}
+      {!isAdmin && <CartDrawer />}
     </>
   );
 }
