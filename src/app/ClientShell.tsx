@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 import CrispChat from '@/components/chat/CrispChat';
 import CrispTriggers from '@/components/chat/CrispTriggers';
@@ -16,16 +16,21 @@ export default function ClientShell({
   children: React.ReactNode;
   modal: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const isAdmin = pathname?.startsWith('/admin') ?? false;
+  const _pathname = usePathname();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const host = window.location.hostname;
+    setIsAdmin(
+      host.startsWith('admin.') || host === 'admin.localhost' || host === 'admin.127.0.0.1'
+    );
+  }, []);
 
   return (
     <>
       {!isAdmin && <Navbar />}
       <main>{children}</main>
       {!isAdmin && modal}
-
-      {/* Crisp web widget (hide in admin) */}
       {!isAdmin && (
         <>
           <CrispChat />
@@ -33,8 +38,6 @@ export default function ClientShell({
         </>
       )}
       {!isAdmin && <Footer />}
-
-      {/* Basket drawer lives globally (not needed in admin) */}
       {!isAdmin && <CartDrawer />}
     </>
   );

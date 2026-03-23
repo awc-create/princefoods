@@ -2,13 +2,12 @@
 'use client';
 
 import NotificationBell from '@/components/admin/NotificationBell';
-import SetupPush from './SetupPush';
-
-import { useSession } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import React, { useEffect, useMemo, useState } from 'react';
 import styles from './Admin.module.scss';
+import SetupPush from './SetupPush';
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
 type GroupKey = 'dashboard' | 'site' | 'catalog' | 'operations' | 'marketing' | 'admin';
@@ -38,7 +37,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { data, status } = useSession();
   const role = hasRole(data?.user) ? ((data!.user.role as Role | null) ?? null) : null;
 
-  // Redirect to login if unauthenticated (client-side, after session resolves)
   useEffect(() => {
     if (isLoginPage(pathname)) return;
     if (status === 'loading') return;
@@ -47,16 +45,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [status, pathname, router]);
 
-  const canEditSite = role === 'HEAD' || role === 'STAFF';
-  const canManageAdmin = role === 'HEAD';
-  const canManageMarketing = role === 'HEAD' || role === 'STAFF';
+  // Role-based access
+  // HEAD   — full access to everything
+  // STAFF  — everything except managing other staff accounts
+  // VIEWER — read-only: dashboard, orders, products, customers only
+  const isHead = role === 'HEAD';
+  const isStaff = role === 'HEAD' || role === 'STAFF';
+  const isViewer = role === 'VIEWER';
 
   const [open, setOpen] = useState<Record<GroupKey, boolean>>({
-    dashboard: false,
-    site: true,
+    dashboard: true,
+    site: false,
     catalog: false,
     operations: true,
-    marketing: true,
+    marketing: false,
     admin: false
   });
 
@@ -70,7 +72,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {
         key: 'site' as GroupKey,
         title: 'Site Editing',
-        hide: !canEditSite,
+        hide: isViewer,
         items: [
           { href: '/admin/site/home', label: 'Home' },
           { href: '/admin/site/about', label: 'About' },
@@ -84,7 +86,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         title: 'Catalog',
         items: [
           { href: '/admin/products', label: 'All Products' },
-          ...(canEditSite ? [{ href: '/admin/products/create', label: 'Add Product' }] : []),
+          ...(isStaff ? [{ href: '/admin/products/create', label: 'Add Product' }] : []),
           { href: '/admin/products/categories', label: 'Categories' },
           { href: '/admin/analytics/products', label: 'Analytics' }
         ]
@@ -95,7 +97,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         items: [
           { href: '/admin/orders', label: 'Orders' },
           { href: '/admin/shipments', label: 'Shipments' },
-          { href: '/admin/shipping', label: 'Shipping' },
+          ...(isStaff ? [{ href: '/admin/shipping', label: 'Shipping' }] : []),
           { href: '/admin/orders/exceptions', label: 'Delivery Exceptions' },
           { href: '/admin/customers', label: 'Customers' }
         ]
@@ -103,7 +105,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {
         key: 'marketing' as GroupKey,
         title: 'Marketing',
-        hide: !canManageMarketing,
+        hide: isViewer,
         items: [
           { href: '/admin/promotions', label: 'Promotions' },
           { href: '/admin/offers', label: 'Offers' },
@@ -113,25 +115,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {
         key: 'admin' as GroupKey,
         title: 'Admin',
-        hide: !canManageAdmin,
         items: [
           { href: '/admin/notifications', label: 'Notifications' },
-          { href: '/admin/settings', label: 'Settings' }
+          { href: '/admin/settings', label: 'Settings' },
+          ...(isHead ? [{ href: '/admin/change-password', label: 'Change Password' }] : [])
         ]
       }
     ];
     return list.filter((g) => !g.hide);
-  }, [canEditSite, canManageAdmin, canManageMarketing]);
+  }, [isHead, isStaff, isViewer]);
 
-  // Show login page without sidebar
   if (isLoginPage(pathname)) return <>{children}</>;
 
-  // Show loading state while session resolves — prevents flash
   if (status === 'loading' || status === 'unauthenticated') {
     return <div style={{ padding: '2rem', color: '#6b7280' }}>Loading…</div>;
   }
 
   const toggle = (k: GroupKey) => setOpen((o) => ({ ...o, [k]: !o[k] }));
+
+  async function handleSignOut() {
+    await signOut({ redirect: false });
+    window.location.assign('/admin/login');
+  }
 
   return (
     <div className={styles.adminWrapper}>
@@ -179,9 +184,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         <div className={styles.group}>
           <nav className={styles.nav}>
-            <Link href="/api/auth/signout?callbackUrl=/admin/login" className={styles.navLink}>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className={styles.navLink}
+              style={{
+                width: '100%',
+                textAlign: 'left',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
               Log Out
-            </Link>
+            </button>
           </nav>
         </div>
       </aside>
