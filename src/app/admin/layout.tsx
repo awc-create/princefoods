@@ -116,6 +116,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         key: 'admin' as GroupKey,
         title: 'Admin',
         items: [
+          { href: '/admin/guide', label: '📖 Guide' },
           { href: '/admin/notifications', label: 'Notifications' },
           { href: '/admin/settings', label: 'Settings' },
           ...(isHead ? [{ href: '/admin/change-password', label: 'Change Password' }] : [])

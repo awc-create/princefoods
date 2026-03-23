@@ -23,7 +23,7 @@ export async function GET() {
   }
 
   const users = await prisma.user.findMany({
-    where: { role: { in: ['STAFF', 'VIEWER'] } },
+    where: { role: { in: ['HEAD', 'STAFF', 'VIEWER'] } },
     select: { id: true, name: true, email: true, role: true },
     orderBy: [{ role: 'asc' }, { name: 'asc' }]
   });
@@ -41,15 +41,15 @@ export async function POST(req: Request) {
     name?: string;
     email?: string;
     password?: string;
-    role?: Exclude<Role, 'HEAD'>;
+    role?: Exclude<Role, never>;
   };
 
   if (!name || !email) {
     return NextResponse.json({ message: 'Name and email are required' }, { status: 400 });
   }
 
-  if (role !== 'STAFF' && role !== 'VIEWER') {
-    return NextResponse.json({ message: 'Role must be STAFF or VIEWER' }, { status: 400 });
+  if (role !== 'STAFF' && role !== 'VIEWER' && role !== 'HEAD') {
+    return NextResponse.json({ message: 'Role must be HEAD, STAFF or VIEWER' }, { status: 400 });
   }
 
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -59,11 +59,11 @@ export async function POST(req: Request) {
 
   // Password is optional — if not provided we generate a random one.
   // The user sets their real password via the welcome email link.
-  const plainPassword = password?.trim() ?? crypto.randomBytes(16).toString('hex');
+  const plainPassword = password?.trim() || crypto.randomBytes(16).toString('hex');
   const hashed = await bcrypt.hash(plainPassword, 12);
 
   const user = await prisma.user.create({
-    data: { name, email, password: hashed, role, source: 'LOCAL' },
+    data: { name, email, password: hashed, role: role as Role, source: 'LOCAL' },
     select: { id: true, name: true, email: true, role: true }
   });
 

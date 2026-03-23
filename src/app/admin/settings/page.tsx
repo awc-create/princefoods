@@ -604,7 +604,7 @@ function StaffPermissions() {
     name: '',
     email: '',
     password: '',
-    role: 'STAFF' as 'STAFF' | 'VIEWER'
+    role: 'STAFF' as Role
   });
   const [message, setMessage] = useState('');
 
@@ -613,7 +613,7 @@ function StaffPermissions() {
   const [editDraft, setEditDraft] = useState<{
     name: string;
     email: string;
-    role: 'STAFF' | 'VIEWER';
+    role: Role;
     password?: string;
   } | null>(null);
 
@@ -662,7 +662,7 @@ function StaffPermissions() {
     const data = await res.json();
     if (res.ok) {
       await refresh();
-      setForm({ name: '', email: '', password: '', role: 'STAFF' });
+      setForm({ name: '', email: '', password: '', role: 'STAFF' as Role });
       setMessage(
         data.emailSent
           ? '✅ Staff user created. Welcome email sent.'
@@ -679,7 +679,7 @@ function StaffPermissions() {
     setEditDraft({
       name: u.name,
       email: u.email,
-      role: (u.role === 'HEAD' ? 'STAFF' : u.role) as 'STAFF' | 'VIEWER'
+      role: u.role as Role
     });
   };
   const cancelEdit = () => {
@@ -748,10 +748,9 @@ function StaffPermissions() {
                 />
                 <select
                   value={editDraft.role}
-                  onChange={(e) =>
-                    setEditDraft({ ...editDraft, role: e.target.value as 'STAFF' | 'VIEWER' })
-                  }
+                  onChange={(e) => setEditDraft({ ...editDraft, role: e.target.value as Role })}
                 >
+                  <option value="HEAD">Head Admin</option>
                   <option value="STAFF">Staff</option>
                   <option value="VIEWER">Viewer</option>
                 </select>
@@ -821,8 +820,9 @@ function StaffPermissions() {
           />
           <select
             value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value as 'STAFF' | 'VIEWER' })}
+            onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
           >
+            <option value="HEAD">Head Admin</option>
             <option value="STAFF">Staff</option>
             <option value="VIEWER">Viewer</option>
           </select>

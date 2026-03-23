@@ -52,8 +52,8 @@ export async function PATCH(req: Request, ctx: unknown) {
   if (body.name !== undefined) data.name = body.name;
   if (body.email !== undefined) data.email = body.email;
   if (body.role !== undefined) {
-    if (body.role !== 'STAFF' && body.role !== 'VIEWER') {
-      return NextResponse.json({ message: 'Role must be STAFF or VIEWER' }, { status: 400 });
+    if (body.role !== 'STAFF' && body.role !== 'VIEWER' && body.role !== 'HEAD') {
+      return NextResponse.json({ message: 'Role must be HEAD, STAFF or VIEWER' }, { status: 400 });
     }
     data.role = body.role;
   }
