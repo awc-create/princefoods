@@ -89,52 +89,48 @@ export default function ResetPasswordClient() {
               </div>
             )}
 
-            <label className={styles.label} htmlFor="newPassword">
-              New password
-            </label>
-            <div className={styles.field}>
-              <span className={styles.icon} aria-hidden>
-                🔒
-              </span>
-              <input
-                id="newPassword"
-                type={showPw ? 'text' : 'password'}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                minLength={6}
-                className={styles.input}
-                disabled={pending}
-              />
+            <div className={styles.rowBetween}>
+              <label className={styles.label} htmlFor="newPassword">
+                New password
+              </label>
               <button type="button" className={styles.linkBtn} onClick={() => setShowPw((s) => !s)}>
                 {showPw ? 'Hide' : 'Show'}
               </button>
             </div>
+            <input
+              id="newPassword"
+              type={showPw ? 'text' : 'password'}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              minLength={6}
+              className={styles.input}
+              disabled={pending}
+              autoComplete="new-password"
+              placeholder="••••••••"
+            />
 
-            <label className={styles.label} htmlFor="confirmPassword" style={{ marginTop: 12 }}>
+            <label className={styles.label} htmlFor="confirmPassword" style={{ marginTop: 16 }}>
               Confirm password
             </label>
-            <div className={styles.field}>
-              <span className={styles.icon} aria-hidden>
-                🔒
-              </span>
-              <input
-                id="confirmPassword"
-                type={showPw ? 'text' : 'password'}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                minLength={6}
-                className={styles.input}
-                disabled={pending}
-              />
-            </div>
+            <input
+              id="confirmPassword"
+              type={showPw ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              minLength={6}
+              className={styles.input}
+              disabled={pending}
+              autoComplete="new-password"
+              placeholder="••••••••"
+            />
 
             <button
               type="submit"
               className={styles.primaryBtn}
               disabled={pending}
-              style={{ marginTop: 20 }}
+              style={{ marginTop: 24 }}
             >
               {pending ? 'Updating…' : 'Set password'}
             </button>

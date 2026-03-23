@@ -345,10 +345,14 @@ function NavbarInner() {
       {/* ── Desktop nav row ── */}
       <nav className={`${styles.navRow} ${styles.desktopOnly}`}>
         <div className={styles.links}>
-          {mainLinks.map(({ slug, label }) => {
+          {mainLinks.map(({ slug, label, key }) => {
             const href = `/${slug}`;
             return (
-              <Link key={slug} href={href} className={pathname === href ? styles.active : ''}>
+              <Link
+                key={(key ?? slug) || 'home'}
+                href={href}
+                className={pathname === href ? styles.active : ''}
+              >
                 {label}
               </Link>
             );
@@ -373,11 +377,11 @@ function NavbarInner() {
       {/* ── Mobile nav menu (hamburger) ── */}
       {menuOpen && (
         <nav className={`${styles.mobileMenu} ${styles.mobileOnly} ${styles.open}`}>
-          {NAV_LINKS.map(({ slug, label }) => {
+          {NAV_LINKS.map(({ slug, label, key }) => {
             const href = `/${slug}`;
             return (
               <Link
-                key={slug}
+                key={(key ?? slug) || 'home'}
                 href={href}
                 onClick={closeMenu}
                 className={pathname === href ? styles.active : ''}
