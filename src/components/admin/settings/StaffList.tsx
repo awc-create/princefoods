@@ -1,11 +1,14 @@
 'use client'
 
+
+import { useAdminUi } from '@/components/admin/ui/AdminUiProvider';
 import { useEffect, useState } from 'react'
 import styles from './Settings.module.scss'
 import type { StaffUser } from './types'
 
 export default function StaffList() {
   const [staffList, setStaffList] = useState<StaffUser[]>([])
+  const { toast, confirm } = useAdminUi()
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -22,15 +25,20 @@ export default function StaffList() {
   }, [])
 
   const handleDelete = async (id: string) => {
-    const confirm = window.confirm('Are you sure you want to delete this staff user?')
-    if (!confirm) return
+    const ok = await confirm({
+      title: 'Delete this staff user?',
+      message: 'They will lose admin access immediately.',
+      confirmLabel: 'Delete',
+      danger: true
+    })
+    if (!ok) return
 
     const res = await fetch(`/api/admin/staff/${id}`, { method: 'DELETE' })
     if (res.ok) {
       setStaffList(prev => prev.filter(user => user.id !== id))
     } else {
       const err = await res.json()
-      alert(`❌ ${err.message}`)
+      toast.error(err.message ?? 'Delete failed')
     }
   }
 

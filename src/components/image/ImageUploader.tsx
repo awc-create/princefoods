@@ -1,5 +1,7 @@
 'use client';
 
+import { useAdminUiSafe } from '@/components/admin/ui/AdminUiProvider';
+
 import { deleteUploadedFile, uploadSingleFile } from '@/lib/client-upload';
 import Image from 'next/image';
 import React from 'react';
@@ -44,6 +46,7 @@ export default function ImageUploader({
   accept = 'image/*,video/mp4,video/webm'
 }: Props) {
   const [uploading, setUploading] = React.useState(false);
+  const { toast } = useAdminUiSafe();
   const [deletingUrl, setDeletingUrl] = React.useState<string | null>(null);
 
   const safeFiles = React.useMemo(() => (files ?? []).filter(Boolean), [files]);
@@ -53,7 +56,7 @@ export default function ImageUploader({
     if (pickedFiles.length === 0) return;
 
     if (!itemName.trim()) {
-      alert('Please enter a name before uploading files.');
+      toast.error('Please enter a name before uploading files.');
       e.target.value = '';
       return;
     }
@@ -83,7 +86,7 @@ export default function ImageUploader({
       }
     } catch (error) {
       console.error(error);
-      alert(error instanceof Error ? error.message : 'Upload failed');
+      toast.error(error instanceof Error ? error.message : 'Upload failed');
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -97,7 +100,7 @@ export default function ImageUploader({
       setFiles(safeFiles.filter((u) => u !== url));
     } catch (error) {
       console.error(error);
-      alert(error instanceof Error ? error.message : 'Delete failed');
+      toast.error(error instanceof Error ? error.message : 'Delete failed');
     } finally {
       setDeletingUrl(null);
     }

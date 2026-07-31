@@ -1,5 +1,7 @@
 'use client';
 
+import { useAdminUi } from '@/components/admin/ui/AdminUiProvider';
+
 export default function UndoCancelButton({
   orderId,
   untilISO,
@@ -9,14 +11,15 @@ export default function UndoCancelButton({
   untilISO: string; // pass from server as ISO string
   disabled?: boolean;
 }) {
+  const { toast } = useAdminUi();
   async function handleClick() {
     const res = await fetch(`/api/admin/orders/${orderId}/revert-cancel`, { method: 'POST' });
     const j = await res.json().catch(() => ({}));
     if (!res.ok || j?.ok === false) {
-      alert(j?.error ?? 'Failed to revert cancellation');
+      toast.error(j?.error ?? 'Failed to revert cancellation');
       return;
     }
-    alert('Cancellation reverted.');
+    toast.success('Cancellation reverted.');
     location.reload();
   }
 

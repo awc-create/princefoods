@@ -378,10 +378,21 @@ export async function POST(req: Request) {
   const { headers, rows } = parseCSV(text);
   if (rows.length === 0) return NextResponse.json({ message: 'Empty file' }, { status: 400 });
 
+  // Dry run: validate everything, write nothing.
+  const dry = form.get('dry') === '1';
+
   const hasFieldType = headers.map((h) => h.toLowerCase()).includes('fieldtype');
 
   let upserted = 0,
     skipped = 0;
+
+  const MAX_ERRORS = 200;
+  const errors: { row: string; reason: string }[] = [];
+  const pushErr = (row: string, reason: string) => {
+    if (errors.length < MAX_ERRORS) errors.push({ row, reason });
+  };
+  const errMsg = (e: unknown) =>
+    (e instanceof Error ? e.message : String(e)).split('\n')[0].slice(0, 200);
 
   if (hasFieldType) {
     // Wix-style: pair Product + Variant by handleId
@@ -391,12 +402,15 @@ export async function POST(req: Request) {
     }
     const acc: Record<string, AccValue> = {};
 
+    let lineNo = 1; // header is line 1
     for (const r of rows) {
+      lineNo++;
       const row = normalizeKeys(r);
       const handleId = (row.handleid ?? '').trim();
       const fieldType = (row.fieldtype ?? '').trim();
       if (!handleId) {
         skipped++;
+        pushErr(`line ${lineNo}`, 'Missing handleId');
         continue;
       }
       acc[handleId] ??= {};
@@ -425,40 +439,62 @@ export async function POST(req: Request) {
         ]) as NormalizedRow)
       };
 
-      try {
-        await prisma.product.upsert({
-          where: { id },
-          update: mapToProductUpdate(merged),
-          create: mapToProductCreate(id, merged)
-        });
-        upserted++;
-      } catch {
+      if (!(merged.name ?? '').trim()) {
         skipped++;
+        pushErr(id, 'Missing name');
+        continue;
+      }
+
+      try {
+        if (!dry) {
+          await prisma.product.upsert({
+            where: { id },
+            update: mapToProductUpdate(merged),
+            create: mapToProductCreate(id, merged)
+          });
+        }
+        upserted++;
+      } catch (e) {
+        skipped++;
+        pushErr(id, errMsg(e));
       }
     }
   } else {
     // Simple CSV (no fieldType)
+    let lineNo = 1;
     for (const r of rows) {
+      lineNo++;
       const row = normalizeKeys(r);
       const id = (row.id ?? row.handleid ?? '').trim();
       const name = (row.name ?? '').trim();
       if (!id || !name) {
         skipped++;
+        pushErr(`line ${lineNo}`, !id && !name ? 'Missing id and name' : !id ? 'Missing id' : 'Missing name');
         continue;
       }
 
       try {
-        await prisma.product.upsert({
-          where: { id },
-          update: mapToProductUpdate(row),
-          create: mapToProductCreate(id, row)
-        });
+        if (!dry) {
+          await prisma.product.upsert({
+            where: { id },
+            update: mapToProductUpdate(row),
+            create: mapToProductCreate(id, row)
+          });
+        }
         upserted++;
-      } catch {
+      } catch (e) {
         skipped++;
+        pushErr(id, errMsg(e));
       }
     }
   }
 
-  return NextResponse.json({ ok: true, upserted, skipped });
+  return NextResponse.json({
+    ok: true,
+    dry,
+    upserted,
+    skipped,
+    errors,
+    errorsTruncated: errors.length >= MAX_ERRORS
+  });
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import { useAdminUi } from '@/components/admin/ui/AdminUiProvider';
+
 import { useEffect, useMemo, useState } from 'react';
 
 import styles from './promotions.module.scss';
@@ -36,6 +38,7 @@ export default function PromotionsAdmin() {
 
   // promos list
   const [loading, setLoading] = useState(true);
+  const { confirm } = useAdminUi();
   const [err, setErr] = useState<string | null>(null);
   const [rows, setRows] = useState<PromotionRow[]>([]);
   const [q, setQ] = useState('');
@@ -303,7 +306,12 @@ export default function PromotionsAdmin() {
   }
 
   async function deletePromo(p: PromotionRow) {
-    const yes = window.confirm(`Delete promo "${p.code ?? ''}"? This cannot be undone.`);
+    const yes = await confirm({
+      title: `Delete promo "${p.code ?? ''}"?`,
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true
+    });
     if (!yes) return;
 
     setErr(null);

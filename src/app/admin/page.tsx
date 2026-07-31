@@ -1,6 +1,7 @@
 // src/app/admin/page.tsx
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import styles from './Admin.module.scss';
 import RecentNotifications from './RecentNotifications';
@@ -25,19 +26,33 @@ interface ApcHealthResp {
   };
 }
 
+interface Attention {
+  toFulfil: number | null;
+  exceptions: number | null;
+  openReturns: number | null;
+}
+
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [statsErr, setStatsErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'all'>('month');
 
   const [apcHealth, setApcHealth] = useState<ApcHealthResp | null>(null);
   const [apcLoading, setApcLoading] = useState(true);
 
+  const [attention, setAttention] = useState<Attention>({
+    toFulfil: null,
+    exceptions: null,
+    openReturns: null
+  });
+
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       setLoading(true);
+      setStatsErr(null);
       try {
         const res = await fetch(`/api/admin/stats?period=${period}`, { cache: 'no-store' });
         const data: {
@@ -51,7 +66,7 @@ export default function AdminDashboard() {
 
         if (cancelled) return;
 
-        if (data && data.ok) {
+        if (res.ok && data && data.ok) {
           setStats({
             products: data.products ?? 0,
             customers: data.customers ?? 0,
@@ -59,7 +74,14 @@ export default function AdminDashboard() {
             revenuePence: data.revenuePence ?? 0
           });
         } else {
-          setStats({ products: 0, customers: 0, orders: 0, revenuePence: 0 });
+          // Don't render zeros that look like real (bad) numbers.
+          setStats(null);
+          setStatsErr(`Couldn't load stats (HTTP ${res.status}).`);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setStats(null);
+          setStatsErr(e instanceof Error ? e.message : "Couldn't load stats.");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -71,6 +93,42 @@ export default function AdminDashboard() {
       cancelled = true;
     };
   }, [period]);
+
+  // "Needs attention" counters — each fails independently and quietly.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAttention() {
+      const [orders, exceptions, returns] = await Promise.allSettled([
+        fetch('/api/admin/orders?status=PAID&archived=active&limit=1', { cache: 'no-store' }).then(
+          (r) => r.json()
+        ),
+        fetch('/api/admin/orders/exceptions', { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/admin/returns?status=OPEN', { cache: 'no-store' }).then((r) => r.json())
+      ]);
+      if (cancelled) return;
+
+      setAttention({
+        toFulfil:
+          orders.status === 'fulfilled' && orders.value?.ok
+            ? (orders.value.meta?.total ?? null)
+            : null,
+        exceptions:
+          exceptions.status === 'fulfilled' && exceptions.value?.ok
+            ? (exceptions.value.count ?? exceptions.value.items?.length ?? null)
+            : null,
+        openReturns:
+          returns.status === 'fulfilled' && returns.value?.ok
+            ? (returns.value.items?.length ?? null)
+            : null
+      });
+    }
+
+    loadAttention();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -161,27 +219,67 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* ✅ 4 cards only */}
+      {statsErr && (
+        <div
+          style={{
+            margin: '10px 0',
+            padding: '10px 14px',
+            borderRadius: 10,
+            border: '1px solid #fecaca',
+            background: '#fef2f2',
+            color: '#991b1b',
+            fontWeight: 600,
+            fontSize: 14
+          }}
+        >
+          {statsErr} Refresh to retry.
+        </div>
+      )}
+
+      {/* ✅ 4 cards, each linking to its section */}
       <div className={styles.dashboardStats}>
-        <div className={styles.statCard}>
-          <h2>Products</h2>
-          <p>{loading ? '...' : (stats?.products ?? 0)}</p>
-        </div>
+        <Link href="/admin/products" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className={styles.statCard}>
+            <h2>Products</h2>
+            <p>{loading ? '...' : statsErr ? '—' : (stats?.products ?? 0)}</p>
+          </div>
+        </Link>
 
-        <div className={styles.statCard}>
-          <h2>Customers</h2>
-          <p>{loading ? '...' : (stats?.customers ?? 0)}</p>
-        </div>
+        <Link href="/admin/customers" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className={styles.statCard}>
+            <h2>Customers</h2>
+            <p>{loading ? '...' : statsErr ? '—' : (stats?.customers ?? 0)}</p>
+          </div>
+        </Link>
 
-        <div className={styles.statCard}>
-          <h2>Orders</h2>
-          <p>{loading ? '...' : (stats?.orders ?? 0)}</p>
-        </div>
+        <Link href="/admin/orders" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className={styles.statCard}>
+            <h2>Orders</h2>
+            <p>{loading ? '...' : statsErr ? '—' : (stats?.orders ?? 0)}</p>
+          </div>
+        </Link>
 
-        <div className={styles.statCard}>
-          <h2>Revenue</h2>
-          <p>{loading ? '...' : formatGBP(stats?.revenuePence ?? 0)}</p>
-        </div>
+        <Link href="/admin/orders" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className={styles.statCard}>
+            <h2>Revenue</h2>
+            <p>{loading ? '...' : statsErr ? '—' : formatGBP(stats?.revenuePence ?? 0)}</p>
+          </div>
+        </Link>
+      </div>
+
+      {/* ⚠️ Needs attention */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', margin: '14px 0' }}>
+        <AttentionTile
+          label="Paid orders to fulfil"
+          count={attention.toFulfil}
+          href="/admin/orders?status=PAID&archived=active"
+        />
+        <AttentionTile
+          label="Delivery exceptions"
+          count={attention.exceptions}
+          href="/admin/orders/exceptions"
+        />
+        <AttentionTile label="Open returns" count={attention.openReturns} href="/admin/returns" />
       </div>
 
       {/* ✅ Status bar UNDER the cards (not inside the grid) */}
@@ -229,5 +327,53 @@ export default function AdminDashboard() {
 
       <RecentNotifications limit={3} />
     </div>
+  );
+}
+
+function AttentionTile({
+  label,
+  count,
+  href
+}: {
+  label: string;
+  count: number | null;
+  href: string;
+}) {
+  const urgent = typeof count === 'number' && count > 0;
+  return (
+    <Link
+      href={href}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '10px 14px',
+        borderRadius: 12,
+        textDecoration: 'none',
+        border: `1px solid ${urgent ? '#fde68a' : '#e5e7eb'}`,
+        background: urgent ? '#fffbeb' : '#fff',
+        color: urgent ? '#92400e' : '#6b7280',
+        fontWeight: 700,
+        fontSize: 13
+      }}
+    >
+      <span
+        style={{
+          minWidth: 26,
+          height: 26,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: 999,
+          padding: '0 6px',
+          background: urgent ? '#f59e0b' : '#f3f4f6',
+          color: urgent ? '#fff' : '#6b7280',
+          fontSize: 13
+        }}
+      >
+        {count ?? '–'}
+      </span>
+      {label} →
+    </Link>
   );
 }

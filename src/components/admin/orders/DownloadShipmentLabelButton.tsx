@@ -1,6 +1,8 @@
 // src/components/admin/orders/DownloadShipmentLabelButton.tsx
 'use client';
 
+import { useAdminUi } from '@/components/admin/ui/AdminUiProvider';
+
 import { useState } from 'react';
 
 export default function DownloadShipmentLabelButton({
@@ -11,6 +13,7 @@ export default function DownloadShipmentLabelButton({
   label?: string;
 }) {
   const [busy, setBusy] = useState(false);
+  const { toast } = useAdminUi();
 
   async function download() {
     setBusy(true);
@@ -18,7 +21,7 @@ export default function DownloadShipmentLabelButton({
       const res = await fetch(`/api/admin/shipments/${shipmentId}/label`, { cache: 'no-store' });
       if (!res.ok) {
         const j = await res.json().catch(() => null);
-        alert(j?.error ?? 'Failed to download label');
+        toast.error(j?.error ?? 'Failed to download label');
         return;
       }
 

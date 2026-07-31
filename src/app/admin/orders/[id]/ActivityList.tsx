@@ -1,6 +1,8 @@
 // src/app/admin/orders/[id]/ActivityList.tsx
 'use client';
 
+import { useAdminUi } from '@/components/admin/ui/AdminUiProvider';
+
 import { useRouter } from 'next/navigation';
 import React, { useMemo, useState, useTransition } from 'react';
 
@@ -210,6 +212,7 @@ export default function ActivityList({
   const [items, setItems] = useState<Activity[]>(initial);
   const [isPending, start] = useTransition();
   const router = useRouter();
+  const { toast } = useAdminUi();
 
   const sorted = useMemo(() => {
     return [...items].sort(
@@ -238,7 +241,7 @@ export default function ActivityList({
       const j = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
 
       if (!res.ok || j?.ok === false) {
-        alert(j?.error ?? 'Failed to delete note');
+        toast.error(j?.error ?? 'Failed to delete note');
         setItems(prev);
         return;
       }

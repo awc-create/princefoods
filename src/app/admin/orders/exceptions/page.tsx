@@ -1,5 +1,9 @@
 'use client';
 
+import { exceptionTypeLabel } from '@/lib/admin-labels';
+
+import { useAdminUi } from '@/components/admin/ui/AdminUiProvider';
+
 import Link from 'next/link';
 import React from 'react';
 import styles from './exceptions.module.scss';
@@ -50,22 +54,6 @@ function formatGBP(pence: number) {
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(pence / 100);
 }
 
-function typeLabel(t: ExceptionType) {
-  switch (t) {
-    case 'NEEDS_LABEL':
-      return 'Needs label';
-    case 'LABEL_PENDING':
-      return 'Label pending';
-    case 'NO_TRACKING_EVENTS':
-      return 'No tracking updates';
-    case 'NO_SCAN_24H':
-      return 'No scan 24h';
-    case 'IN_TRANSIT_LONG':
-      return 'In transit too long';
-    case 'STALE_ORDER':
-      return 'Stale order';
-  }
-}
 
 function scanSeverity(hours: number | null) {
   if (hours === null) return null;
@@ -94,6 +82,7 @@ function exceptionRank(t: ExceptionType) {
 
 export default function ExceptionsPage() {
   const [items, setItems] = React.useState<Item[]>([]);
+  const { toast } = useAdminUi();
   const [loading, setLoading] = React.useState(true);
 
   const [filter, setFilter] = React.useState<ExceptionType | 'ALL'>('ALL');
@@ -197,7 +186,12 @@ export default function ExceptionsPage() {
       if (res.status === 429) {
         const j = (await res.json().catch(() => null)) as { retryAfterSec?: number } | null;
         const retry = j?.retryAfterSec ?? 60;
-        alert(`Recheck rate-limited. Try again in ~${retry}s.`);
+        toast.info(`Recheck rate-limited. Try again in ~${retry}s.`);
+        return;
+      }
+
+      if (!res.ok) {
+        toast.error(`Recheck failed (${res.status}).`);
         return;
       }
 
@@ -212,7 +206,7 @@ export default function ExceptionsPage() {
     try {
       const note = (notes[x.orderId] ?? '').trim();
 
-      await fetch(`/api/admin/orders/${x.orderId}/exceptions/resolve`, {
+      const res = await fetch(`/api/admin/orders/${x.orderId}/exceptions/resolve`, {
         method: 'POST',
         cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
@@ -222,6 +216,12 @@ export default function ExceptionsPage() {
           note
         })
       });
+
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: string } | null;
+        toast.error(j?.error ?? `Could not ${x.isResolved ? 'unresolve' : 'resolve'} (${res.status}).`);
+        return;
+      }
 
       setNotes((m) => ({ ...m, [x.orderId]: '' }));
       await load();
@@ -234,7 +234,7 @@ export default function ExceptionsPage() {
     <div className={styles.wrap}>
       <div className={styles.headerRow}>
         <div>
-          <h1 className={styles.h1}>Delivery Exceptions</h1>
+          <h1 className={styles.h1}>Delivery problems</h1>
           <p className={styles.sub}>Paid orders that need attention (labels, tracking, delays).</p>
         </div>
 
@@ -257,12 +257,12 @@ export default function ExceptionsPage() {
               onChange={(e) => setFilter(e.target.value as ExceptionType | 'ALL')}
             >
               <option value="ALL">All</option>
-              <option value="NEEDS_LABEL">Needs label</option>
-              <option value="LABEL_PENDING">Label pending</option>
-              <option value="NO_TRACKING_EVENTS">No tracking updates</option>
-              <option value="NO_SCAN_24H">No scan 24h</option>
-              <option value="IN_TRANSIT_LONG">In transit too long</option>
-              <option value="STALE_ORDER">Stale order</option>
+              <option value="NEEDS_LABEL">No label bought yet</option>
+              <option value="LABEL_PENDING">Waiting for label</option>
+              <option value="NO_TRACKING_EVENTS">No tracking updates yet</option>
+              <option value="NO_SCAN_24H">Not scanned in 24 hours</option>
+              <option value="IN_TRANSIT_LONG">Taking longer than usual</option>
+              <option value="STALE_ORDER">Sitting unshipped too long</option>
             </select>
           </label>
 
@@ -324,7 +324,7 @@ export default function ExceptionsPage() {
                     <div className={styles.rowTop}>
                       <div className={styles.badges}>
                         <span className={styles.badge} data-kind={x.exceptionType}>
-                          {typeLabel(x.exceptionType)}
+                          {exceptionTypeLabel(x.exceptionType)}
                         </span>
 
                         {x.isResolved ? (

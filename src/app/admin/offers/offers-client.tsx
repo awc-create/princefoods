@@ -7,6 +7,8 @@ import CreateOfferModal from '@/components/admin/offers/CreateOfferModal';
 import EditOfferModal from '@/components/admin/offers/EditOfferModal';
 import OffersTable from '@/components/admin/offers/OffersTable';
 import OffersUsagePanel from '@/components/admin/offers/OffersUsagePanel';
+import SendOfferEmailModal from '@/components/admin/offers/SendOfferEmailModal';
+import { useAdminUi } from '@/components/admin/ui/AdminUiProvider';
 
 import type { OfferAdminForm, OfferStatus } from '@/types/offers';
 
@@ -122,7 +124,12 @@ function hasId(value: unknown): value is OfferRow {
 }
 
 export default function OffersClient() {
+  const { toast, confirm } = useAdminUi();
   const [tab, setTab] = useState<'offers' | 'usage'>('offers');
+
+  // "Send email" on an existing offer (also used to retry a failed create-blast)
+  const [emailTarget, setEmailTarget] = useState<{ id: string; name: string | null } | null>(null);
+  const [emailInitialSubject, setEmailInitialSubject] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -267,16 +274,9 @@ export default function OffersClient() {
       return;
     }
 
-    try {
-      console.log('🟡 [offers-client] createOffer start', body);
-      console.log('🟡 [offers-client] blast flags', {
-        blastEnabled: body.blastEnabled,
-        blastScope: body.blastScope,
-        blastUserIds: body.blastUserIds,
-        emailSubject: body.emailSubject,
-        emailMessage: body.emailMessage
-      });
+    let created: OfferRow | null = null;
 
+    try {
       const res = await fetch('/api/admin/offers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -290,28 +290,28 @@ export default function OffersClient() {
         return;
       }
 
-      const created = (json as { offer: OfferRow }).offer;
+      created = (json as { offer: OfferRow }).offer;
+    } catch (e) {
+      setErr(fmtErr(e, 'Failed to create offer.'));
+      return;
+    }
 
-      console.log('🟢 [offers-client] offer created', created);
+    // Offer exists from here on — close the modal and refresh so a
+    // failed email can never lead to a duplicate offer being created.
+    setCreateOpen(false);
+    toast.success(`Offer "${created.name}" created.`);
+    await loadOffers();
+    window.setTimeout(() => searchRef.current?.focus(), 0);
 
-      if (body.blastEnabled) {
-        const subject = (body.emailSubject ?? '').trim();
+    if (body.blastEnabled) {
+      const subject = (body.emailSubject ?? '').trim();
+      const scope = body.blastScope ?? 'ALL_CUSTOMERS';
+      const userIds = scope === 'SELECTED_USERS' ? (body.blastUserIds ?? []) : [];
 
+      try {
         if (!subject) {
           throw new Error('Email subject is required when email-after-create is enabled.');
         }
-
-        const scope = body.blastScope ?? 'ALL_CUSTOMERS';
-        const userIds = scope === 'SELECTED_USERS' ? (body.blastUserIds ?? []) : [];
-
-        console.log('🟡 [offers-client] creating blast', {
-          offerId: created.id,
-          scope,
-          userIds,
-          subject,
-          message: body.emailMessage ?? null
-        });
-
         await createOfferBlast({
           offerId: created.id,
           scope,
@@ -319,15 +319,13 @@ export default function OffersClient() {
           subject,
           message: body.emailMessage ?? null
         });
-
-        console.log('🟢 [offers-client] blast created and run');
+        toast.success('Offer email sent.');
+      } catch (e) {
+        // The offer is fine — open the standalone email modal to retry.
+        toast.error(fmtErr(e, 'Offer email failed.'));
+        setEmailInitialSubject(subject || null);
+        setEmailTarget({ id: created.id, name: created.name ?? null });
       }
-
-      setCreateOpen(false);
-      await loadOffers();
-      window.setTimeout(() => searchRef.current?.focus(), 0);
-    } catch (e) {
-      setErr(fmtErr(e, 'Failed to create offer.'));
     }
   }
 
@@ -363,7 +361,12 @@ export default function OffersClient() {
   }
 
   async function deleteOffer(o: OfferRow) {
-    const yes = window.confirm(`Delete offer "${o.name}"? This cannot be undone.`);
+    const yes = await confirm({
+      title: `Delete offer "${o.name}"?`,
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true
+    });
     if (!yes) return;
 
     setErr(null);
@@ -469,9 +472,9 @@ export default function OffersClient() {
                 onChange={(e) => setStatusFilter(e.target.value as 'ALL' | OfferStatus)}
               >
                 <option value="ALL">All statuses</option>
-                <option value="ACTIVE">Active</option>
+                <option value="ACTIVE">Running</option>
                 <option value="PAUSED">Paused</option>
-                <option value="EXPIRED">Expired</option>
+                <option value="EXPIRED">Finished</option>
               </select>
             </div>
 
@@ -486,6 +489,10 @@ export default function OffersClient() {
                   onEdit={(id) => openEdit(id)}
                   onToggle={(o) => void toggleOffer(o)}
                   onDelete={(o) => void deleteOffer(o)}
+                  onSendEmail={(o) => {
+                    setEmailInitialSubject(null);
+                    setEmailTarget({ id: o.id, name: o.name ?? null });
+                  }}
                 />
               )}
             </div>
@@ -505,6 +512,21 @@ export default function OffersClient() {
               setEditId(null);
             }}
             onSaved={loadOffers}
+          />
+
+          <SendOfferEmailModal
+            open={emailTarget !== null}
+            offerId={emailTarget?.id ?? null}
+            offerName={emailTarget?.name ?? null}
+            initialSubject={emailInitialSubject}
+            onClose={() => setEmailTarget(null)}
+            onSent={(r) =>
+              toast.success(
+                typeof r.recipients === 'number'
+                  ? `Offer email sent to ${r.recipients} recipient${r.recipients === 1 ? '' : 's'}.`
+                  : 'Offer email sent.'
+              )
+            }
           />
         </>
       )}

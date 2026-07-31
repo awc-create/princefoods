@@ -1,6 +1,8 @@
 // src/app/admin/shipping/shipping-client.tsx
 'use client';
 
+import { useAdminUi } from '@/components/admin/ui/AdminUiProvider';
+
 import { useEffect, useMemo, useState } from 'react';
 import {
   ALL_UK_POSTCODE_AREAS,
@@ -145,6 +147,7 @@ interface RateEditorModalProps {
 
 function RateEditorModal({ zoneId, onClose, onSaved }: RateEditorModalProps) {
   const [rateType, setRateType] = useState<RateType>('WEIGHT');
+  const { toast } = useAdminUi();
   const [temp, setTemp] = useState<Temp>('DRY');
   const [service, setService] = useState<Service>('STANDARD');
   const [currency, setCurrency] = useState('GBP');
@@ -259,7 +262,7 @@ function RateEditorModal({ zoneId, onClose, onSaved }: RateEditorModalProps) {
       onSaved();
       onClose();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to save rate');
+      toast.error(e instanceof Error ? e.message : 'Failed to save rate');
     } finally {
       setSaving(false);
     }

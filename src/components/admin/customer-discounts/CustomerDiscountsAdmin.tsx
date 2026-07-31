@@ -1,6 +1,8 @@
 // src/components/admin/customer-discounts/CustomerDiscountsAdmin.tsx
 'use client';
 
+import { useAdminUi } from '@/components/admin/ui/AdminUiProvider';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from './customer-discounts.module.scss';
 
@@ -40,6 +42,7 @@ function isCustomerOptionsOk(v: unknown): v is CustomerOptionsOk {
 
 export default function CustomerDiscountsAdmin() {
   const [loading, setLoading] = useState(true);
+  const { confirm } = useAdminUi();
   const [err, setErr] = useState<string | null>(null);
   const [rows, setRows] = useState<CustomerDiscountRow[]>([]);
 
@@ -235,9 +238,12 @@ export default function CustomerDiscountsAdmin() {
   }
 
   async function deleteRow(id: string) {
-    const yes = window.confirm(
-      'Delete this customer discount record? This removes it from history.'
-    );
+    const yes = await confirm({
+      title: 'Delete this customer discount record?',
+      message: 'This removes it from history.',
+      confirmLabel: 'Delete',
+      danger: true
+    });
     if (!yes) return;
 
     setErr(null);

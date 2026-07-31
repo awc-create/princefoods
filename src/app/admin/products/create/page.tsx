@@ -86,27 +86,41 @@ export default function CreateProductPage() {
       : (form.price - form.discountValue).toFixed(2);
   }, [form.price, form.discountMode, form.discountValue]);
 
+  const [submitting, setSubmitting] = useState(false);
+  const [submitErr, setSubmitErr] = useState<string | null>(null);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setSubmitErr(null);
+    setSubmitting(true);
     const body = {
       ...form,
       price: isNum(form.price) ? form.price : 0,
       surcharge: isNum(form.surcharge) ? form.surcharge : 0,
       weight: isNum(form.weight) ? form.weight : 0,
-      discountValue: isNum(form.discountValue) ? form.discountValue : 0
+      discountValue: isNum(form.discountValue) ? form.discountValue : 0,
+      // API stores a single primary image; keep the first uploaded one.
+      productImageUrl: form.productImageUrls[0] ?? null
     };
 
-    const res = await fetch('/api/products', {
-      method: 'POST',
-      body: JSON.stringify(body),
-      headers: { 'Content-Type': 'application/json' }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      window.location.href = `/admin/products/${data.product?.id ?? ''}`;
-    } else {
-      const err = await res.json().catch(() => ({}));
-      alert(err?.error ?? 'Failed to create product');
+    try {
+      // NB: the admin endpoint — /api/products only supports GET.
+      const res = await fetch('/api/admin/products', {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        window.location.href = `/admin/products/${data.product?.id ?? ''}`;
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setSubmitErr(err?.error ?? `Failed to create product (${res.status}).`);
+      }
+    } catch {
+      setSubmitErr('Network error — could not create product.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -302,7 +316,12 @@ export default function CreateProductPage() {
           )}
         </div>
 
-        <button type="submit">Create Product</button>
+        {submitErr && (
+          <p style={{ color: '#b91c1c', fontWeight: 600, margin: '8px 0' }}>⚠️ {submitErr}</p>
+        )}
+        <button type="submit" disabled={submitting}>
+          {submitting ? 'Creating…' : 'Create Product'}
+        </button>
       </form>
 
       {showModal && (

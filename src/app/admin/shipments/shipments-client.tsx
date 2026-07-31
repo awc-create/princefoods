@@ -1,6 +1,11 @@
 // src/app/admin/shipments/shipments-client.tsx
 'use client';
 
+import { shipmentStatusLabel } from '@/lib/admin-labels';
+
+import { useAdminUi } from '@/components/admin/ui/AdminUiProvider';
+import useDebouncedValue from '@/components/admin/ui/useDebouncedValue';
+import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 
@@ -62,7 +67,7 @@ function pill(status: string) {
               ? '#a78bfa'
               : '#a3a3a3';
 
-  return { base, dot: color, label: s || 'UNKNOWN' };
+  return { base, dot: color, label: s ? shipmentStatusLabel(s) : 'Unknown' };
 }
 
 function inputStyle(): React.CSSProperties {
@@ -142,6 +147,8 @@ export default function ShipmentsClient() {
   // ✅ always have a URLSearchParams instance
   const sp = useMemo(() => new URLSearchParams(spRaw?.toString() ?? ''), [spRaw]);
 
+  const { toast, confirm } = useAdminUi();
+
   const [rows, setRows] = useState<Shipment[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -217,12 +224,22 @@ export default function ShipmentsClient() {
     startTransition(() => {
       const next = qsSet(new URLSearchParams(sp.toString()), key, value);
       const qs = next.toString();
-      router.push(qs ? `${pathname}?${qs}` : pathname);
+      // replace (not push): filter tweaks shouldn't pollute browser history
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     });
   }
 
+  // Local, debounced search input — one URL update / fetch per pause, not per keystroke.
+  const [qInput, setQInput] = useState(q);
+  const debouncedQ = useDebouncedValue(qInput, 300);
+  useEffect(() => {
+    if (debouncedQ.trim() !== q) pushParam('q', debouncedQ.trim());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedQ]);
+
   function clearFilters() {
-    router.push(pathname);
+    setQInput('');
+    router.replace(pathname, { scroll: false });
   }
 
   function reprint(id: string) {
@@ -248,6 +265,7 @@ export default function ShipmentsClient() {
     setErr(null);
     try {
       await postJson(`/api/admin/shipments/${id}/label/retry`, {});
+      toast.success('Label retry requested.');
       await load(); // ✅ refresh this page’s data
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Retry failed');
@@ -261,6 +279,7 @@ export default function ShipmentsClient() {
     setErr(null);
     try {
       await postJson(`/api/admin/shipments/${id}/dispatch`, { includeLabelLink: true });
+      toast.success('Shipment dispatched — tracking email queued.');
       await load();
       router.refresh(); // optional (if you also have server components depending on this)
     } catch (e) {
@@ -270,11 +289,22 @@ export default function ShipmentsClient() {
     }
   }
 
-  async function voidShipment(id: string) {
-    setBusy(id);
+  async function voidShipment(s: Shipment) {
+    const label = s.order?.displayId ?? s.waybill ?? s.id.slice(0, 8);
+    const ok = await confirm({
+      title: `Void shipment for order ${label}?`,
+      message:
+        'This cancels the shipment with the carrier. The label (if any) becomes invalid. This cannot be undone.',
+      confirmLabel: 'Void shipment',
+      danger: true
+    });
+    if (!ok) return;
+
+    setBusy(s.id);
     setErr(null);
     try {
-      await postJson(`/api/admin/shipments/${id}/void`, {});
+      await postJson(`/api/admin/shipments/${s.id}/void`, {});
+      toast.success(`Shipment for ${label} voided.`);
       await load();
       router.refresh();
     } catch (e) {
@@ -301,8 +331,8 @@ export default function ShipmentsClient() {
         <label style={{ display: 'grid', gap: 6 }}>
           <span style={{ fontSize: 12, fontWeight: 900, color: '#e5e7eb' }}>Search</span>
           <input
-            value={q}
-            onChange={(e) => pushParam('q', e.target.value)}
+            value={qInput}
+            onChange={(e) => setQInput(e.target.value)}
             placeholder="waybill / tracking / order displayId…"
             style={inputStyle()}
           />
@@ -433,7 +463,17 @@ export default function ShipmentsClient() {
 
                 <div style={{ display: 'grid', gap: 2 }}>
                   <div style={{ fontWeight: 950 }}>
-                    {s.order?.displayId ?? s.orderId?.slice?.(0, 8) ?? '—'}
+                    {s.orderId ? (
+                      <Link
+                        href={`/admin/orders/${s.orderId}`}
+                        style={{ color: '#93c5fd', textDecoration: 'none' }}
+                        title="Open order"
+                      >
+                        {s.order?.displayId ?? s.orderId.slice(0, 8)} →
+                      </Link>
+                    ) : (
+                      '—'
+                    )}
                   </div>
                   <div style={{ fontSize: 12, color: '#94a3b8' }}>
                     {s.order?.contactEmail ?? '—'}
@@ -490,17 +530,19 @@ export default function ShipmentsClient() {
                     disabled={!canDispatch || disabled}
                     onClick={() => dispatch(s.id)}
                     style={btnStyle('primary', !canDispatch || disabled)}
+                    title="Marks the parcel as sent and emails the tracking link to the customer"
                   >
-                    {disabled ? 'Working…' : 'Dispatch'}
+                    {disabled ? 'Working…' : 'Email tracking'}
                   </button>
 
                   <button
                     type="button"
                     disabled={!canVoid || disabled}
-                    onClick={() => voidShipment(s.id)}
+                    onClick={() => void voidShipment(s)}
                     style={btnStyle('danger', !canVoid || disabled)}
+                    title="Cancels this shipment with APC — the label stops being valid"
                   >
-                    Void
+                    Cancel label
                   </button>
                 </div>
               </div>
@@ -510,7 +552,7 @@ export default function ShipmentsClient() {
       </div>
 
       <p style={{ margin: 0, color: '#94a3b8', fontSize: 12, fontWeight: 650 }}>
-        Tip: “Retry label” is only enabled when there is no label stored (base64/url).
+        Tip: “Retry label” only works when no label has been saved yet. “Email tracking” tells the customer their parcel is on its way.
       </p>
     </div>
   );

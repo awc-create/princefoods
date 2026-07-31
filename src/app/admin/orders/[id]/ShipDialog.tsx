@@ -1,6 +1,8 @@
 // src/app/admin/orders/%5Bid%5D/ShipDialog.tsx
 'use client';
 
+import { useAdminUi } from '@/components/admin/ui/AdminUiProvider';
+
 import { useState } from 'react';
 
 type Carrier = 'APC Overnight' | 'Royal Mail' | 'Evri' | 'DPD' | 'Other';
@@ -13,6 +15,7 @@ export default function ShipDialog({
   contactEmail?: string | null;
 }) {
   const [open, setOpen] = useState(false);
+  const { toast } = useAdminUi();
   const [carrier, setCarrier] = useState<Carrier>('APC Overnight');
   const [trackingNumber, setTrackingNumber] = useState('');
   const [trackingUrl, setTrackingUrl] = useState('');
@@ -37,7 +40,7 @@ export default function ShipDialog({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!trackingNumber.trim()) {
-      alert('Enter a tracking number');
+      toast.error('Enter a tracking number');
       return;
     }
     setBusy(true);
@@ -56,10 +59,10 @@ export default function ShipDialog({
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || j?.ok === false) {
-        alert(j?.error ?? 'Failed to save tracking');
+        toast.error(j?.error ?? 'Failed to save tracking');
         return;
       }
-      alert(j.emailed ? 'Tracking saved and emailed to customer.' : 'Tracking saved.');
+      toast.success(j.emailed ? 'Tracking saved and emailed to customer.' : 'Tracking saved.');
       setOpen(false);
       location.reload();
     } finally {

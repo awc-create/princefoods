@@ -1,6 +1,8 @@
 // src/components/admin/offers/OffersTable.tsx
 'use client';
 
+import { offerStatusLabel } from '@/lib/admin-labels';
+
 import type { OfferAdminForm } from '@/types/offers';
 import styles from './offers.module.scss';
 import { fmtDate, offerLabel } from './utils';
@@ -15,19 +17,21 @@ function statusPill(status: OfferAdminForm['status']) {
         ? styles.statusPaused
         : styles.statusOther;
 
-  return <span className={`${styles.statusPill} ${cls}`}>{status}</span>;
+  return <span className={`${styles.statusPill} ${cls}`}>{offerStatusLabel(status)}</span>;
 }
 
 export default function OffersTable({
   rows,
   onEdit,
   onToggle,
-  onDelete
+  onDelete,
+  onSendEmail
 }: {
   rows: OfferRow[];
   onEdit: (id: string) => void;
   onToggle: (o: OfferRow) => void;
   onDelete: (o: OfferRow) => void;
+  onSendEmail?: (o: OfferRow) => void;
 }) {
   return (
     <div className={styles.offersTableWrap}>
@@ -84,6 +88,17 @@ export default function OffersTable({
                       >
                         {o.status === 'ACTIVE' ? 'Pause' : 'Resume'}
                       </button>
+
+                      {onSendEmail && (
+                        <button
+                          type="button"
+                          className={styles.actionBtn}
+                          onClick={() => onSendEmail(o)}
+                          title="Email this offer to customers"
+                        >
+                          Send email
+                        </button>
+                      )}
 
                       <button
                         type="button"

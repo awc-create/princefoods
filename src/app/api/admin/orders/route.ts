@@ -63,6 +63,18 @@ export async function GET(req: NextRequest) {
     if (status) whereAND.push({ status });
     if (paymentStatus) whereAND.push({ paymentStatus });
 
+    // 📅 Date range (inclusive). "from"/"to" are YYYY-MM-DD.
+    const fromRaw = url.searchParams.get('from');
+    const toRaw = url.searchParams.get('to');
+    if (fromRaw) {
+      const from = new Date(`${fromRaw}T00:00:00.000Z`);
+      if (!Number.isNaN(from.getTime())) whereAND.push({ createdAt: { gte: from } });
+    }
+    if (toRaw) {
+      const to = new Date(`${toRaw}T23:59:59.999Z`);
+      if (!Number.isNaN(to.getTime())) whereAND.push({ createdAt: { lte: to } });
+    }
+
     // 💳 Provider mapping: "stripe" = live; "test" = any test marker
     if (provider === 'stripe') {
       whereAND.push({ paymentProvider: { in: ['stripe', 'stripe_live'] } });

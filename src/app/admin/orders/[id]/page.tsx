@@ -1,7 +1,10 @@
 // src/app/admin/orders/[id]/page.tsx
 import ApcShipmentCard from '@/components/admin/orders/ApcShipmentCard';
 import BuyApcLabelButton from '@/components/admin/orders/BuyApcLabelButton';
+import NextStepBar from '@/components/admin/orders/NextStepBar';
 import ReturnActionsCard from '@/components/admin/orders/ReturnActionsCard';
+import { orderStatusLabel, paymentStatusLabel } from '@/lib/admin-labels';
+import { getOrderNextStep } from '@/lib/order-next-step';
 import { prisma } from '@/lib/prisma';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -12,7 +15,6 @@ import ActivityList from './ActivityList';
 import EditEmailInline from './EditEmailInline';
 import MoreActions from './MoreActions';
 import TagEditor from './TagEditor';
-import UndoCancelButton from './UndoCancelButton';
 
 /**
  * ✅ Why the local types?
@@ -286,6 +288,21 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     })
   ]);
 
+  // Newest live shipment — drives the "what to do next" bar.
+  const latestShipment = await prisma.shipment.findFirst({
+    where: { orderId: id, voidedAt: null },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      status: true,
+      labelUrl: true,
+      labelBase64: true,
+      dispatchedAt: true,
+      voidedAt: true,
+      trackingNumber: true
+    }
+  });
+
   const order = (orderRaw as unknown as OrderWithRels | null) ?? null;
   const activities = (activitiesRaw as unknown as ActivityRow[]) ?? [];
   const orderTagRows = (orderTagRowsRaw as unknown as OrderTagRow[]) ?? [];
@@ -345,6 +362,24 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   const isArchived = Boolean(order.archivedAt);
 
+  const nextStep = getOrderNextStep({
+    orderId: order.id,
+    status: order.status,
+    paymentStatus: order.paymentStatus,
+    archivedAt: order.archivedAt,
+    cancelReversibleUntil: order.cancelReversibleUntil ?? order.editableUntil,
+    refundTotal: order.refundTotal,
+    shipment: latestShipment
+      ? {
+          status: latestShipment.status,
+          hasLabel: Boolean(latestShipment.labelUrl ?? latestShipment.labelBase64),
+          dispatchedAt: latestShipment.dispatchedAt,
+          trackingNumber: latestShipment.trackingNumber,
+          voidedAt: latestShipment.voidedAt
+        }
+      : null
+  });
+
   const promoLabel = order.promotion
     ? `${order.promotion.code}${order.promotion.name ? ` — ${order.promotion.name}` : ''}`
     : (order.promotionCode ?? null);
@@ -368,12 +403,21 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   return (
     <div style={{ padding: 24, display: 'grid', gap: 14 }}>
+      <div>
+        <Link
+          href="/admin/orders"
+          style={{ color: '#007bff', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}
+        >
+          ← Back to orders
+        </Link>
+      </div>
+
       <header style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <h1 style={{ margin: 0, lineHeight: 1.2, fontWeight: 700 }}>
           Order #{order.displayId ?? order.id}
         </h1>
-        <Badge tone={statusTone}>{order.status}</Badge>
-        <Badge tone={paymentTone}>Payment: {order.paymentStatus}</Badge>
+        <Badge tone={statusTone}>{orderStatusLabel(order.status)}</Badge>
+        <Badge tone={paymentTone}>{paymentStatusLabel(order.paymentStatus)}</Badge>
         {isArchived && <Badge tone="muted">Archived</Badge>}
         {isTestOrder && <Badge tone="muted">Test</Badge>}
       </header>
@@ -400,7 +444,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         )}
       </div>
 
-      {reversibleUntil && (
+      {/* What to do next — one obvious action, driven by the order's real state. */}
+      <NextStepBar step={nextStep} orderId={order.id} shipmentId={latestShipment?.id ?? null} />
+
+      {/* Reversal window detail. The cancelled case is already covered by the bar above. */}
+      {reversibleUntil && order.status !== 'CANCELLED' && order.status !== 'REFUNDED' && (
         <div
           style={{
             padding: '8px 12px',
@@ -426,29 +474,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               </>
             )}
           </div>
-
-          {isReversible && order.status === 'CANCELLED' && (order.refundTotal ?? 0) === 0 && (
-            <UndoCancelButton
-              orderId={order.id}
-              untilISO={reversibleUntil.toISOString()}
-              disabled={false}
-            />
-          )}
+          {/* Undo for cancelled orders now lives in the "Next step" bar above. */}
         </div>
       )}
 
-      {/* Flags for CancelDialog */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-            window.__order_isTest = ${JSON.stringify(isTestOrder)};
-            window.__order_hasStripeCapture = ${JSON.stringify(hasStripeCapture)};
-            window.__order_refundableRemainingPence = ${JSON.stringify(refundableRemainingPence)};
-          `
-        }}
-      />
-
-      {/* ✅ Buttons: LIVE + TEST (no switcher) */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <MoreActions
           orderId={order.id}
@@ -458,21 +487,31 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             order.status !== 'CANCELLED' &&
             order.status !== 'REFUNDED'
           }
+          isTestOrder={isTestOrder}
+          hasStripeCapture={hasStripeCapture}
+          refundableRemainingPence={refundableRemainingPence}
+          isArchived={isArchived}
         />
 
-        <BuyApcLabelButton
-          mode="live"
-          orderId={order.id}
-          weightGrams={totalWeightGrams || undefined}
-          deliveryPreview={deliveryPreview}
-        />
+        <span id="buy-apc-label">
+          <BuyApcLabelButton
+            mode="live"
+            orderId={order.id}
+            weightGrams={totalWeightGrams || undefined}
+            deliveryPreview={deliveryPreview}
+          />
+        </span>
 
-        <BuyApcLabelButton
-          mode="test"
-          orderId={order.id}
-          weightGrams={totalWeightGrams || undefined}
-          deliveryPreview={deliveryPreview}
-        />
+        {/* TEST label button only for test orders or outside production —
+            keeps a mis-click from buying the wrong label type. */}
+        {(isTestOrder || process.env.NODE_ENV !== 'production') && (
+          <BuyApcLabelButton
+            mode="test"
+            orderId={order.id}
+            weightGrams={totalWeightGrams || undefined}
+            deliveryPreview={deliveryPreview}
+          />
+        )}
       </div>
 
       {/* Main layout */}
@@ -665,18 +704,35 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                               : 'muted'
                         }
                       >
-                        {p.status}
+                        {paymentStatusLabel(p.status)}
                       </Badge>
                       <strong>{formatMoney(p.amountPence, p.currency ?? currency)}</strong>
                       <span style={{ color: '#888' }}>
                         {new Date(p.createdAt).toLocaleString('en-GB')}
                       </span>
+                      <span style={{ color: '#888', fontSize: 13 }}>
+                        paid by {p.provider === 'test' ? 'test payment' : (p.provider ?? '—')}
+                      </span>
                     </div>
-                    <div style={{ color: '#888', fontSize: 13, marginTop: 4 }}>
-                      provider: {p.provider ?? '—'} • intent: {p.intentId ?? '—'} • charge:{' '}
-                      {p.chargeId ?? '—'} • refund: {p.refundId ?? '—'}
-                      {p.idempotencyKey ? <> • key: {p.idempotencyKey}</> : null}
-                    </div>
+
+                    {/* Reference codes — only needed when contacting Stripe support. */}
+                    <details style={{ marginTop: 6 }}>
+                      <summary
+                        style={{
+                          cursor: 'pointer',
+                          color: '#888',
+                          fontSize: 12,
+                          userSelect: 'none'
+                        }}
+                      >
+                        Technical details
+                      </summary>
+                      <div style={{ color: '#888', fontSize: 13, marginTop: 4 }}>
+                        intent: {p.intentId ?? '—'} • charge: {p.chargeId ?? '—'} • refund:{' '}
+                        {p.refundId ?? '—'}
+                        {p.idempotencyKey ? <> • key: {p.idempotencyKey}</> : null}
+                      </div>
+                    </details>
                   </li>
                 ))}
               </ul>

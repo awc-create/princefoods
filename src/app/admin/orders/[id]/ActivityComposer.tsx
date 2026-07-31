@@ -1,6 +1,8 @@
 // ActivityComposer.tsx
 'use client';
 
+import { useAdminUi } from '@/components/admin/ui/AdminUiProvider';
+
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
@@ -8,6 +10,7 @@ export default function ActivityComposer({ orderId }: { orderId: string }) {
   const [text, setText] = useState('');
   const [isPending, start] = useTransition();
   const router = useRouter();
+  const { toast } = useAdminUi();
 
   async function submit() {
     const note = text.trim();
@@ -22,7 +25,7 @@ export default function ActivityComposer({ orderId }: { orderId: string }) {
 
       const j = await res.json().catch(() => null);
       if (!res.ok || j?.ok === false) {
-        alert(j?.error ?? 'Failed to add note');
+        toast.error(j?.error ?? 'Failed to add note');
         return;
       }
 

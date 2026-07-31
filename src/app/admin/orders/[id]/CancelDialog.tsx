@@ -1,5 +1,7 @@
 'use client';
 
+import { useAdminUi } from '@/components/admin/ui/AdminUiProvider';
+
 import { useEffect, useMemo, useState } from 'react';
 
 type Mode = 'CANCEL_ONLY' | 'FULL_REFUND' | 'PARTIAL_REFUND' | 'MARK_REFUNDED_EXTERNALLY';
@@ -50,6 +52,7 @@ export default function CancelDialog({
 }) {
   const [mode, setMode] = useState<Mode>('CANCEL_ONLY');
   const [reason, setReason] = useState('');
+  const { toast } = useAdminUi();
   const [amountStr, setAmountStr] = useState('');
   const [saving, setSaving] = useState(false);
   const [previewUntil, setPreviewUntil] = useState<string>('');
@@ -135,20 +138,20 @@ export default function CancelDialog({
 
       if (resp.mode === 'stripe-refund') {
         const pounds = ((resp.refundedPence ?? 0) / 100).toFixed(2);
-        alert(
+        toast.success(
           `Refunded £${pounds} via Stripe. Undo available until ${new Date(until).toLocaleString('en-GB')}.`
         );
       } else if (resp.mode === 'manual-refund') {
-        alert(
+        toast.success(
           `Marked as refunded externally. Undo available until ${new Date(until).toLocaleString('en-GB')}.`
         );
       } else {
-        alert(`Order cancelled. Undo available until ${new Date(until).toLocaleString('en-GB')}.`);
+        toast.success(`Order cancelled. Undo available until ${new Date(until).toLocaleString('en-GB')}.`);
       }
 
       location.reload();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to cancel/refund.');
+      toast.error(e instanceof Error ? e.message : 'Failed to cancel/refund.');
     } finally {
       setSaving(false);
     }

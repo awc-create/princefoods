@@ -80,7 +80,7 @@ export default function SettingsPage() {
               onClick={() => setActiveTab('shipping')}
               title="APC Warehouse / Pickup"
             >
-              <Package size={16} /> Shipping (APC)
+              <Package size={16} /> Carrier (APC)
             </button>
           </>
         )}

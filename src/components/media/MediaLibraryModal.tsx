@@ -1,5 +1,7 @@
 'use client';
 
+import { useAdminUiSafe } from '@/components/admin/ui/AdminUiProvider';
+
 import type { ListedMediaFile } from '@/lib/client-upload';
 import { deleteUploadedFile, listUploadedFiles, uploadSingleFile } from '@/lib/client-upload';
 import Image from 'next/image';
@@ -35,6 +37,7 @@ export default function MediaLibraryModal({
   onSelect
 }: Props) {
   const [files, setFiles] = useState<ListedMediaFile[]>([]);
+  const { confirm } = useAdminUiSafe();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
@@ -101,7 +104,12 @@ export default function MediaLibraryModal({
   }
 
   async function handleDelete(file: ListedMediaFile) {
-    const confirmed = window.confirm('Delete this file permanently from storage?');
+    const confirmed = await confirm({
+      title: 'Delete this file permanently from storage?',
+      message: 'Anywhere this file is used will lose its image.',
+      confirmLabel: 'Delete',
+      danger: true
+    });
     if (!confirmed) return;
 
     try {

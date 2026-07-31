@@ -546,11 +546,11 @@ export default function CreateOfferModal({
                     value={kind}
                     onChange={(e) => setKind(e.target.value as AdminOfferKind)}
                   >
-                    <option value="BOGOF">BOGOF (Buy X get Y free)</option>
-                    <option value="X_FOR_Y">X for Y (Buy X pay for Y)</option>
-                    <option value="X_FOR_FIXED_PRICE">X for £ (Buy X for fixed price)</option>
-                    <option value="PERCENT_OFF">% off</option>
-                    <option value="AMOUNT_OFF">£ off</option>
+                    <option value="BOGOF">Buy one, get one free</option>
+                    <option value="X_FOR_Y">Buy X, pay for fewer (e.g. buy 3 pay 2)</option>
+                    <option value="X_FOR_FIXED_PRICE">Fixed price for X items (e.g. 3 for £5)</option>
+                    <option value="PERCENT_OFF">Percentage off (e.g. 10% off)</option>
+                    <option value="AMOUNT_OFF">Money off (e.g. £5 off)</option>
                   </select>
                 </div>
               </div>

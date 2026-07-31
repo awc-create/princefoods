@@ -2,6 +2,7 @@
 'use client';
 
 import NotificationBell from '@/components/admin/NotificationBell';
+import AdminUiProvider from '@/components/admin/ui/AdminUiProvider';
 import { signOut, useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -20,8 +21,13 @@ const hasRole = (u: unknown): u is UserWithRole =>
   !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
 
 function isActivePath(current: string, href: string) {
+  // "/admin" (Overview) must only match exactly, otherwise it would
+  // highlight on every admin page via the startsWith check below.
+  if (href === '/admin') return current === '/admin';
   return current === href || current.startsWith(`${href}/`);
 }
+
+const NAV_OPEN_KEY = 'admin.nav.open';
 
 const isLoginPage = (p: string) =>
   p === '/admin/login' ||
@@ -49,7 +55,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // HEAD   — full access to everything
   // STAFF  — everything except managing other staff accounts
   // VIEWER — read-only: dashboard, orders, products, customers only
-  const isHead = role === 'HEAD';
   const isStaff = role === 'HEAD' || role === 'STAFF';
   const isViewer = role === 'VIEWER';
 
@@ -61,6 +66,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     marketing: false,
     admin: false
   });
+
+  // Restore persisted open/closed state
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(NAV_OPEN_KEY);
+      if (raw) setOpen((o) => ({ ...o, ...(JSON.parse(raw) as Record<GroupKey, boolean>) }));
+    } catch {
+      /* ignore corrupt state */
+    }
+  }, []);
 
   const groups = useMemo(() => {
     const list = [
@@ -97,8 +112,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         items: [
           { href: '/admin/orders', label: 'Orders' },
           { href: '/admin/shipments', label: 'Shipments' },
-          ...(isStaff ? [{ href: '/admin/shipping', label: 'Shipping' }] : []),
+          ...(isStaff ? [{ href: '/admin/shipping', label: 'Delivery Rates' }] : []),
           { href: '/admin/orders/exceptions', label: 'Delivery Exceptions' },
+          { href: '/admin/returns', label: 'Returns' },
           { href: '/admin/customers', label: 'Customers' }
         ]
       },
@@ -118,13 +134,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         items: [
           { href: '/admin/guide', label: '📖 Guide' },
           { href: '/admin/notifications', label: 'Notifications' },
-          { href: '/admin/settings', label: 'Settings' },
-          ...(isHead ? [{ href: '/admin/change-password', label: 'Change Password' }] : [])
+          // Password change lives in Settings → Password; no separate nav item.
+          { href: '/admin/settings', label: 'Settings' }
         ]
       }
     ];
     return list.filter((g) => !g.hide);
-  }, [isHead, isStaff, isViewer]);
+  }, [isStaff, isViewer]);
+
+  // Auto-expand the group containing the current page so the active
+  // link is never hidden inside a collapsed group.
+  useEffect(() => {
+    const g = groups.find((grp) => grp.items.some((it) => isActivePath(pathname, it.href)));
+    if (g && !open[g.key]) {
+      setOpen((o) => ({ ...o, [g.key]: true }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, groups]);
 
   if (isLoginPage(pathname)) return <>{children}</>;
 
@@ -132,7 +158,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return <div style={{ padding: '2rem', color: '#6b7280' }}>Loading…</div>;
   }
 
-  const toggle = (k: GroupKey) => setOpen((o) => ({ ...o, [k]: !o[k] }));
+  const toggle = (k: GroupKey) =>
+    setOpen((o) => {
+      const next = { ...o, [k]: !o[k] };
+      try {
+        window.localStorage.setItem(NAV_OPEN_KEY, JSON.stringify(next));
+      } catch {
+        /* storage unavailable */
+      }
+      return next;
+    });
 
   async function handleSignOut() {
     await signOut({ redirect: false });
@@ -204,8 +239,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       <main className={styles.adminMain}>
-        <SetupPush />
-        {children}
+        <AdminUiProvider>
+          <SetupPush />
+          {children}
+        </AdminUiProvider>
       </main>
     </div>
   );

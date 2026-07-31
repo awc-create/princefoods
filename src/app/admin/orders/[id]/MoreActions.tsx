@@ -1,5 +1,7 @@
 'use client';
 
+import { useAdminUi } from '@/components/admin/ui/AdminUiProvider';
+
 import { useEffect, useRef, useState } from 'react';
 import CancelDialog from './CancelDialog';
 import FulfillDialog from './FulfillDialog';
@@ -45,23 +47,22 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return data as T;
 }
 
-/** Augment Window to avoid `any` */
-declare global {
-  interface Window {
-    __order_isTest?: boolean;
-    __order_hasStripeCapture?: boolean;
-    __order_refundableRemainingPence?: number;
-  }
-}
-
 export default function MoreActions({
   orderId,
   contactEmail,
-  canFulfill
+  canFulfill,
+  isTestOrder = false,
+  hasStripeCapture = false,
+  refundableRemainingPence = 0,
+  isArchived = false
 }: {
   orderId: string;
   contactEmail?: string | null;
   canFulfill: boolean;
+  isTestOrder?: boolean;
+  hasStripeCapture?: boolean;
+  refundableRemainingPence?: number;
+  isArchived?: boolean;
 }) {
   const [openPrint, setOpenPrint] = useState(false);
   const [openActions, setOpenActions] = useState(false);
@@ -69,12 +70,7 @@ export default function MoreActions({
   const [openCancel, setOpenCancel] = useState(false);
 
   const wrapRef = useRef<HTMLDivElement>(null);
-
-  // injected by the server page
-  const w: Window | undefined = typeof window !== 'undefined' ? window : undefined;
-  const isTestOrder = Boolean(w?.__order_isTest);
-  const hasStripeCapture = Boolean(w?.__order_hasStripeCapture);
-  const refundableRemainingPence = Number(w?.__order_refundableRemainingPence ?? 0);
+  const { toast } = useAdminUi();
 
   // Close on click outside / Escape
   useEffect(() => {
@@ -154,7 +150,7 @@ export default function MoreActions({
       await postJson<Record<string, never>>(`/api/admin/orders/${orderId}/archive`, {});
       location.reload();
     } catch (e) {
-      alert(`Archive failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
+      toast.error(`Archive failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
     } finally {
       setBusy(null);
       setOpenActions(false);
@@ -167,7 +163,7 @@ export default function MoreActions({
       await postJson<Record<string, never>>(`/api/admin/orders/${orderId}/unarchive`, {});
       location.reload();
     } catch (e) {
-      alert(`Unarchive failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
+      toast.error(`Unarchive failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
     } finally {
       setBusy(null);
       setOpenActions(false);
@@ -307,25 +303,28 @@ export default function MoreActions({
                 ❌ Cancel & refund
               </button>
 
-              <button
-                onClick={onArchive}
-                disabled={busy !== null}
-                style={item}
-                role="menuitem"
-                title="Archive this order"
-              >
-                {busy === 'archive' ? 'Archiving…' : '🗄️ Archive'}
-              </button>
-
-              <button
-                onClick={onUnarchive}
-                disabled={busy !== null}
-                style={item}
-                role="menuitem"
-                title="Unarchive this order"
-              >
-                {busy === 'unarchive' ? 'Unarchiving…' : '🗂️ Unarchive'}
-              </button>
+              {/* Only ever show the one that applies — showing both means one is always wrong. */}
+              {isArchived ? (
+                <button
+                  onClick={onUnarchive}
+                  disabled={busy !== null}
+                  style={item}
+                  role="menuitem"
+                  title="Put this order back in the main list"
+                >
+                  {busy === 'unarchive' ? 'Restoring…' : '🗂️ Restore to main list'}
+                </button>
+              ) : (
+                <button
+                  onClick={onArchive}
+                  disabled={busy !== null}
+                  style={item}
+                  role="menuitem"
+                  title="Hide from the main list — still searchable under Archived"
+                >
+                  {busy === 'archive' ? 'Archiving…' : '🗄️ Archive (hide from main list)'}
+                </button>
+              )}
             </div>
           </div>
         )}

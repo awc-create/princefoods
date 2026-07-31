@@ -1,7 +1,12 @@
 'use client';
 
+import { optionTypeLabel } from '@/lib/admin-labels';
+
+import { useAdminUi } from '@/components/admin/ui/AdminUiProvider';
+import MediaField from '@/components/media/MediaField';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import styles from './Edit.module.scss';
 
 interface Product {
@@ -71,17 +76,24 @@ interface Category {
   parentId: string | null;
 }
 
+const INVENTORY_OPTIONS = ['In Stock', 'Out of Stock'];
+const OPTION_TYPES = ['DROP_DOWN', 'RADIO', 'CHECKBOX'];
+
 export default function ProductEditPage() {
   const params = useParams() as { id?: string } | null;
   const id = params?.id;
   const router = useRouter();
+  const { toast, confirm } = useAdminUi();
 
   const [p, setP] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [saveErr, setSaveErr] = useState<string | null>(null);
-  const [saveOk, setSaveOk] = useState(false);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+
+  // Snapshot of the last loaded/saved state, for dirty checking.
+  const savedRef = useRef<string>('');
+  const isDirty = p !== null && JSON.stringify(p) !== savedRef.current;
 
   useEffect(() => {
     fetch('/api/admin/categories')
@@ -95,29 +107,49 @@ export default function ProductEditPage() {
     if (!id) return;
     (async () => {
       setLoading(true);
-      const res = await fetch(`/api/admin/products/${id}`);
-      if (!res.ok) {
-        setLoading(false);
-        return;
+      setLoadErr(null);
+      try {
+        const res = await fetch(`/api/admin/products/${id}`);
+        if (!res.ok) {
+          setLoadErr(res.status === 404 ? 'Product not found.' : `Failed to load (${res.status}).`);
+          return;
+        }
+        const data = await res.json();
+        if (ignore) return;
+        setP(data.product as Product);
+        savedRef.current = JSON.stringify(data.product);
+      } catch {
+        if (!ignore) setLoadErr('Network error — could not load product.');
+      } finally {
+        if (!ignore) setLoading(false);
       }
-      const data = await res.json();
-      if (ignore) return;
-      setP(data.product as Product);
-      setLoading(false);
     })();
     return () => {
       ignore = true;
     };
   }, [id]);
 
-  if (!id || loading) return <div className={styles.wrap}>Loading…</div>;
-  if (!p) return <div className={styles.wrap}>Not found.</div>;
+  // Warn before closing the tab with unsaved changes.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [isDirty]);
 
-  async function save() {
+  const set = <K extends keyof Product>(k: K, v: Product[K]) =>
+    setP((prev) => (prev ? { ...prev, [k]: v } : prev));
+
+  const parentCats = useMemo(() => categories.filter((c) => !c.parentId), [categories]);
+  const childCats = useMemo(() => categories.filter((c) => c.parentId), [categories]);
+
+  async function save(close: boolean) {
     if (!id || !p) return;
     setSaving(true);
-    setSaveErr(null);
-    setSaveOk(false);
     try {
       const res = await fetch(`/api/admin/products/${id}`, {
         method: 'PATCH',
@@ -125,32 +157,69 @@ export default function ProductEditPage() {
         body: JSON.stringify(p)
       });
       if (res.ok) {
-        setSaveOk(true);
-        setTimeout(() => router.push('/admin/products'), 800);
+        savedRef.current = JSON.stringify(p);
+        toast.success('Product saved.');
+        if (close) router.push('/admin/products');
       } else {
         const err = await res.json().catch(() => ({}));
-        setSaveErr(err?.message ?? `Save failed (${res.status})`);
+        toast.error(err?.message ?? `Save failed (${res.status}).`);
       }
     } catch {
-      setSaveErr('Network error — could not save.');
+      toast.error('Network error — could not save.');
     } finally {
       setSaving(false);
     }
   }
 
-  const set = <K extends keyof Product>(k: K, v: Product[K]) =>
-    setP((prev) => (prev ? { ...prev, [k]: v } : prev));
+  async function cancel() {
+    if (isDirty) {
+      const ok = await confirm({
+        title: 'Discard unsaved changes?',
+        message: 'Your edits to this product will be lost.',
+        confirmLabel: 'Discard',
+        danger: true
+      });
+      if (!ok) return;
+    }
+    router.push('/admin/products');
+  }
 
-  // Flat category list for dropdown
-  const parentCats = categories.filter((c) => !c.parentId);
-  const childCats = categories.filter((c) => c.parentId);
+  if (!id || loading) return <div className={styles.wrap}>Loading…</div>;
+  if (loadErr || !p) {
+    return (
+      <div className={styles.wrap}>
+        <p>⚠️ {loadErr ?? 'Not found.'}</p>
+        <Link href="/admin/products">← Back to products</Link>
+      </div>
+    );
+  }
+
+  // Inventory select: include the current value if it's non-standard so it isn't lost.
+  const inventoryChoices = INVENTORY_OPTIONS.includes(p.inventory ?? '')
+    ? INVENTORY_OPTIONS
+    : p.inventory
+      ? [p.inventory, ...INVENTORY_OPTIONS]
+      : INVENTORY_OPTIONS;
 
   return (
     <div className={styles.wrap}>
-      <h1>Edit: {p.name}</h1>
+      <div style={{ marginBottom: 8 }}>
+        <Link
+          href="/admin/products"
+          style={{ fontSize: 13, fontWeight: 600, textDecoration: 'none', color: '#007bff' }}
+        >
+          ← Back to products
+        </Link>
+      </div>
 
-      {saveErr && <div className={styles.errBanner}>⚠️ {saveErr}</div>}
-      {saveOk && <div className={styles.okBanner}>✅ Saved! Redirecting…</div>}
+      <h1>
+        Edit: {p.name}
+        {isDirty && (
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#b45309', marginLeft: 10 }}>
+            • Unsaved changes
+          </span>
+        )}
+      </h1>
 
       <div className={styles.sections}>
         {/* ── Core ── */}
@@ -196,19 +265,17 @@ export default function ProductEditPage() {
             </label>
             <label>
               Inventory
-              <input
+              <select
                 value={p.inventory ?? ''}
-                placeholder="e.g. In Stock"
                 onChange={(e) => set('inventory', e.target.value || null)}
-              />
-            </label>
-            <label>
-              Collection
-              <input
-                value={p.collection ?? ''}
-                placeholder="e.g. Snacks"
-                onChange={(e) => set('collection', e.target.value || null)}
-              />
+              >
+                <option value="">— Not set —</option>
+                {inventoryChoices.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
             </label>
             <label>
               Category
@@ -232,6 +299,15 @@ export default function ProductEditPage() {
               </select>
             </label>
             <label>
+              Legacy collection path
+              <input
+                value={p.collection ?? ''}
+                placeholder="e.g. Bakery; Savouries"
+                title="Old free-text taxonomy kept for imported products. Prefer Category above."
+                onChange={(e) => set('collection', e.target.value || null)}
+              />
+            </label>
+            <label>
               Ribbon / badge
               <input
                 value={p.ribbon ?? ''}
@@ -239,13 +315,17 @@ export default function ProductEditPage() {
                 onChange={(e) => set('ribbon', e.target.value || null)}
               />
             </label>
-            <label>
-              Image URL
-              <input
-                value={p.productImageUrl ?? ''}
-                onChange={(e) => set('productImageUrl', e.target.value || null)}
-              />
-            </label>
+
+            <MediaField
+              value={p.productImageUrl}
+              onChange={(url) => set('productImageUrl', url)}
+              pathSegments={['products', p.name || 'product']}
+              itemName="main"
+              label="Product image"
+              modalTitle="Choose product image"
+              accept="image/*"
+            />
+
             <label>
               Description
               <textarea
@@ -297,11 +377,12 @@ export default function ProductEditPage() {
               </select>
             </label>
             <label>
-              Discount value
+              Discount value {p.discountMode === 'PERCENT' ? '(%)' : p.discountMode === 'AMOUNT' ? '(£)' : ''}
               <input
                 type="number"
                 step="0.01"
                 min="0"
+                max={p.discountMode === 'PERCENT' ? 100 : undefined}
                 value={p.discountValue ?? ''}
                 onChange={(e) =>
                   set('discountValue', e.target.value ? Number(e.target.value) : null)
@@ -355,6 +436,11 @@ export default function ProductEditPage() {
             const typeKey = `productOptionType${i}` as keyof Product;
             const descKey = `productOptionDescription${i}` as keyof Product;
             if (i > 1 && !p[`productOptionName${i - 1}` as keyof Product]) return null;
+            const currentType = String(p[typeKey] ?? '');
+            const typeChoices =
+              currentType && !OPTION_TYPES.includes(currentType)
+                ? [currentType, ...OPTION_TYPES]
+                : OPTION_TYPES;
             return (
               <div
                 key={i}
@@ -380,11 +466,17 @@ export default function ProductEditPage() {
                   </label>
                   <label style={{ gap: 4 }}>
                     Type
-                    <input
-                      placeholder="e.g. DROP_DOWN"
-                      value={String(p[typeKey] ?? '')}
+                    <select
+                      value={currentType}
                       onChange={(e) => set(typeKey, e.target.value || null)}
-                    />
+                    >
+                      <option value="">— Select —</option>
+                      {typeChoices.map((t) => (
+                        <option key={t} value={t}>
+                          {optionTypeLabel(t)}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label style={{ gap: 4 }}>
                     Choices
@@ -448,12 +540,27 @@ export default function ProductEditPage() {
         </section>
       </div>
 
-      <div className={styles.actions}>
-        <button onClick={() => router.back()} className={styles.secondary}>
+      <div
+        className={styles.actions}
+        style={{
+          position: 'sticky',
+          bottom: 0,
+          background: '#fff',
+          padding: '12px 0',
+          borderTop: '1px solid #e5e7eb',
+          display: 'flex',
+          gap: 8,
+          justifyContent: 'flex-end'
+        }}
+      >
+        <button onClick={() => void cancel()} className={styles.secondary}>
           Cancel
         </button>
-        <button onClick={save} disabled={saving} className={styles.primary}>
-          {saving ? 'Saving…' : 'Save changes'}
+        <button onClick={() => void save(false)} disabled={saving} className={styles.secondary}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button onClick={() => void save(true)} disabled={saving} className={styles.primary}>
+          {saving ? 'Saving…' : 'Save & close'}
         </button>
       </div>
     </div>

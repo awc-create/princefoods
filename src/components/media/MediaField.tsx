@@ -1,5 +1,7 @@
 'use client';
 
+import { useAdminUiSafe } from '@/components/admin/ui/AdminUiProvider';
+
 import MediaLibraryModal from '@/components/media/MediaLibraryModal';
 import { deleteUploadedFile, uploadSingleFile } from '@/lib/client-upload';
 import Image from 'next/image';
@@ -49,6 +51,7 @@ export default function MediaField({
   accept = 'image/*,video/mp4,video/webm'
 }: Props) {
   const [open, setOpen] = useState(false);
+  const { toast, confirm } = useAdminUiSafe();
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -69,7 +72,7 @@ export default function MediaField({
       onChange(uploaded.url);
     } catch (err) {
       console.error(err);
-      alert(err instanceof Error ? err.message : 'Upload failed');
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -79,7 +82,12 @@ export default function MediaField({
   async function handleDeletePermanent() {
     if (!value) return;
 
-    const confirmed = window.confirm('Delete this selected file permanently from storage?');
+    const confirmed = await confirm({
+      title: 'Delete this file permanently from storage?',
+      message: 'Anywhere this file is used will lose its image.',
+      confirmLabel: 'Delete',
+      danger: true
+    });
     if (!confirmed) return;
 
     try {
@@ -88,7 +96,7 @@ export default function MediaField({
       onChange(null);
     } catch (err) {
       console.error(err);
-      alert(err instanceof Error ? err.message : 'Delete failed');
+      toast.error(err instanceof Error ? err.message : 'Delete failed');
     } finally {
       setDeleting(false);
     }

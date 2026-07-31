@@ -1,5 +1,7 @@
 'use client';
 
+import { returnStatusLabel } from '@/lib/admin-labels';
+
 import { urlFrom } from '@/lib/url';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -168,7 +170,7 @@ export default function ReturnsClient({ baseUrl }: { baseUrl: string }) {
                   <div style={{ opacity: 0.8, fontSize: 12 }}>{r.order.contactEmail}</div>
                 </td>
 
-                <td style={{ padding: 10 }}>{r.status}</td>
+                <td style={{ padding: 10 }}>{returnStatusLabel(r.status)}</td>
                 <td style={{ padding: 10 }}>{r.issueType}</td>
 
                 <td style={{ padding: 10, fontSize: 12 }}>

@@ -1,5 +1,7 @@
 'use client';
 
+import { useAdminUi } from '@/components/admin/ui/AdminUiProvider';
+
 import type { ListedMediaFile } from '@/lib/client-upload';
 import { deleteUploadedFile, listUploadedFiles, uploadSingleFile } from '@/lib/client-upload';
 import Image from 'next/image';
@@ -62,6 +64,7 @@ export default function MediaClient() {
   const [selectedArea, setSelectedArea] = useState<string>('All Media');
   const [files, setFiles] = useState<ListedMediaFile[]>([]);
   const [loading, setLoading] = useState(false);
+  const { toast, confirm } = useAdminUi();
   const [uploading, setUploading] = useState(false);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -145,7 +148,12 @@ export default function MediaClient() {
   }
 
   async function handleDelete(file: ListedMediaFile) {
-    const confirmed = window.confirm(`Delete this file permanently?\n\n${file.objectKey}`);
+    const confirmed = await confirm({
+      title: 'Delete this file permanently?',
+      message: file.objectKey,
+      confirmLabel: 'Delete',
+      danger: true
+    });
     if (!confirmed) return;
 
     try {
@@ -155,7 +163,7 @@ export default function MediaClient() {
       setSelectedKeys((prev) => prev.filter((x) => x !== file.objectKey));
     } catch (err) {
       console.error(err);
-      alert(err instanceof Error ? err.message : 'Delete failed');
+      toast.error(err instanceof Error ? err.message : 'Delete failed');
     } finally {
       setDeletingKey(null);
     }
@@ -164,9 +172,12 @@ export default function MediaClient() {
   async function handleBulkDelete() {
     if (selectedFiles.length === 0) return;
 
-    const confirmed = window.confirm(
-      `Delete ${selectedFiles.length} selected file(s) permanently?`
-    );
+    const confirmed = await confirm({
+      title: `Delete ${selectedFiles.length} selected file${selectedFiles.length === 1 ? '' : 's'} permanently?`,
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true
+    });
     if (!confirmed) return;
 
     try {
@@ -178,16 +189,16 @@ export default function MediaClient() {
       setSelectedKeys([]);
     } catch (err) {
       console.error(err);
-      alert(err instanceof Error ? err.message : 'Bulk delete failed');
+      toast.error(err instanceof Error ? err.message : 'Bulk delete failed');
     }
   }
 
   async function handleCopy(url: string) {
     try {
       await navigator.clipboard.writeText(url);
-      alert('Copied URL');
+      toast.success('URL copied to clipboard.');
     } catch {
-      alert('Failed to copy URL');
+      toast.error('Failed to copy URL.');
     }
   }
 

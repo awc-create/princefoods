@@ -1,5 +1,7 @@
 'use client';
 
+import { useAdminUiSafe } from '@/components/admin/ui/AdminUiProvider';
+
 import { deleteUploadedFile, uploadSingleFile } from '@/lib/client-upload';
 import Image from 'next/image';
 import { useState } from 'react';
@@ -13,6 +15,7 @@ interface Props {
 
 export default function ProductImageUpload({ productName, images, setImages }: Props) {
   const [uploading, setUploading] = useState(false);
+  const { toast } = useAdminUiSafe();
   const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
 
   const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -20,7 +23,7 @@ export default function ProductImageUpload({ productName, images, setImages }: P
     if (files.length === 0) return;
 
     if (!productName.trim()) {
-      alert('Please enter the product name before uploading images.');
+      toast.error('Please enter the product name before uploading images.');
       e.target.value = '';
       return;
     }
@@ -44,7 +47,7 @@ export default function ProductImageUpload({ productName, images, setImages }: P
       setImages(unique);
     } catch (error) {
       console.error(error);
-      alert(error instanceof Error ? error.message : 'Upload failed');
+      toast.error(error instanceof Error ? error.message : 'Upload failed');
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -58,7 +61,7 @@ export default function ProductImageUpload({ productName, images, setImages }: P
       setImages(images.filter((img) => img !== url));
     } catch (error) {
       console.error(error);
-      alert(error instanceof Error ? error.message : 'Delete failed');
+      toast.error(error instanceof Error ? error.message : 'Delete failed');
     } finally {
       setDeletingUrl(null);
     }
