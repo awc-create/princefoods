@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import type { Product } from '@/types/product';
 import { Suspense } from 'react';
 import ShopClient from './ShopClient';
-import { isPurchasable } from '@/lib/stock';
+import { isSellable } from '@/lib/stock';
 
 export const metadata = {
   title: 'Shop',
@@ -100,7 +100,7 @@ async function getInitialData(): Promise<{
     description: p.description ?? undefined,
     price: typeof p.price === 'number' ? p.price : 0,
     imageUrl: p.productImageUrl ?? null,
-    purchasable: isPurchasable(p.inventory),
+    purchasable: isSellable(p.inventory, p.price),
     ribbon: p.ribbon ?? null,
     discountMode: p.discountMode ?? null,
     discountValue: typeof p.discountValue === 'number' ? p.discountValue : null

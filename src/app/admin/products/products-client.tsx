@@ -735,7 +735,29 @@ export default function ProductsClient() {
                     </td>
 
                     <td>{r.sku ?? '—'}</td>
-                    <td>{r.price != null ? `£${r.price.toFixed(2)}` : '—'}</td>
+                    <td>
+                      {r.price != null && r.price > 0 ? (
+                        `£${r.price.toFixed(2)}`
+                      ) : (
+                        // Unpriced products can't be sold (they'd be free), so
+                        // make them impossible to miss in the list.
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '2px 9px',
+                            borderRadius: 999,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            background: '#fef2f2',
+                            color: '#b91c1c',
+                            border: '1px solid #fecaca'
+                          }}
+                          title="No price set — this product is hidden from the shop until it has one"
+                        >
+                          No price
+                        </span>
+                      )}
+                    </td>
                     <td>{inventoryLabel(r.inventory)}</td>
 
                     <td>

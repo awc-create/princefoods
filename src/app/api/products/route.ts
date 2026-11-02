@@ -2,7 +2,7 @@
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
-import { isPurchasable } from '@/lib/stock';
+import { isSellable } from '@/lib/stock';
 
 const DEFAULT_LIMIT = 12;
 
@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
       slug: undefined,
       collection: r.collection ?? undefined,
       inventory: coerceInventory(r.inventory ?? null),
-      purchasable: isPurchasable(r.inventory ?? null),
+      purchasable: isSellable(r.inventory ?? null, r.price),
       visible: r.visible ?? true,
 
       // ✅ keep these for ProductCard pills

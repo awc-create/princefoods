@@ -73,3 +73,21 @@ export function stockCount(raw: string | null | undefined): number | null {
   const n = Number(String(raw).trim());
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
+
+/**
+ * Can this product actually be sold?
+ *
+ * In stock AND priced. A product with no price renders as "£0.00", skips the
+ * price-integrity check in place-order (which only compares when the DB price
+ * is > 0), and produces a £0 total — which place-order marks PAID/CAPTURED
+ * without ever creating a Stripe session. In other words: a product someone
+ * forgot to price is free to anyone who finds it.
+ *
+ * Fails closed, like isPurchasable: unpriced means not for sale.
+ */
+export function isSellable(
+  inventory: string | null | undefined,
+  price: number | null | undefined
+): boolean {
+  return isPurchasable(inventory) && typeof price === 'number' && price > 0;
+}

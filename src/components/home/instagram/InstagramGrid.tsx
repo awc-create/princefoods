@@ -44,6 +44,11 @@ export default function InstagramGrid({
 
   const items = data?.items ?? [];
 
+  // Nothing to show: hide the whole block. A "Follow us on Instagram" heading
+  // with no posts under it reads as broken content, which is worse than the
+  // section simply not being there.
+  if (!loading && items.length === 0) return null;
+
   return (
     <section className={styles.wrap} aria-labelledby="ig-heading">
       <div className={styles.header}>
@@ -58,12 +63,6 @@ export default function InstagramGrid({
       {loading ? (
         <div className={styles.fallback}>
           <p>Loading fresh posts…</p>
-        </div>
-      ) : items.length === 0 ? (
-        <div className={styles.fallback}>
-          <p>
-            Fresh cooking ideas and community features—see what customers are cooking this week.
-          </p>
         </div>
       ) : (
         <div className={styles.grid} role="list">

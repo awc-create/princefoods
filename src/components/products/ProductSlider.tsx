@@ -74,6 +74,11 @@ export default function ProductSlider({
   subtitle?: string | null;
   products: Product[];
 }) {
+  // An empty slider used to render its title, track and arrows with no cards —
+  // that's the large blank gap on the homepage. Render nothing instead.
+  const hasProducts = (products?.length ?? 0) > 0;
+  const showArrows = (products?.length ?? 0) > 3;
+
   const trackRef = useRef<HTMLDivElement | null>(null);
   const add = useCart((st) => st.add);
   const open = useCart((st) => st.open);
@@ -173,6 +178,9 @@ export default function ProductSlider({
 
   const sliderId = `pf-slider-${title.replace(/\s+/g, '-').toLowerCase()}`;
 
+  // Placed after every hook so hook order never changes between renders.
+  if (!hasProducts) return null;
+
   return (
     <section className={styles.sliderWrapper} aria-labelledby={sliderId}>
       <motion.div
@@ -190,6 +198,9 @@ export default function ProductSlider({
       </motion.div>
 
       <div className={styles.carousel}>
+        {/* Nothing to scroll with only a couple of cards — arrows there just
+            look broken next to a single product and a wide empty gap. */}
+        {showArrows && (
         <div className={styles.arrowRow}>
           <button
             className={styles.arrow}
@@ -208,6 +219,7 @@ export default function ProductSlider({
             ›
           </button>
         </div>
+        )}
 
         <div className={styles.track} ref={trackRef} tabIndex={0}>
           {products.map((p, i) => {

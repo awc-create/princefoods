@@ -17,7 +17,7 @@ export default function Hero({
   subtitle = 'Since 2007—authentic Indian & Sri Lankan favourites at everyday low prices. Premium spices, snacks, frozen specialties and more with fast UK & Ireland delivery.',
   primaryCta = { label: 'Shop Best Sellers', href: '/shop' },
   secondaryCta = { label: 'Browse Shop', href: '/shop' },
-  floatingTag = 'Welcome To Prince Foods',
+  floatingTag,
   images = ['/assets/96bfc4_3547f98fa8f54128b23c97aa34bf83b9~mv2.avif']
 }: {
   title?: string;
@@ -66,7 +66,14 @@ export default function Hero({
           <div className={styles.heroCard} aria-hidden>
             <Slider slides={slides} />
           </div>
-          {floatingTag && <div className={styles.floatingTag}>{floatingTag}</div>}
+          {/* Set in Site Editing → Home → Hero. No value = no pill; we don't
+              invent copy here, since this is admin-owned content. */}
+          {floatingTag?.trim() ? (
+            <div className={styles.floatingTag}>
+              <span className={styles.floatingTagDot} aria-hidden />
+              {floatingTag}
+            </div>
+          ) : null}
         </div>
       </div>
     </section>

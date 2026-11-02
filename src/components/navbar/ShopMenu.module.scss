@@ -1,0 +1,213 @@
+/* Shop dropdown. Matches the existing nav link styling so it reads as part of
+   the same row rather than a bolted-on widget. */
+
+.wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+
+  a {
+    font-weight: 300;
+    font-size: 14px;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    text-decoration: none;
+    color: #333;
+    transition: color 0.15s ease;
+
+    &.active,
+    &:hover {
+      color: #d62828;
+    }
+  }
+}
+
+.active {
+  color: #d62828;
+}
+
+.caret {
+  background: none;
+  border: none;
+  padding: 0 0.15rem;
+  cursor: pointer;
+  color: #333;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+
+  &:hover {
+    color: #d62828;
+  }
+
+  /* Keyboard users must be able to see where they are. */
+  &:focus-visible {
+    outline: 2px solid #d62828;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+.caretIcon {
+  display: inline-block;
+  font-size: 12px;
+  transition: transform 0.18s ease;
+}
+
+.caretOpen {
+  transform: rotate(180deg);
+}
+
+/* ── Panel ─────────────────────────────────────────────────────────────── */
+
+.panel {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  left: 50%;
+  transform: translate(-50%, -6px);
+  z-index: 60;
+
+  min-width: 420px;
+  max-width: min(92vw, 760px);
+  padding: 1.1rem 1.25rem 0.9rem;
+
+  background: #fff;
+  border: 1px solid #ececec;
+  border-radius: 14px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.14);
+
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease,
+    visibility 0s linear 0.16s;
+
+  /* Invisible bridge so the pointer can cross the gap without the menu closing. */
+  &::before {
+    content: '';
+    position: absolute;
+    top: -0.7rem;
+    left: 0;
+    right: 0;
+    height: 0.7rem;
+  }
+}
+
+.panelOpen {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+  transition-delay: 0s;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 1rem 1.6rem;
+}
+
+.column {
+  min-width: 0;
+}
+
+.parent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #111;
+  text-decoration: none;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 0.4rem;
+
+  &:hover {
+    color: #d62828;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #d62828;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+.childList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+
+  font-size: 13px;
+  color: #555;
+  text-decoration: none;
+  padding: 0.28rem 0.4rem;
+  border-radius: 6px;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+
+  &:hover {
+    background: #fdf2f2;
+    color: #d62828;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #d62828;
+    outline-offset: 1px;
+  }
+}
+
+.count {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9a9a9a;
+  flex: 0 0 auto;
+}
+
+.viewAll {
+  display: block;
+  margin-top: 0.9rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid #f0f0f0;
+
+  font-size: 13px;
+  font-weight: 700;
+  color: #d62828;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #d62828;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .caretIcon {
+    transition: none;
+  }
+}

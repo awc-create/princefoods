@@ -395,7 +395,18 @@ export async function POST(req: Request) {
       const dbProduct = byId.get(it.productId);
       if (!dbProduct) continue; // unknown product — will fail downstream
       const dbPricePence = Math.round((dbProduct.price ?? 0) * 100);
-      if (dbPricePence > 0 && it.unitPrice !== dbPricePence) {
+
+      // An unpriced product used to slip past the check below (it only compares
+      // when the DB price is > 0), producing a £0 line — and a £0 order is
+      // marked PAID/CAPTURED without ever reaching Stripe. Refuse outright.
+      if (dbPricePence <= 0) {
+        return bad(
+          `Sorry — "${dbProduct.name}" isn't available to buy at the moment. Please remove it to continue.`,
+          409
+        );
+      }
+
+      if (it.unitPrice !== dbPricePence) {
         return bad(
           `Price mismatch for "${dbProduct.name}": expected ${dbPricePence}p, got ${it.unitPrice}p.`,
           400

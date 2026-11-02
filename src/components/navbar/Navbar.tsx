@@ -2,6 +2,8 @@
 'use client';
 
 import { NAV_LINKS } from '@/config/menu.config';
+import ShopMenu from './ShopMenu';
+import ShopMenuMobile from './ShopMenuMobile';
 import { Menu, Search, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
@@ -360,12 +362,9 @@ function NavbarInner() {
         </div>
         {shopLink && (
           <div className={styles.shopLink}>
-            <Link
-              href={`/${shopLink.slug}`}
-              className={pathname === `/${shopLink.slug}` ? styles.active : ''}
-            >
-              {shopLink.label}
-            </Link>
+            {/* Category dropdown. Falls back to a plain link if categories
+                can't be loaded, so the nav never depends on it. */}
+            <ShopMenu href={`/${shopLink.slug}`} label={shopLink.label} />
           </div>
         )}
         <div className={styles.actions}>
@@ -379,6 +378,19 @@ function NavbarInner() {
         <nav className={`${styles.mobileMenu} ${styles.mobileOnly} ${styles.open}`}>
           {NAV_LINKS.map(({ slug, label, key }) => {
             const href = `/${slug}`;
+
+            // Shop expands into its categories rather than being a flat link.
+            if (slug === 'shop') {
+              return (
+                <ShopMenuMobile
+                  key={(key ?? slug) || 'shop'}
+                  href={href}
+                  label={label}
+                  onNavigate={closeMenu}
+                />
+              );
+            }
+
             return (
               <Link
                 key={(key ?? slug) || 'home'}

@@ -1,0 +1,97 @@
+/* Shop categories accordion for the mobile menu. */
+
+.wrap {
+  width: 100%;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.shopLink {
+  flex: 1;
+  text-decoration: none;
+  color: inherit;
+  font: inherit;
+}
+
+.toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  /* Comfortable tap target without enlarging the row. */
+  padding: 0.5rem 0.75rem;
+  margin: -0.5rem -0.25rem;
+  display: inline-flex;
+  align-items: center;
+
+  &:focus-visible {
+    outline: 2px solid #d62828;
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+.chev {
+  display: inline-block;
+  font-size: 14px;
+  transition: transform 0.18s ease;
+}
+
+.chevOpen {
+  transform: rotate(180deg);
+}
+
+.list {
+  padding: 0.35rem 0 0.6rem 0.75rem;
+  border-left: 2px solid rgba(214, 40, 40, 0.25);
+  margin: 0.35rem 0 0.2rem 0.3rem;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.group {
+  padding-bottom: 0.45rem;
+}
+
+.parent,
+.child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  text-decoration: none;
+  padding: 0.45rem 0.25rem;
+  border-radius: 6px;
+}
+
+.parent {
+  font-weight: 700;
+  font-size: 14px;
+  color: inherit;
+}
+
+.child {
+  font-size: 13.5px;
+  color: inherit;
+  opacity: 0.8;
+  padding-left: 0.75rem;
+}
+
+.count {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.55;
+  flex: 0 0 auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chev {
+    transition: none;
+  }
+}

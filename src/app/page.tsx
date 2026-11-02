@@ -516,8 +516,6 @@ export default async function Home() {
       ) : null}
 
       {/* 2. Instagram */}
-      <InstagramGrid usernameUrl={instagramUsernameUrl} />
-
       {/* 3. Hero */}
       <Hero
         title={heroTitle}
@@ -534,6 +532,9 @@ export default async function Home() {
               }
             : undefined
         }
+        // Admin-controlled promo pill (Site Editing → Home → Hero).
+        // Empty in the admin = no pill, rather than a hardcoded fallback.
+        floatingTag={heroBase.floatingTag ?? undefined}
         images={heroImages}
       />
 
@@ -578,6 +579,9 @@ export default async function Home() {
           products={FALLBACK_PRODUCTS}
         />
       )}
+
+      {/* Social proof near the end, after people have seen the products. */}
+      <InstagramGrid usernameUrl={instagramUsernameUrl} />
 
       <ReviewStrip
         autoplay={settings?.reviews?.autoplay ?? true}
