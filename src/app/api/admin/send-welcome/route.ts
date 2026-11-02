@@ -4,11 +4,16 @@ import { prisma } from '@/lib/prisma';
 import { getResend } from '@/lib/resend';
 import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
+import { safeErrorMessage } from '@/lib/safe-error';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST() {
+  const guard = await requireAdmin({ write: true, head: true });
+  if (!guard.ok) return guard.response;
+
   if (process.env.RESEND_ENABLED !== 'true') {
     return NextResponse.json(
       { ok: false, message: 'Email disabled (RESEND_ENABLED != "true")' },
@@ -76,7 +81,7 @@ export async function POST() {
       errors.push({
         userId: u.id,
         email: u.email ?? null,
-        error: e instanceof Error ? e.message : 'Unknown error'
+        error: safeErrorMessage(e, '/api/admin/send-welcome')
       });
     }
   }

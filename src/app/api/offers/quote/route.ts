@@ -3,6 +3,7 @@ import { evaluateOffers, type CartLine as EngineLine } from '@/lib/offers-engine
 import { getOffers } from '@/lib/offers-store';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -208,7 +209,7 @@ export async function POST(req: Request) {
   } catch (e) {
     console.error('[offers/quote] error:', e);
     return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : 'Offer quote failed.' },
+      { ok: false, error: safeErrorMessage(e, '/api/offers/quote') },
       { status: 500 }
     );
   }

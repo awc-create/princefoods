@@ -244,7 +244,9 @@ function deriveWeights(row: NormalizedRow): { weightKg: number | null; grams: nu
     return { weightKg: explicitKg, grams: Math.round(explicitKg * 1000) };
   }
 
-  const swRaw = row.shipping_weight ?? row.shippingweight ?? null;
+  // `shipping_weight_grams` is what the admin export emits.
+  const swRaw =
+    row.shipping_weight ?? row.shippingweight ?? row.shipping_weight_grams ?? null;
   if (swRaw != null && swRaw !== '') {
     const g = Math.round(Number(swRaw));
     if (Number.isFinite(g) && g > 0) return { weightKg: g / 1000, grams: g };
@@ -260,8 +262,10 @@ function deriveWeights(row: NormalizedRow): { weightKg: number | null; grams: nu
 }
 
 function mapToProductCreate(id: string, r: NormalizedRow) {
-  const primary = r.productimageurl?.trim();
-  const secondary = r.image?.trim();
+  // Accept every spelling we emit or have ever imported. The admin CSV export
+  // writes `imageUrl`; without this alias a re-import wiped every product image.
+  const primary = (r.productimageurl ?? r.imageurl ?? r.productimage)?.trim();
+  const secondary = (r.image ?? r.imagesrc)?.trim();
   const chosen = primary && primary.length > 0 ? primary : (secondary ?? null);
   const detected = detectAndNormalizeImageUrl(chosen && chosen.length > 0 ? chosen : null);
 
@@ -348,11 +352,60 @@ function mapToProductCreate(id: string, r: NormalizedRow) {
   };
 }
 
+/**
+ * Update shape for an existing product.
+ *
+ * Only includes fields the CSV actually supplies. Previously this returned
+ * every field, so importing a CSV that lacked a column (the admin export lacks
+ * images, weights, options, cost…) silently NULLED that data on every product.
+ * Absent column => leave the existing value alone.
+ */
 function mapToProductUpdate(r: NormalizedRow) {
-  const d = mapToProductCreate('ignore', r);
-  // @ts-expect-error remove id for update shape
-  delete d.id;
-  return d;
+  const full = mapToProductCreate('ignore', r) as Record<string, unknown>;
+  delete full.id;
+
+  // Which CSV keys feed which product fields. If none of the keys are present
+  // in this row, the field is dropped from the update entirely.
+  const SOURCES: Record<string, string[]> = {
+    productImageUrl: ['productimageurl', 'imageurl', 'productimage', 'image', 'imagesrc'],
+    weight: ['weight', 'shipping_weight', 'shippingweight', 'shipping_weight_grams', 'name'],
+    shippingWeightGrams: [
+      'weight',
+      'shipping_weight',
+      'shippingweight',
+      'shipping_weight_grams',
+      'name'
+    ],
+    cost: ['cost'],
+    surcharge: ['surcharge'],
+    caseQty: ['caseqty', 'unitspercase', 'unitsperbox', 'masterboxqty', 'unitsincase', 'unitspermasterbox']
+  };
+
+  for (let i = 1; i <= 6; i++) {
+    SOURCES[`productOptionName${i}`] = [`productoptionname${i}`];
+    SOURCES[`productOptionType${i}`] = [`productoptiontype${i}`];
+    SOURCES[`productOptionDescription${i}`] = [`productoptiondescription${i}`];
+    SOURCES[`additionalInfoTitle${i}`] = [`additionalinfotitle${i}`];
+    SOURCES[`additionalInfoDescription${i}`] = [`additionalinfodescription${i}`];
+  }
+  for (let i = 1; i <= 2; i++) {
+    SOURCES[`customTextField${i}`] = [`customtextfield${i}`];
+    SOURCES[`customTextCharLimit${i}`] = [`customtextcharlimit${i}`];
+    SOURCES[`customTextMandatory${i}`] = [`customtextmandatory${i}`];
+  }
+
+  // Every remaining field defaults to being sourced from its own lowercased
+  // column name, so nothing is overwritten unless the CSV actually carries it.
+  for (const field of Object.keys(full)) {
+    if (!SOURCES[field]) SOURCES[field] = [field.toLowerCase()];
+  }
+
+  for (const [field, keys] of Object.entries(SOURCES)) {
+    const supplied = keys.some((k) => k in r && String(r[k] ?? '').trim() !== '');
+    if (!supplied) delete full[field];
+  }
+
+  return full;
 }
 
 /* -------------------------------------------
@@ -461,15 +514,40 @@ export async function POST(req: Request) {
     }
   } else {
     // Simple CSV (no fieldType)
+    const candidateIds = rows
+      .map((r) => {
+        const n = normalizeKeys(r);
+        return (n.id ?? n.handleid ?? '').trim();
+      })
+      .filter(Boolean);
+
+    const existingIds = new Set(
+      (
+        await prisma.product.findMany({
+          where: { id: { in: candidateIds } },
+          select: { id: true }
+        })
+      ).map((p) => p.id)
+    );
+
     let lineNo = 1;
     for (const r of rows) {
       lineNo++;
       const row = normalizeKeys(r);
       const id = (row.id ?? row.handleid ?? '').trim();
       const name = (row.name ?? '').trim();
-      if (!id || !name) {
+
+      if (!id) {
         skipped++;
-        pushErr(`line ${lineNo}`, !id && !name ? 'Missing id and name' : !id ? 'Missing id' : 'Missing name');
+        pushErr(`line ${lineNo}`, 'Missing id');
+        continue;
+      }
+
+      // `name` is only required to CREATE a product. Updates may be partial —
+      // this is what makes an "id,inventory" stock-only CSV work.
+      if (!name && !existingIds.has(id)) {
+        skipped++;
+        pushErr(id, 'Missing name (required for new products)');
         continue;
       }
 

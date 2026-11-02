@@ -3,12 +3,16 @@ import { prisma } from '@/lib/prisma';
 import { getParams } from '@/lib/route-ctx';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /** Fetch tags for an order */
 export async function GET(_req: NextRequest, _ctx: unknown) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   try {
     const { id } = getParams<{ id: string }>(_ctx);
 
@@ -30,6 +34,9 @@ export async function GET(_req: NextRequest, _ctx: unknown) {
 
 /** Add a tag (creates tag if missing by slug) */
 export async function POST(req: NextRequest, _ctx: unknown) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const { id } = getParams<{ id: string }>(_ctx);
     const { slug, label, color } = (await req.json()) as {

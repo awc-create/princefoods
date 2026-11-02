@@ -37,12 +37,39 @@ export default function CartClient() {
     offers,
     refreshOffers,
     offerNames,
-    offerDiscountForLine
+    offerDiscountForLine,
+    syncWithCatalogue
   } = useCart();
 
   const [confirmClear, setConfirmClear] = useState(false);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [badges, setBadges] = useState<Record<string, string[]>>({});
   const [bogof, setBogof] = useState<Record<string, BogofRule>>({});
+
+  // Re-check prices + availability on mount. The basket is persisted to
+  // localStorage, so these can be weeks out of date — and checkout rejects
+  // stale prices outright. Fixing it here means the shopper never meets that error.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const r = await syncWithCatalogue();
+      if (cancelled || !r.changed) return;
+
+      const bits: string[] = [];
+      if (r.repriced.length === 1) bits.push(`The price of ${r.repriced[0].name} has changed.`);
+      else if (r.repriced.length > 1) bits.push(`${r.repriced.length} prices have changed.`);
+
+      if (r.unavailable.length === 1) bits.push(`${r.unavailable[0]} is no longer available and was removed.`);
+      else if (r.unavailable.length > 1) bits.push(`${r.unavailable.length} items are no longer available and were removed.`);
+
+      setSyncNotice(`${bits.join(' ')} Your basket has been updated.`);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Fetch offers on mount and whenever items change
   const itemsKey = items.map((i) => `${i.productId ?? i.id}:${i.quantity}`).join('|');
@@ -131,6 +158,48 @@ export default function CartClient() {
   return (
     <main className={styles.shell}>
       <h1>Basket</h1>
+
+      {syncNotice && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 10,
+            padding: '12px 14px',
+            margin: '0 0 16px',
+            borderRadius: 10,
+            border: '1px solid #fde68a',
+            background: '#fffbeb',
+            color: '#78350f',
+            fontSize: 14,
+            lineHeight: 1.45
+          }}
+        >
+          <span aria-hidden style={{ fontSize: 16, lineHeight: 1.3 }}>
+            ℹ️
+          </span>
+          <span>{syncNotice}</span>
+          <button
+            type="button"
+            onClick={() => setSyncNotice(null)}
+            aria-label="Dismiss"
+            style={{
+              marginLeft: 'auto',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'inherit',
+              fontSize: 16,
+              lineHeight: 1
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <div className={styles.grid}>
         <section className={styles.lines}>
           <ul className={styles.list}>

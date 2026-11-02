@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { parse } from 'csv-parse/sync';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,9 @@ const get = (r: Row, k: string) => (r[k] ?? '').trim();
 const getLower = (r: Row, k: string) => get(r, k).toLowerCase();
 
 export async function POST(req: Request) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   const form = await req.formData();
   const file = form.get('file') as File | null;
   if (!file) return NextResponse.json({ ok: false, error: 'No file' }, { status: 400 });

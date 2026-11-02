@@ -135,7 +135,7 @@ export async function GET() {
           status: 'DOWN' as ApcHealthStatus,
           environment: env,
           latencyMs,
-          error: err instanceof Error ? err.message : 'Unknown error'
+          error: err instanceof Error ? err.message : 'Fetch failed'
         }
       },
       { status: 200 }

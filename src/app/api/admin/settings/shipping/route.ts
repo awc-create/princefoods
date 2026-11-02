@@ -5,16 +5,21 @@ import {
   type ApcWarehouseSettings
 } from '@/lib/admin-settings';
 import { NextResponse, type NextRequest } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const guard = await requireAdmin({ head: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const data = await getWarehouseSettings();
     return NextResponse.json({ ok: true, data });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Failed to load shipping settings';
+    const msg = safeErrorMessage(e, '/api/admin/settings/shipping');
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
@@ -22,6 +27,9 @@ export async function GET() {
 type Body = Partial<ApcWarehouseSettings>;
 
 export async function POST(req: NextRequest) {
+  const guard = await requireAdmin({ write: true, head: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const b = (await req.json()) as Body;
 

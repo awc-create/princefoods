@@ -3,11 +3,15 @@ import { prisma } from '@/lib/prisma';
 import { getParams } from '@/lib/route-ctx';
 import { apcGetOrderByWaybill } from '@/lib/shipping/apc';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(_req: Request, ctx: unknown) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   const { id: orderId } = getParams(ctx);
 
   const shipment = await prisma.shipment.findFirst({

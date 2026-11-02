@@ -3,16 +3,21 @@ import { prisma } from '@/lib/prisma';
 import { getParams } from '@/lib/route-ctx';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /** Fetch all activity logs for an order */
 export async function GET(_req: NextRequest, _ctx: unknown) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   try {
     const { id } = getParams<{ id: string }>(_ctx);
     const items = await prisma.orderActivity.findMany({
       where: { orderId: id },
+    take: 200,
       orderBy: { createdAt: 'asc' }
     });
     return NextResponse.json({ ok: true, items });
@@ -24,6 +29,9 @@ export async function GET(_req: NextRequest, _ctx: unknown) {
 
 /** Add a new manual note */
 export async function POST(req: NextRequest, _ctx: unknown) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const { id } = getParams<{ id: string }>(_ctx);
     const body = (await req.json()) as { note?: string; type?: 'NOTE' };
@@ -50,6 +58,9 @@ export async function POST(req: NextRequest, _ctx: unknown) {
 
 /** Delete a manual note only (type === 'NOTE') */
 export async function DELETE(req: NextRequest, _ctx: unknown) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const { id } = getParams<{ id: string }>(_ctx);
     const { searchParams } = new URL(req.url);

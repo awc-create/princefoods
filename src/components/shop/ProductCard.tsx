@@ -90,7 +90,12 @@ export default function ProductCard({
   const change = (v: number) => setQty((n) => Math.max(1, n + v));
   const set = (v: number) => setQty(Math.max(1, v || 1));
 
+  // Availability is decided server-side (src/lib/stock.ts) and passed down.
+  // Default FALSE: never sell something we can't confirm we have.
+  const inStock = product.purchasable !== false;
+
   const handleAdd = () => {
+    if (!inStock) return;
     add({
       id: product.id,
       productId: product.id,
@@ -122,6 +127,12 @@ export default function ProductCard({
           sizes="(max-width: 900px) 50vw, 300px"
           priority={false}
         />
+
+        {!inStock && (
+          <div className={s.badges}>
+            <span className={`${s.pill} ${s.pillOut ?? ''}`}>Out of stock</span>
+          </div>
+        )}
 
         {badges.length > 0 && (
           <div className={s.badges} aria-hidden>
@@ -175,8 +186,15 @@ export default function ProductCard({
             </button>
           </div>
 
-          <button type="button" className={s.add} onClick={handleAdd}>
-            Add to Cart
+          <button
+            type="button"
+            className={s.add}
+            onClick={handleAdd}
+            disabled={!inStock}
+            aria-disabled={!inStock}
+            title={inStock ? undefined : 'This product is currently out of stock'}
+          >
+            {inStock ? 'Add to Cart' : 'Out of Stock'}
           </button>
         </div>
       </div>

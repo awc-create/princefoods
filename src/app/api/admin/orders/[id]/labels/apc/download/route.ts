@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { apcGetLabelWithPolling, ApcLabelPendingError } from '@/lib/shipping/apc';
 import { ApcNotConfiguredError } from '@/lib/shipping/apc-client';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,9 @@ interface RouteContext {
 }
 
 export async function GET(_req: Request, ctx: RouteContext) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   try {
     const { id: orderId } = await ctx.params;
 

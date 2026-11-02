@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import { logActivity } from '@/lib/order-activity';
 import { prisma } from '@/lib/prisma';
 import type { NextRequest } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 interface Body {
   trackingNo?: string;
@@ -52,6 +53,9 @@ async function sendEmailIfConfigured(opts: {
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   const { id } = await ctx.params;
 
   const body = (await req.json().catch(() => ({}))) as Body;

@@ -3,6 +3,7 @@ import { Activity } from '@/lib/order-activity';
 import { prisma } from '@/lib/prisma';
 import { apcGetLabelWithPolling, ApcLabelPendingError } from '@/lib/shipping/apc';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,9 @@ interface RouteContext {
 }
 
 export async function POST(_req: Request, ctx: RouteContext) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const { id: orderId } = await ctx.params;
 

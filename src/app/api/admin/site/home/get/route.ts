@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma';
 import type { HomeSettingsDTO } from '@/types/homeSettings';
 import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -70,6 +72,9 @@ const DEFAULTS: HomeSettingsDTO = {
 };
 
 export async function GET() {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   try {
     let row = await prisma.homeSettings.findUnique({ where: { id: 1 } });
 
@@ -101,7 +106,7 @@ export async function GET() {
 
     return NextResponse.json({ ok: true, data }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'UNKNOWN_ERROR';
+    const msg = safeErrorMessage(e, '/api/admin/site/home/get');
     console.error('GET /api/admin/site/home/get failed:', e);
 
     return NextResponse.json(

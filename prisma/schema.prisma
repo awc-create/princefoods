@@ -679,6 +679,10 @@ model Order {
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
+  /// The admin orders list always filters archivedAt (default: active only)
+  /// and sorts by createdAt desc — neither was indexed before.
+  @@index([archivedAt, createdAt])
+  @@index([paymentStatus, createdAt])
   @@index([paymentIntentId])
   @@index([contactEmail, createdAt])
   @@index([cancellationRequestedAt])
@@ -714,7 +718,13 @@ model OrderActivity {
   note      String?
   meta      Json?
   createdAt DateTime     @default(now())
+  /// Which staff account performed this action. Null for system/automated
+  /// events (webhooks, cron) and for anything recorded before this was added.
+  actorId    String?
+  actorEmail String?
   order     Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
 }
 
 model OfferAttempt {

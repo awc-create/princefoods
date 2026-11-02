@@ -2,12 +2,16 @@
 import { prisma } from '@/lib/prisma';
 import { urlFrom } from '@/lib/url';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(req: Request) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   try {
     const { searchParams } = urlFrom(req.url);
     const limitRaw = searchParams.get('limit');

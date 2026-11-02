@@ -2,6 +2,7 @@
 import { fromJson } from '@/lib/json';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,6 +17,9 @@ function extractIdFromUrl(url: string): string | null {
 
 /** GET /api/admin/notifications/[id] → single notification */
 export async function GET(req: Request) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   const id = extractIdFromUrl(req.url);
   if (!id) return NextResponse.json({ ok: false, error: 'INVALID_ID' }, { status: 400 });
 
@@ -43,6 +47,9 @@ export async function GET(req: Request) {
 
 /** PATCH /api/admin/notifications/[id] → mark one as read */
 export async function PATCH(req: Request) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   const id = extractIdFromUrl(req.url);
   if (!id) return NextResponse.json({ ok: false, error: 'INVALID_ID' }, { status: 400 });
 
@@ -57,6 +64,9 @@ export async function PATCH(req: Request) {
 
 /** DELETE /api/admin/notifications/[id] → delete one */
 export async function DELETE(req: Request) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   const id = extractIdFromUrl(req.url);
   if (!id) return NextResponse.json({ ok: false, error: 'INVALID_ID' }, { status: 400 });
 

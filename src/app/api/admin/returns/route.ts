@@ -1,10 +1,14 @@
 import { prisma } from '@/lib/prisma';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   try {
     const url = new URL(req.url);
 
@@ -24,9 +28,14 @@ export async function GET(req: NextRequest) {
       ];
     }
 
+    // Capped: this list grows with every return ever raised.
+    const takeRaw = Number(url.searchParams.get('take') ?? '200');
+    const take = Math.max(20, Math.min(500, Number.isFinite(takeRaw) ? Math.trunc(takeRaw) : 200));
+
     const items = await prisma.returnCase.findMany({
       where,
       orderBy: { detectedAt: 'desc' },
+      take,
       include: {
         order: { select: { id: true, displayId: true, contactEmail: true, status: true } },
         shipment: { select: { id: true, trackingNumber: true, waybill: true, status: true } }

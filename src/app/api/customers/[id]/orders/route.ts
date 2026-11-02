@@ -1,4 +1,6 @@
+import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
 import { getParams } from '@/lib/route-ctx';
 import type { Prisma } from '@prisma/client';
 import type { NextRequest } from 'next/server';
@@ -13,6 +15,20 @@ function formatGBP(pence: number, currency = 'GBP') {
 export async function GET(_req: NextRequest, ctx: unknown) {
   try {
     const { id } = getParams<{ id: string }>(ctx);
+
+    // 🔒 You may only read your own order history — unless you're admin staff.
+    // Without this, passing any user id returned that customer's last 50 orders.
+    const session = await getServerSession(authOptions);
+    const viewer = session?.user as { id?: string; role?: string } | undefined;
+    const isStaff =
+      viewer?.role === 'HEAD' || viewer?.role === 'STAFF' || viewer?.role === 'VIEWER';
+
+    if (!viewer?.id) {
+      return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    if (viewer.id !== id && !isStaff) {
+      return NextResponse.json({ ok: false, error: 'Not found' }, { status: 404 });
+    }
 
     // Ensure the customer exists — get email for fallback matching
     const user = await prisma.user.findUnique({

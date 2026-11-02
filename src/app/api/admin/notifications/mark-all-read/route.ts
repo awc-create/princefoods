@@ -1,12 +1,16 @@
 // src/app/api/admin/notifications/mark-all-read/route.ts
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function POST() {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const now = new Date();
     const res = await prisma.notification.updateMany({

@@ -2,11 +2,15 @@
 import { prisma } from '@/lib/prisma';
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const { orderId } = (await req.json()) as { orderId: string };
     if (!orderId) return NextResponse.json({ error: 'Missing orderId' }, { status: 400 });

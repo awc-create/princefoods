@@ -1,10 +1,15 @@
 // src/app/api/admin/categories/diagnostics/route.ts
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   try {
     const total = await prisma.category.count();
     const parents = await prisma.category.count({ where: { parentId: null } });
@@ -38,7 +43,7 @@ export async function GET() {
       samples: { parents: parentSamples, children: childSamples }
     });
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'diagnostics failed';
+    const message = safeErrorMessage(e, '/api/admin/categories/diagnostics');
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

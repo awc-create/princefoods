@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 // Helper: get yyyy-mm-dd for a Date
 function dstr(d: Date) {
@@ -30,6 +31,9 @@ function emptyDaily(days: number) {
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   const { id } = await ctx.params;
   try {
     const url = new URL(req.url);

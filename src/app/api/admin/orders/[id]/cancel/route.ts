@@ -8,6 +8,7 @@ import { getParams } from '@/lib/route-ctx';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,9 @@ export const dynamic = 'force-dynamic';
 type Mode = 'CANCEL_ONLY' | 'FULL_REFUND' | 'PARTIAL_REFUND' | 'MARK_REFUNDED_EXTERNALLY';
 
 export async function POST(req: NextRequest, _ctx: unknown) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   const { id: orderId } = getParams(_ctx);
 
   try {

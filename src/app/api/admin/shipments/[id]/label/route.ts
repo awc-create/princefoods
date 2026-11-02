@@ -1,6 +1,8 @@
 // src/app/api/admin/shipments/[shipmentId]/label/route.ts
 import { prisma } from '@/lib/prisma';
 import { NextResponse, type NextRequest } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,6 +19,9 @@ function base64ToUint8Array(b64: string) {
 }
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ shipmentId: string }> }) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   const { shipmentId } = await ctx.params;
 
   const shipment = await prisma.shipment.findUnique({
@@ -96,7 +101,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ shipmentId:
       });
     } catch (e) {
       return NextResponse.json(
-        { ok: false, error: e instanceof Error ? e.message : 'Failed to fetch label' },
+        { ok: false, error: safeErrorMessage(e, '/api/admin/shipments/[id]/label') },
         { status: 502 }
       );
     }

@@ -8,6 +8,7 @@ import { notFound } from 'next/navigation';
 import ProductBuyBox from './product-buy-box';
 import styles from './product.module.scss';
 import ViewTracker from './view-tracker';
+import { inventoryLabel, isPurchasable, stockCount } from '@/lib/stock';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -36,11 +37,8 @@ export async function generateMetadata({
   };
 }
 
-function parseInventory(inv: string | null): number | null {
-  if (!inv) return null;
-  const n = Number(inv);
-  return Number.isFinite(n) ? Math.trunc(n) : null;
-}
+// Stock is decided centrally — see src/lib/stock.ts. The old local parser
+// turned 'OutOfStock' into null, and null was treated as in stock.
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -65,7 +63,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   if (!p || !p.visible) notFound();
 
   const img = p.productImageUrl?.trim() ? p.productImageUrl : '/assets/prince-foods-logo.png';
-  const inventoryCount = parseInventory(p.inventory);
+  const inventoryCount = stockCount(p.inventory);
+  const purchasable = isPurchasable(p.inventory);
 
   const category = p.categoryId
     ? await prisma.category.findUnique({
@@ -171,12 +170,12 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                       <span className={styles.metaVal}>{p.brand}</span>
                     </span>
                   )}
-                  {inventoryCount != null && (
-                    <span className={styles.metaChip}>
-                      <span className={styles.metaKey}>Stock</span>
-                      <span className={styles.metaVal}>{inventoryCount}</span>
+                  <span className={styles.metaChip}>
+                    <span className={styles.metaKey}>Stock</span>
+                    <span className={styles.metaVal}>
+                      {inventoryCount != null ? inventoryCount : inventoryLabel(p.inventory)}
                     </span>
-                  )}
+                  </span>
                 </div>
               )}
 
@@ -194,6 +193,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                   imageUrl: p.productImageUrl ?? null,
                   sku: p.sku ?? null,
                   inventory: inventoryCount,
+                  purchasable,
                   ribbon: p.ribbon ?? null,
                   discountMode: null,
                   discountValue: null

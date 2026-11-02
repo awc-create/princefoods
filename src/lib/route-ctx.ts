@@ -29,7 +29,9 @@ export interface AdminGuardUser {
  * - HEAD and STAFF allowed
  * - VIEWER forbidden
  */
-export async function requireAdmin(): Promise<AdminGuardUser> {
+export async function requireAdmin(
+  opts: { allowViewer?: boolean } = {}
+): Promise<AdminGuardUser> {
   const session = await getServerSession(authOptions);
 
   const user = session?.user as Partial<AdminGuardUser> | undefined;
@@ -37,7 +39,13 @@ export async function requireAdmin(): Promise<AdminGuardUser> {
     throw new Error('UNAUTHENTICATED');
   }
 
-  if (user.role !== 'HEAD' && user.role !== 'STAFF') {
+  // VIEWER is read-only: allowed on GET handlers that opt in, never on writes.
+  const allowed =
+    user.role === 'HEAD' ||
+    user.role === 'STAFF' ||
+    (opts.allowViewer === true && user.role === 'VIEWER');
+
+  if (!allowed) {
     throw new Error('FORBIDDEN');
   }
 

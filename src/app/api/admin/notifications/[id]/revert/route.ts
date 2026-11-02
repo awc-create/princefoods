@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import type { AboutSettingsDTO } from '@/types/aboutSettings';
 import type { HomeSettingsDTO } from '@/types/homeSettings';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,6 +32,9 @@ type Meta =
   | { entity?: string; prev?: unknown; next?: unknown; hash?: string };
 
 export async function POST(req: Request) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   const id = notifIdFrom(req.url);
   if (!id) return NextResponse.json({ ok: false, error: 'INVALID_ID' }, { status: 400 });
 

@@ -12,6 +12,8 @@ import { NextResponse } from 'next/server';
 // ✅ Offers engine (JSON offers from AppSetting)
 import { evaluateOffers, type CartLine as OfferCartLine } from '@/lib/offers-engine';
 import { getOffers } from '@/lib/offers-store';
+import { sendOrderConfirmationEmail } from '@/lib/email/send-order-confirmation';
+import { isPurchasable } from '@/lib/stock';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -305,6 +307,12 @@ export async function POST(req: Request) {
     const t = body.totals;
     if (!t || !isValidMoney(t.tax)) return bad('Invalid totals.');
 
+    // Tax is server-decided, not client-supplied. The browser sends a value,
+    // but trusting it would let a caller inflate (or in future deflate) the
+    // charge. Prince Foods sells zero-rated groceries, so this is 0 until a
+    // real tax rule exists — and it now lives in one place when it does.
+    const taxTotal = 0;
+
     const s = body.shippingAddress;
     if (!s) return bad('Missing shipping address.');
     const shipErr = requireCourierFields(s, 'shipping');
@@ -338,7 +346,12 @@ export async function POST(req: Request) {
       typeof body.contactEmail === 'string' ? body.contactEmail.trim() : '';
     const sessionEmail = typeof session?.user?.email === 'string' ? session.user.email.trim() : '';
 
-    const emailForOrder = contactEmailTrimmed || sessionEmail || 'guest@prince-v.com';
+    // Never invent an address: an order with a placeholder email can never be
+    // tracked (guest tracking matches on email) and can never be contacted.
+    const emailForOrder = contactEmailTrimmed || sessionEmail;
+    if (!emailForOrder || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailForOrder)) {
+      return bad('A valid contact email is required so we can send your order confirmation.');
+    }
     const emailNorm = emailForOrder.trim().toLowerCase();
 
     // ✅ always STANDARD
@@ -355,6 +368,7 @@ export async function POST(req: Request) {
       categoryId: string | null;
       shippingTemp: ShippingTemp;
       shippingWeightGrams: number | null;
+      inventory: string | null;
     }> =
       ids.length > 0
         ? await prisma.product.findMany({
@@ -366,7 +380,8 @@ export async function POST(req: Request) {
               price: true,
               categoryId: true,
               shippingTemp: true,
-              shippingWeightGrams: true
+              shippingWeightGrams: true,
+              inventory: true
             }
           })
         : [];
@@ -387,6 +402,25 @@ export async function POST(req: Request) {
         );
       }
     }
+    // 🛒 SECURITY/OPS: refuse out-of-stock lines.
+    // The UI disables these, but a stale tab or a direct POST would otherwise
+    // create an order we cannot fulfil. Unknown inventory fails closed.
+    const unavailable: string[] = [];
+    for (const it of body.items) {
+      if (!it.productId) continue;
+      const dbProduct = byId.get(it.productId);
+      if (!dbProduct) continue;
+      if (!isPurchasable(dbProduct.inventory)) unavailable.push(dbProduct.name);
+    }
+    if (unavailable.length) {
+      return bad(
+        unavailable.length === 1
+          ? `Sorry — "${unavailable[0]}" is out of stock. Please remove it to continue.`
+          : `Sorry — these are out of stock: ${unavailable.join(', ')}. Please remove them to continue.`,
+        409
+      );
+    }
+
     const catById = new Map(products.map((p) => [p.id, p.categoryId]));
 
     // Expand child categoryIds to parent so parent-targeted offers match products in child categories
@@ -795,7 +829,7 @@ export async function POST(req: Request) {
 
     const grandTotal = Math.max(
       0,
-      computedSubtotal + shippingAfterDiscount - itemDiscountUsed - custItemDiscountPence + t.tax
+      computedSubtotal + shippingAfterDiscount - itemDiscountUsed - custItemDiscountPence + taxTotal
     );
 
     // ✅ Create addresses snapshot
@@ -855,7 +889,7 @@ export async function POST(req: Request) {
             subtotal: computedSubtotal,
             shippingTotal: shippingAfterDiscount,
             discountTotal,
-            taxTotal: t.tax,
+            taxTotal,
             grandTotal,
 
             shippingAddress: { connect: { id: createdShipping.id } },
@@ -1064,6 +1098,13 @@ export async function POST(req: Request) {
           }
         } catch (e) {
           console.warn('[place-order] addressBook save failed (ignored):', e);
+        }
+
+        // Free orders (100% discount) are marked PAID here and never reach
+        // Stripe — so no webhook fires. Send their confirmation directly,
+        // otherwise the customer receives nothing at all.
+        if (grandTotal <= 0) {
+          await sendOrderConfirmationEmail(created.id);
         }
 
         return NextResponse.json({ ok: true, orderId: created.id, displayId: created.displayId });

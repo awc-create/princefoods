@@ -2,11 +2,15 @@
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
 import { NextResponse, type NextRequest } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   const url = new URL(req.url);
   const status = url.searchParams.get('status')?.trim() ?? null;
   const carrier = url.searchParams.get('carrier')?.trim() ?? null;

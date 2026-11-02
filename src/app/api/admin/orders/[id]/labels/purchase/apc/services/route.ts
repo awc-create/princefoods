@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getParams } from '@/lib/route-ctx';
 import { getServiceAvailability, type ServiceOption } from '@/lib/shipping/apc';
 import { NextResponse, type NextRequest } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -83,6 +84,9 @@ function pickMaxDays(s: ServiceOptionLoose): number | null {
 }
 
 export async function GET(_req: NextRequest, ctx: unknown) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   const { id: orderId } = getParams(ctx);
 
   const order = await prisma.order.findUnique({

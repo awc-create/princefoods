@@ -2,6 +2,7 @@
 import { readJsonOrText } from '@/lib/http/response-body';
 import { prisma } from '@/lib/prisma';
 import { NextRequest, NextResponse } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -230,7 +231,7 @@ export async function POST(req: NextRequest) {
         return {
           shipmentId: s.id,
           ok: false,
-          error: e instanceof Error ? e.message : 'UNKNOWN_ERROR'
+          error: safeErrorMessage(e, '/api/cron/shipments/recheck-stale')
         };
       }
     });

@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 interface FaqItemDTO {
   id: string;
@@ -16,6 +17,9 @@ interface SaveDTO {
 }
 
 export async function POST(req: Request) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   let body: SaveDTO;
   try {
     body = (await req.json()) as SaveDTO;

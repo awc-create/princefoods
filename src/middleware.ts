@@ -1,6 +1,10 @@
 // src/middleware.ts
-// NOTE: Admin auth is handled server-side in src/app/admin/AdminGate.tsx
-// Middleware only handles: /account protection + public prod /admin block + subdomain redirects
+// Handles: server-side /admin auth gate, /account protection,
+// public-prod /admin block, and subdomain redirects.
+//
+// NOTE: /api/ is intentionally skipped here — admin API routes authorise
+// themselves via requireAdmin() (see src/lib/require-admin.ts, enforced at
+// build time by scripts/check-admin-guards.mjs).
 import type { JWT } from 'next-auth/jwt';
 import { getToken } from 'next-auth/jwt';
 import type { NextRequest } from 'next/server';
@@ -69,12 +73,33 @@ export async function middleware(req: NextRequest) {
     return withPathname(req, pathname);
   }
 
-  // Admin subdomain: bare / → /admin (no auth check — AdminGate handles that)
+  // Admin subdomain: bare / → /admin
   if (ADMIN_HOSTS.has(host) && (pathname === '/' || pathname === '')) {
     const url = req.nextUrl.clone();
     url.pathname = '/admin';
     url.search = '';
     return NextResponse.redirect(url);
+  }
+
+  // 🔒 Server-side gate for every /admin page.
+  //
+  // This MUST happen here. The admin layout is a client component, and a client
+  // component cannot stop a server-component child from running: pages like
+  // /admin/orders/[id] query Prisma on the server and serialise the result into
+  // the response before the browser ever gets a chance to redirect. Without this
+  // check, order data (name, email, address, payment refs) is sent to anyone who
+  // asks for the URL.
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+    const token = (await getToken({ req, secret: process.env.NEXTAUTH_SECRET })) as Token;
+    const role = token?.role;
+
+    if (!token || (role !== 'HEAD' && role !== 'STAFF' && role !== 'VIEWER')) {
+      const url = req.nextUrl.clone();
+      url.pathname = '/admin/login';
+      url.search = '';
+      url.searchParams.set('callbackUrl', `${pathname}${search || ''}`);
+      return NextResponse.redirect(url);
+    }
   }
 
   // Public prod: hard-block /admin paths

@@ -181,3 +181,16 @@
     transform: translateY(1px);
   }
 }
+
+/* Out-of-stock treatment — see src/lib/stock.ts */
+.pillOut {
+  background: #6b7280;
+  color: #fff;
+}
+
+.add:disabled,
+.add[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}

@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/prisma';
 import type { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 type ProviderFilter = 'all' | 'stripe' | 'test';
 type ArchivedFilter = 'active' | 'archived' | 'all';
@@ -27,6 +28,9 @@ interface ListResponse {
 }
 
 export async function GET(req: NextRequest) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   try {
     const url = new URL(req.url);
     const page = Math.max(1, Number(url.searchParams.get('page') ?? '1'));

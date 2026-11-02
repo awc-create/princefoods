@@ -241,18 +241,44 @@ export default function AboutEditor() {
         <div className={s.header}>
           <h1>About Page Editor</h1>
           <div className={s.actions}>
-            {error && <span className={`${s.statusText} ${s.statusError}`}>{error}</span>}
             {!error && dirty && !saving && (
               <span className={`${s.statusText} ${s.statusUnsaved}`}>Unsaved changes</span>
             )}
             {savedAt && !dirty && !error && (
               <span className={`${s.statusText} ${s.statusSaved}`}>All changes saved</span>
             )}
-            <button className={s.saveBtn} onClick={save} disabled={saving || !dirty}>
-              {saving ? 'Saving…' : dirty ? 'Save Changes' : 'Saved'}
+            {/* Never show "Saved" while an error is on screen — that contradiction
+                makes staff think their work was stored when it wasn't. */}
+            <button className={s.saveBtn} onClick={save} disabled={saving}>
+              {saving ? 'Saving…' : error ? 'Try saving again' : dirty ? 'Save Changes' : 'Saved'}
             </button>
           </div>
         </div>
+
+        {error && (
+          <div
+            role="alert"
+            style={{
+              display: 'flex',
+              gap: 10,
+              alignItems: 'flex-start',
+              padding: '12px 14px',
+              margin: '0 0 14px',
+              borderRadius: 10,
+              border: '1px solid #fecaca',
+              background: '#fef2f2',
+              color: '#7f1d1d'
+            }}
+          >
+            <span style={{ fontSize: 18, lineHeight: 1.2 }} aria-hidden>
+              ⚠️
+            </span>
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 2 }}>Your changes were NOT saved</div>
+              <div style={{ fontSize: 13.5, lineHeight: 1.45 }}>{error}</div>
+            </div>
+          </div>
+        )}
 
         {/* TABS */}
         <div className={s.tabs} role="tablist" aria-label="About sections">

@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
+import { requireAdmin } from '@/lib/require-admin';
 
 type ResolveAction = 'CONTACTED_COURIER' | 'RECHECKED_TRACKING' | 'RESHIP' | 'REFUND' | 'IGNORE';
 
@@ -53,6 +55,9 @@ function isResolveAction(v: unknown): v is ResolveAction {
 }
 
 export async function POST(req: Request) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const body = (await req.json().catch(() => null)) as {
       orderId?: unknown;
@@ -132,7 +137,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : 'Unknown error' },
+      { ok: false, error: safeErrorMessage(err, '/api/admin/orders/exceptions/resolve') },
       { status: 500 }
     );
   }

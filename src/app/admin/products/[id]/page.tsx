@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import styles from './Edit.module.scss';
+import { IN_STOCK, OUT_OF_STOCK, inventoryLabel } from '@/lib/stock';
 
 interface Product {
   id: string;
@@ -76,7 +77,8 @@ interface Category {
   parentId: string | null;
 }
 
-const INVENTORY_OPTIONS = ['In Stock', 'Out of Stock'];
+// Canonical values — must match the CSV/Wix format (src/lib/stock.ts)
+const INVENTORY_OPTIONS = [IN_STOCK, OUT_OF_STOCK];
 const OPTION_TYPES = ['DROP_DOWN', 'RADIO', 'CHECKBOX'];
 
 export default function ProductEditPage() {
@@ -272,7 +274,7 @@ export default function ProductEditPage() {
                 <option value="">— Not set —</option>
                 {inventoryChoices.map((opt) => (
                   <option key={opt} value={opt}>
-                    {opt}
+                    {inventoryLabel(opt)}
                   </option>
                 ))}
               </select>

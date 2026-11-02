@@ -5,11 +5,15 @@ import { prisma } from '@/lib/prisma';
 import { getParams } from '@/lib/route-ctx';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(_req: NextRequest, _ctx: unknown) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   const { id: orderId } = getParams(_ctx);
 
   try {

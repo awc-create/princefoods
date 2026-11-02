@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,6 +25,9 @@ async function getParams<T extends Record<string, unknown>>(ctx: unknown): Promi
 }
 
 export async function GET(_req: NextRequest, ctx: unknown) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   const { threadId } = await getParams<{ threadId: string }>(ctx);
 
   const thread = await prisma.chatThread.findUnique({
@@ -35,6 +39,7 @@ export async function GET(_req: NextRequest, ctx: unknown) {
   }
 
   const messages = await prisma.chatMessage.findMany({
+    take: 500,
     where: { threadId },
     orderBy: { createdAt: 'asc' },
     select: { id: true, role: true, content: true, createdAt: true }

@@ -8,6 +8,7 @@ import type { NextRequest } from 'next/server';
 import fs from 'node:fs';
 import path from 'node:path';
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+import { requireAdmin } from '@/lib/require-admin';
 
 /* ====================================================================== */
 /* =                           UTILITIES                                = */
@@ -156,6 +157,9 @@ function addressLines(
 /* ====================================================================== */
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   /* -------------------------- params + data --------------------------- */
   const { id } = await ctx.params;
 

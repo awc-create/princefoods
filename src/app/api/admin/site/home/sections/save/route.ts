@@ -5,6 +5,7 @@ import type { HomeSectionRow } from '@/types/homeSections';
 import { Prisma } from '@prisma/client';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
 
 export const runtime = 'nodejs';
 
@@ -138,7 +139,7 @@ export async function POST(req: Request) {
   } catch (e) {
     console.error('POST /api/admin/site/home/sections/save failed:', e);
     return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : 'Save failed' },
+      { ok: false, error: safeErrorMessage(e, '/api/admin/site/home/sections/save') },
       { status: 500 }
     );
   }

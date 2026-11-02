@@ -4,6 +4,8 @@ import { sendAdminPush } from '@/lib/push';
 import type { HomeSettingsDTO } from '@/types/homeSettings';
 import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
+import { safeErrorMessage } from '@/lib/safe-error';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -50,6 +52,9 @@ function summarizeHomeChanges(prev: HomeSettingsDTO | null, next: HomeSettingsDT
 const sha1 = (obj: unknown) => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex');
 
 export async function POST(req: Request) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const body = (await req.json()) as HomeSettingsDTO;
 
@@ -183,7 +188,7 @@ export async function POST(req: Request) {
       { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'SAVE_FAILED';
+    const msg = safeErrorMessage(err, '/api/admin/site/home/save');
     console.error('POST /api/admin/site/home/save failed:', err);
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }

@@ -1,11 +1,15 @@
 // src/app/api/admin/orders/[id]/shipments/apc/route.ts
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   const { id: orderId } = await ctx.params;
 
   const shipment = await prisma.shipment.findFirst({

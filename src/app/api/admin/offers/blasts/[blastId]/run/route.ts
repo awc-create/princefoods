@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import type { OfferPayload } from '@/types/offers';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -157,7 +158,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ blastId: strin
 
         sent += 1;
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Send failed';
+        const msg = safeErrorMessage(e, '/api/admin/offers/blasts/[blastId]/run');
 
         await prisma.offerEmailBlastRecipient.update({
           where: { id: r.id },

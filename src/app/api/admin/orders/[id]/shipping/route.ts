@@ -1,6 +1,7 @@
 // src/app/api/admin/orders/[id]/shipping/route.ts
 import { prisma } from '@/lib/prisma';
 import { NextResponse, type NextRequest } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,6 +11,9 @@ interface Ctx {
 }
 
 export async function GET(_req: NextRequest, ctx: Ctx) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   const { id } = await ctx.params;
 
   const order = await prisma.order.findUnique({

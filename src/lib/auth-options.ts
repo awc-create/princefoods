@@ -1,4 +1,5 @@
 // src/lib/auth-options.ts
+import { passwordAttemptLimiter } from '@/lib/rate-limit';
 import { prisma } from '@/lib/prisma';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
@@ -15,11 +16,34 @@ type AppSessionUser = DefaultSession['user'] & { id?: string; role?: Role };
 
 const CredentialsSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6)
+  password: z.string().min(8)
 });
 
 function isAdapterUser(u: NextAuthUser | AdapterUser): u is AdapterUser {
   return 'id' in u && typeof (u as AdapterUser).id === 'string';
+}
+
+
+/**
+ * Brute-force guard for password sign-in. Keyed on BOTH the account and the
+ * caller's IP so one attacker can't spray many accounts, and one account can't
+ * be hammered from many IPs. Throwing surfaces as `error` on the client.
+ */
+function throttleOrThrow(email: string, req: unknown) {
+  const headers =
+    req && typeof req === 'object' && 'headers' in req
+      ? ((req as { headers?: Record<string, string | undefined> }).headers ?? {})
+      : {};
+  // Empty strings must fall through to the next source, so `??` is wrong here —
+  // pick the first candidate that actually has content.
+  const ipCandidates = [headers['x-forwarded-for']?.split(',')[0], headers['x-real-ip']];
+  const ip = ipCandidates.map((v) => v?.trim()).find((v) => !!v) ?? 'unknown';
+
+  for (const key of [`email:${email}`, `ip:${ip}`]) {
+    if (!passwordAttemptLimiter(key).allowed) {
+      throw new Error('TOO_MANY_ATTEMPTS');
+    }
+  }
 }
 
 async function checkPassword(email: string, password: string) {
@@ -102,12 +126,14 @@ export const authOptions: NextAuthOptions = {
       id: 'credentials',
       name: 'Email & Password',
       credentials: { email: {}, password: {} },
-      authorize: async (raw) => {
+      authorize: async (raw, req) => {
         const parsed = CredentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
 
         const email = parsed.data.email.toLowerCase();
         const { password } = parsed.data;
+
+        throttleOrThrow(email, req);
 
         const pending = await prisma.verificationToken.findFirst({
           where: { identifier: email, expires: { gt: new Date() } }
@@ -125,12 +151,14 @@ export const authOptions: NextAuthOptions = {
       id: 'admin-credentials',
       name: 'Admin Email & Password',
       credentials: { email: {}, password: {} },
-      authorize: async (raw) => {
+      authorize: async (raw, req) => {
         const parsed = CredentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
 
         const email = parsed.data.email.toLowerCase();
         const { password } = parsed.data;
+
+        throttleOrThrow(email, req);
 
         const user = await checkPassword(email, password);
         if (!user) return null;

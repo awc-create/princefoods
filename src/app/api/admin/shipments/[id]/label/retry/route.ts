@@ -3,11 +3,16 @@ import { Activity } from '@/lib/order-activity';
 import { prisma } from '@/lib/prisma';
 import { getLabelWithPolling } from '@/lib/shipping/apc';
 import { NextResponse, type NextRequest } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ shipmentId: string }> }) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   const { shipmentId } = await ctx.params;
 
   const shipment = await prisma.shipment.findUnique({
@@ -73,7 +78,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ shipmentI
     return NextResponse.json({ ok: true, shipment: updated, label });
   } catch (e) {
     return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : 'Failed to fetch label' },
+      { ok: false, error: safeErrorMessage(e, '/api/admin/shipments/[id]/label/retry') },
       { status: 502 }
     );
   }

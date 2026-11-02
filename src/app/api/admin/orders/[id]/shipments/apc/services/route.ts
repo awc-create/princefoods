@@ -1,6 +1,8 @@
 // src/app/api/admin/orders/[id]/shipments/apc/services/route.ts
 import { getApcServices } from '@/lib/shipping/apc-serviceAvailability';
 import { NextResponse, type NextRequest } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,6 +33,9 @@ interface Body {
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   await ctx.params; // orderId not needed here, but keeps route shape consistent
 
   try {
@@ -84,7 +89,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     return NextResponse.json({ ok: true, services });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Failed to fetch APC services';
+    const msg = safeErrorMessage(e, '/api/admin/orders/[id]/shipments/apc/services');
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }

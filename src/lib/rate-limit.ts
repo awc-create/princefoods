@@ -69,6 +69,17 @@ export function rateLimit(key: string, config: RateLimitConfig): RateLimitResult
 export const loginLimiter = (ip: string) =>
   rateLimit(`login:${ip}`, { limit: 10, windowSecs: 900 });
 
+/**
+ * Password sign-in attempts — 8 per 15 min, per account AND per IP.
+ *
+ * NOTE: this guards the real login path. `loginLimiter` below sits on
+ * /api/login, which is the MAGIC-LINK endpoint — both login forms call
+ * NextAuth signIn(), which posts to /api/auth/callback/credentials and never
+ * touches it. Without this, admin passwords could be brute-forced freely.
+ */
+export const passwordAttemptLimiter = (identifier: string) =>
+  rateLimit(`pwd:${identifier}`, { limit: 8, windowSecs: 900 });
+
 /** Email verification sends — 5 per hour per email */
 export const verifyEmailLimiter = (email: string) =>
   rateLimit(`verify:${email}`, { limit: 5, windowSecs: 3600 });

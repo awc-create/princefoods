@@ -2,11 +2,15 @@ import { prisma } from '@/lib/prisma';
 import { getParams } from '@/lib/route-ctx';
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest, ctx: unknown) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   const { id } = getParams<{ id: string }>(ctx);
 
   try {

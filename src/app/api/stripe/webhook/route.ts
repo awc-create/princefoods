@@ -2,11 +2,13 @@
 import { markOffersUsedByOrder } from '@/lib/offer-attempts';
 import { logActivity } from '@/lib/order-activity';
 import { prisma } from '@/lib/prisma';
+import { sendOrderConfirmationEmail } from '@/lib/email/send-order-confirmation';
 import { redeemPromotionForPaidOrder } from '@/lib/promotion-redemption';
 import { markPromotionUsedByOrder } from '@/lib/promotions/mark-used';
 import { Prisma } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { safeErrorMessage } from '@/lib/safe-error';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -241,71 +243,6 @@ async function markOrderCaptured(args: {
   }
 }
 
-async function sendOrderConfirmationEmail(orderId: string) {
-  const key = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.EMAIL_FROM?.trim() ?? 'Prince Foods <no-reply@prince-foods.com>';
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? 'https://www.prince-foods.com';
-
-  if (!key) return;
-
-  try {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: {
-        id: true,
-        displayId: true,
-        createdAt: true,
-        contactEmail: true,
-        currency: true,
-        subtotal: true,
-        shippingTotal: true,
-        discountTotal: true,
-        grandTotal: true,
-        items: {
-          select: { name: true, sku: true, quantity: true, lineTotal: true }
-        }
-      }
-    });
-
-    if (!order?.contactEmail) return;
-
-    const { Resend } = await import('resend');
-    const { render } = await import('@react-email/render');
-    const { default: OrderConfirmationEmail } = await import('@/emails/OrderConfirmationEmail');
-
-    const html = await render(
-      OrderConfirmationEmail({
-        displayId: order.displayId ?? order.id.slice(-8).toUpperCase(),
-        createdAt: new Date(order.createdAt).toLocaleDateString('en-GB', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric'
-        }),
-        items: order.items,
-        subtotal: order.subtotal ?? 0,
-        shippingTotal: order.shippingTotal ?? 0,
-        discountTotal: order.discountTotal ?? 0,
-        grandTotal: order.grandTotal ?? 0,
-        currency: order.currency ?? 'GBP',
-        brand: { siteUrl }
-      })
-    );
-
-    const resend = new Resend(key);
-    await resend.emails.send({
-      from,
-      to: order.contactEmail,
-      subject: `Order confirmed — #${order.displayId ?? order.id.slice(-8).toUpperCase()}`,
-      html
-    });
-
-    await logActivity(orderId, 'NOTE', 'Order confirmation email sent');
-  } catch (e) {
-    // Don't fail the webhook if email fails
-    console.error('Order confirmation email failed:', e);
-  }
-}
-
 export async function POST(req: NextRequest) {
   const secretKey = process.env.STRIPE_SECRET_KEY?.trim();
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
@@ -352,7 +289,7 @@ export async function POST(req: NextRequest) {
       // Exists but not processed → continue
     }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Invalid webhook';
+    const msg = safeErrorMessage(err, '/api/stripe/webhook');
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
 

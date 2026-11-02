@@ -1,12 +1,16 @@
 // src/app/api/admin/settings/orders/route.ts
 import { prisma } from '@/lib/prisma';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // GET -> { cancelReversalMinutes: number }
 export async function GET() {
+  const guard = await requireAdmin({ head: true });
+  if (!guard.ok) return guard.response;
+
   const doc = await prisma.policyDoc.findUnique({
     where: { slug: 'order-settings' },
     select: { body: true }
@@ -28,6 +32,9 @@ export async function GET() {
 
 // POST -> accepts either cancelReversalMinutes (preferred) or reversalWindowMinutes (legacy)
 export async function POST(req: NextRequest) {
+  const guard = await requireAdmin({ write: true, head: true });
+  if (!guard.ok) return guard.response;
+
   const body = (await req.json()) as {
     cancelReversalMinutes?: number | string | null;
     reversalWindowMinutes?: number | string | null; // legacy

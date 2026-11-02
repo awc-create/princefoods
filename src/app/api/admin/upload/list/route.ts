@@ -1,6 +1,7 @@
 // src/app/api/admin/upload/list/route.ts
 import { listFilesFromStorage } from '@/lib/storage';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 function slugify(value: string): string {
   return value
@@ -37,6 +38,9 @@ function getFileKindFromUrl(url: string): 'image' | 'video' | 'unknown' {
 }
 
 export async function POST(req: Request) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const body = (await req.json()) as {
       pathSegments?: string[];

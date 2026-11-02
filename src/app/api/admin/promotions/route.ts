@@ -64,6 +64,7 @@ export async function GET() {
     // Do NOT request `_count.allowedUsers` if the table doesn't exist,
     // otherwise Prisma will throw P2021 and the whole endpoint fails.
     const promos = await prisma.promotion.findMany({
+      take: 300,
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,

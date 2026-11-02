@@ -1,11 +1,15 @@
 import { prisma } from '@/lib/prisma';
 import { getParams } from '@/lib/route-ctx';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(_req: NextRequest, ctx: unknown) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   try {
     const { id } = getParams<{ id: string }>(ctx);
 

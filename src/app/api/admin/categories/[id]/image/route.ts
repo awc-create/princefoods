@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { safeErrorMessage } from '@/lib/safe-error';
 
 export const runtime = 'nodejs';
 
@@ -89,7 +90,7 @@ export async function POST(req: Request, ctx: unknown) {
 
     return NextResponse.json({ ok: true, url });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Upload failed';
+    const msg = safeErrorMessage(e, '/api/admin/categories/[id]/image');
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }

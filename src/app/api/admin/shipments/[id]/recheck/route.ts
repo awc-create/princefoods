@@ -3,6 +3,8 @@ import { readJsonOrText } from '@/lib/http/response-body';
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -261,6 +263,9 @@ async function upsertReturnCaseFromTracking(args: {
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   const started = Date.now();
   const { id: shipmentId } = await ctx.params;
 
@@ -380,7 +385,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         mode,
         env,
         latencyMs,
-        error: err instanceof Error ? err.message : 'Unknown error'
+        error: safeErrorMessage(err, '/api/admin/shipments/[id]/recheck')
       },
       { status: 200 }
     );

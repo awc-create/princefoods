@@ -1,7 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export async function GET() {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   try {
     // Page settings (singleton row)
     const settings = await prisma.faqSettings.findUnique({ where: { id: 1 } });

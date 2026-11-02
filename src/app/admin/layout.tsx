@@ -28,6 +28,21 @@ function isActivePath(current: string, href: string) {
 }
 
 const NAV_OPEN_KEY = 'admin.nav.open';
+const NAV_SIMPLE_KEY = 'admin.nav.simple';
+
+/**
+ * The handful of pages day-to-day work actually needs. Everything else stays
+ * one toggle away — nothing is removed or made inaccessible, it just isn't
+ * 22 links deep on first login.
+ */
+const EVERYDAY_HREFS = new Set([
+  '/admin',
+  '/admin/orders',
+  '/admin/shipments',
+  '/admin/returns',
+  '/admin/products',
+  '/admin/customers'
+]);
 
 const isLoginPage = (p: string) =>
   p === '/admin/login' ||
@@ -58,6 +73,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isStaff = role === 'HEAD' || role === 'STAFF';
   const isViewer = role === 'VIEWER';
 
+  const [simple, setSimple] = useState(true);
+
   const [open, setOpen] = useState<Record<GroupKey, boolean>>({
     dashboard: true,
     site: false,
@@ -66,6 +83,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     marketing: false,
     admin: false
   });
+
+  // Restore the simple/full preference
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem(NAV_SIMPLE_KEY);
+      if (v !== null) setSimple(v === '1');
+    } catch {
+      /* storage unavailable */
+    }
+  }, []);
 
   // Restore persisted open/closed state
   useEffect(() => {
@@ -123,9 +150,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         title: 'Marketing',
         hide: isViewer,
         items: [
-          { href: '/admin/promotions', label: 'Promotions' },
-          { href: '/admin/offers', label: 'Offers' },
-          { href: '/admin/customer-discounts', label: 'Customer Discounts' }
+          // One door. The hub explains the three types in plain English and
+          // routes onward — the engines behind them are unchanged.
+          { href: '/admin/discounts', label: 'Discounts' },
+          { href: '/admin/promotions', label: '• Discount codes' },
+          { href: '/admin/offers', label: '• Automatic offers' },
+          { href: '/admin/customer-discounts', label: '• Customer discounts' }
         ]
       },
       {
@@ -139,8 +169,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         ]
       }
     ];
-    return list.filter((g) => !g.hide);
-  }, [isStaff, isViewer]);
+    const visible = list.filter((g) => !g.hide);
+    if (!simple) return visible;
+
+    // Simple view: only the pages used day to day.
+    return visible
+      .map((g) => ({ ...g, items: g.items.filter((it) => EVERYDAY_HREFS.has(it.href)) }))
+      .filter((g) => g.items.length > 0);
+  }, [isStaff, isViewer, simple]);
 
   // Auto-expand the group containing the current page so the active
   // link is never hidden inside a collapsed group.
@@ -168,6 +204,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
       return next;
     });
+
+  function toggleSimple() {
+    setSimple((v) => {
+      const next = !v;
+      try {
+        window.localStorage.setItem(NAV_SIMPLE_KEY, next ? '1' : '0');
+      } catch {
+        /* storage unavailable */
+      }
+      return next;
+    });
+  }
 
   async function handleSignOut() {
     await signOut({ redirect: false });
@@ -217,6 +265,33 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             )}
           </div>
         ))}
+
+        {/* Simple ⇄ everything. Nothing is hidden permanently. */}
+        <div className={styles.group}>
+          <nav className={styles.nav}>
+            <button
+              type="button"
+              onClick={toggleSimple}
+              className={styles.navLink}
+              style={{
+                width: '100%',
+                textAlign: 'left',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                opacity: 0.85,
+                fontSize: 13
+              }}
+              title={
+                simple
+                  ? 'Show site editing, categories, analytics, delivery rates and settings'
+                  : 'Show only the pages used day to day'
+              }
+            >
+              {simple ? '⋯ Show everything' : '↑ Show less'}
+            </button>
+          </nav>
+        </div>
 
         <div className={styles.group}>
           <nav className={styles.nav}>

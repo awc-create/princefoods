@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import type { AboutSettingsDTO } from '@/types/aboutSettings';
 import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
+import { safeError } from '@/lib/safe-error';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -41,6 +43,9 @@ function summarizeAboutChanges(prev: AboutSettingsDTO | null, next: AboutSetting
 }
 
 export async function POST(req: Request) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const body = (await req.json()) as AboutSettingsDTO;
 
@@ -125,8 +130,13 @@ export async function POST(req: Request) {
       { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'SAVE_FAILED';
-    console.error('POST /api/admin/site/about/save failed:', err);
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    const { message, code } = safeError(
+      err,
+      'POST /api/admin/site/about/save',
+      'Could not save the About page. Please try again.'
+    );
+    // Infrastructure failures are 5xx, not "your request was bad".
+    const status = code === 'VALIDATION' || code === 'DUPLICATE' ? 400 : 500;
+    return NextResponse.json({ ok: false, error: message, code }, { status });
   }
 }

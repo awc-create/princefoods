@@ -1,8 +1,10 @@
 // src/app/api/admin/site/about/get/route.ts
 import { fromJson, toJson } from '@/lib/json';
 import { prisma } from '@/lib/prisma';
+import { safeError } from '@/lib/safe-error';
 import type { AboutSettingsDTO } from '@/types/aboutSettings';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -68,37 +70,67 @@ const DEFAULTS: AboutSettingsDTO = {
 // GET handler
 // -------------------------
 export async function GET() {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   try {
-    // ✅ Idempotent get-or-create pattern
-    const row = await prisma.aboutSettings.upsert({
-      where: { id: 1 },
-      create: {
-        id: 1,
-        hero: toJson(DEFAULTS.hero),
-        story: toJson(DEFAULTS.story),
-        stats: toJson(DEFAULTS.stats),
-        values: toJson(DEFAULTS.values),
-        cta: toJson(DEFAULTS.cta)
-      },
-      update: {} // If it exists, just return existing
-    });
+    // Read first. Opening an editor must never require a database WRITE —
+    // otherwise a read-only/full database makes the page unopenable.
+    const row = await prisma.aboutSettings.findUnique({ where: { id: 1 } });
 
-    // ✅ Normalize Prisma JSON fields into clean DTO types
-    const data: AboutSettingsDTO = {
-      hero: fromJson(row.hero) as AboutSettingsDTO['hero'],
-      story: fromJson(row.story) as AboutSettingsDTO['story'],
-      stats: fromJson(row.stats) as AboutSettingsDTO['stats'],
-      values: fromJson(row.values) as AboutSettingsDTO['values'],
-      cta: fromJson(row.cta) as AboutSettingsDTO['cta']
-    };
+    if (!row) {
+      // Nothing saved yet. Try to seed defaults, but if the write fails
+      // (disk full, read-only replica…) still let the editor open.
+      try {
+        const created = await prisma.aboutSettings.create({
+          data: {
+            id: 1,
+            hero: toJson(DEFAULTS.hero),
+            story: toJson(DEFAULTS.story),
+            stats: toJson(DEFAULTS.stats),
+            values: toJson(DEFAULTS.values),
+            cta: toJson(DEFAULTS.cta)
+          }
+        });
+        return NextResponse.json(
+          { ok: true, data: rowToDto(created) },
+          { headers: { 'Cache-Control': 'no-store' } }
+        );
+      } catch (seedErr) {
+        const { message, code } = safeError(seedErr, 'GET /api/admin/site/about/get (seed)');
+        return NextResponse.json(
+          { ok: true, data: DEFAULTS, readOnly: true, warning: message, code },
+          { headers: { 'Cache-Control': 'no-store' } }
+        );
+      }
+    }
 
-    return NextResponse.json({ ok: true, data }, { headers: { 'Cache-Control': 'no-store' } });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'UNKNOWN_ERROR';
-    console.error('GET /api/admin/site/about/get failed:', e);
     return NextResponse.json(
-      { ok: false, error: msg },
+      { ok: true, data: rowToDto(row) },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
+  } catch (e) {
+    const { message, code } = safeError(e, 'GET /api/admin/site/about/get');
+    return NextResponse.json(
+      { ok: false, error: message, code },
       { status: 500, headers: { 'Cache-Control': 'no-store' } }
     );
   }
+}
+
+/** Normalise Prisma JSON columns into the clean DTO shape. */
+function rowToDto(row: {
+  hero: unknown;
+  story: unknown;
+  stats: unknown;
+  values: unknown;
+  cta: unknown;
+}): AboutSettingsDTO {
+  return {
+    hero: fromJson(row.hero) as AboutSettingsDTO['hero'],
+    story: fromJson(row.story) as AboutSettingsDTO['story'],
+    stats: fromJson(row.stats) as AboutSettingsDTO['stats'],
+    values: fromJson(row.values) as AboutSettingsDTO['values'],
+    cta: fromJson(row.cta) as AboutSettingsDTO['cta']
+  };
 }

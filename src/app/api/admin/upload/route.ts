@@ -1,6 +1,7 @@
 // src/app/api/admin/upload/route.ts
 import { buildObjectKey, uploadBufferToStorage } from '@/lib/storage';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024; // 8MB
 const MAX_VIDEO_SIZE_BYTES = 150 * 1024 * 1024; // 150MB
@@ -45,6 +46,9 @@ function getAllowedTypesMessage(): string {
 }
 
 export async function POST(req: Request) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const formData = await req.formData();
 

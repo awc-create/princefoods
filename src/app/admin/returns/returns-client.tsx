@@ -29,6 +29,8 @@ interface CaseRow {
   resolvedAt: string | null;
   resolution: ReturnResolution | null;
   resolutionNote: string | null;
+  /** Set to { source: 'customer', issue, note } when raised via "Report a problem". */
+  meta?: unknown;
   order: { id: string; displayId: string; contactEmail: string; status: string };
   shipment: {
     id: string;
@@ -60,6 +62,16 @@ async function j<T>(url: string, init?: RequestInit) {
   const res = await fetch(url, init);
   const data = (await res.json().catch(() => ({}))) as T;
   return { ok: res.ok, status: res.status, data };
+}
+
+/**
+ * Customer-raised cases come from "Report a problem" on the account order page
+ * and carry meta.source === 'customer'. Everything else was detected by our
+ * own delivery-exception checks.
+ */
+function isCustomerReported(r: { meta?: unknown }): boolean {
+  const m = r.meta;
+  return !!m && typeof m === 'object' && (m as { source?: unknown }).source === 'customer';
 }
 
 export default function ReturnsClient({ baseUrl }: { baseUrl: string }) {
@@ -157,6 +169,7 @@ export default function ReturnsClient({ baseUrl }: { baseUrl: string }) {
               <th style={{ textAlign: 'left', padding: 10 }}>Order</th>
               <th style={{ textAlign: 'left', padding: 10 }}>Status</th>
               <th style={{ textAlign: 'left', padding: 10 }}>Issue</th>
+              <th style={{ textAlign: 'left', padding: 10 }}>Raised by</th>
               <th style={{ textAlign: 'left', padding: 10 }}>Shipment</th>
               <th style={{ textAlign: 'left', padding: 10 }}>Detected</th>
               <th style={{ textAlign: 'left', padding: 10 }}>Actions</th>
@@ -172,6 +185,27 @@ export default function ReturnsClient({ baseUrl }: { baseUrl: string }) {
 
                 <td style={{ padding: 10 }}>{returnStatusLabel(r.status)}</td>
                 <td style={{ padding: 10 }}>{r.issueType}</td>
+                <td style={{ padding: 10 }}>
+                  {isCustomerReported(r) ? (
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        padding: '2px 9px',
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        background: '#fffbeb',
+                        color: '#92400e',
+                        border: '1px solid #fde68a'
+                      }}
+                      title="Reported by the customer from their account"
+                    >
+                      Customer
+                    </span>
+                  ) : (
+                    <span style={{ color: '#6b7280', fontSize: 13 }}>System</span>
+                  )}
+                </td>
 
                 <td style={{ padding: 10, fontSize: 12 }}>
                   {r.shipment ? (

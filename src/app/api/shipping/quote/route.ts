@@ -3,6 +3,7 @@
 
 import { quoteShipping } from '@/lib/shipping';
 import { NextResponse } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
     if (!result.ok) return bad(result.error, 400);
     return NextResponse.json(result);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Shipping quote failed.';
+    const msg = safeErrorMessage(e, '/api/shipping/quote');
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { emailCustomerFromThread } from '@/lib/support-email';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   // TODO: auth for HEAD/STAFF
   const { threadId, to, subject, html } = await req.json() as {
     threadId?: string;

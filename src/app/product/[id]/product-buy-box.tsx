@@ -18,6 +18,7 @@ interface PDPProduct {
   imageUrl: string | null;
   sku: string | null;
   inventory: number | null;
+  purchasable?: boolean;
   ribbon: string | null;
   discountMode: DiscountMode;
   discountValue: number | null;
@@ -109,7 +110,10 @@ export default function ProductBuyBox({ product }: { product: PDPProduct }) {
     return [...new Set(list)].slice(0, 3);
   }, [offerBadges, product.ribbon]);
 
-  const inStock = product.inventory == null ? true : product.inventory > 0;
+  // Decided server-side by src/lib/stock.ts. Unknown values fail CLOSED, so a
+  // product is never sellable just because its inventory field is unparseable.
+  const inStock =
+    product.purchasable ?? (product.inventory == null ? false : product.inventory > 0);
   const lowStock = product.inventory != null && product.inventory > 0 && product.inventory <= 5;
 
   const change = (v: number) => setQty((n) => Math.max(1, Math.min(99, n + v)));

@@ -2,6 +2,7 @@
 import { Activity } from '@/lib/order-activity';
 import { prisma } from '@/lib/prisma';
 import { NextResponse, type NextRequest } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,6 +11,9 @@ export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ id: string; returnId: string }> }
 ) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   const { id: orderId, returnId } = await ctx.params;
 
   const body = (await req.json().catch(() => ({}))) as {

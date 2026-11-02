@@ -14,8 +14,8 @@ export async function POST(req: Request) {
       newPassword?: string;
     };
 
-    if (!token || !newPassword || newPassword.length < 6) {
-      return NextResponse.json({ ok: false, message: 'Invalid input' }, { status: 400 });
+    if (!token || !newPassword || newPassword.length < 10) {
+      return NextResponse.json({ ok: false, message: 'Password must be at least 10 characters.' }, { status: 400 });
     }
 
     const record = await prisma.passwordToken.findUnique({

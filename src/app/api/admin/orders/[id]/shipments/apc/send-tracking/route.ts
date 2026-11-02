@@ -2,6 +2,7 @@
 import { sendTrackingEmail, type ProductTeaser } from '@/lib/email';
 import { prisma } from '@/lib/prisma';
 import { NextResponse, type NextRequest } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,9 @@ function buildTrackingUrl(waybill: string) {
 }
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   const { id: orderId } = await ctx.params;
 
   const shipment = await prisma.shipment.findFirst({

@@ -2,8 +2,12 @@ import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
+import { IN_STOCK, OUT_OF_STOCK } from '@/lib/stock';
 
 export const runtime = 'nodejs';
+
+type BulkAction = 'hide' | 'show' | 'delete' | 'in-stock' | 'out-of-stock';
+const ALLOWED_ACTIONS: BulkAction[] = ['hide', 'show', 'delete', 'in-stock', 'out-of-stock'];
 
 type Role = 'HEAD' | 'STAFF' | 'VIEWER';
 interface SessionUser {
@@ -14,9 +18,9 @@ const hasRole = (u: unknown): u is SessionUser =>
   !!u && typeof u === 'object' && 'role' in (u as Record<string, unknown>);
 
 type Body =
-  | { action: 'hide' | 'show' | 'delete'; ids: string[] }
+  | { action: BulkAction; ids: string[] }
   | {
-      action: 'hide' | 'show' | 'delete';
+      action: BulkAction;
       allMatching: true;
       search?: string;
       collections?: string[];
@@ -32,7 +36,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as Partial<Body>;
   const action = body.action;
 
-  if (action !== 'hide' && action !== 'show' && action !== 'delete') {
+  if (!action || !ALLOWED_ACTIONS.includes(action)) {
     return NextResponse.json({ message: 'Invalid action' }, { status: 400 });
   }
 
@@ -60,6 +64,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, deleted: r.count });
     }
 
+    if (action === 'in-stock' || action === 'out-of-stock') {
+      const inventory = action === 'in-stock' ? IN_STOCK : OUT_OF_STOCK;
+      const r = await prisma.product.updateMany({ where, data: { inventory } });
+      return NextResponse.json({ ok: true, updated: r.count });
+    }
+
     const visible = action === 'show';
     const r = await prisma.product.updateMany({ where, data: { visible } });
     return NextResponse.json({ ok: true, updated: r.count, visible });
@@ -75,6 +85,12 @@ export async function POST(req: Request) {
   if (action === 'delete') {
     const r = await prisma.product.deleteMany({ where: { id: { in: ids } } });
     return NextResponse.json({ ok: true, deleted: r.count });
+  }
+
+  if (action === 'in-stock' || action === 'out-of-stock') {
+    const inventory = action === 'in-stock' ? IN_STOCK : OUT_OF_STOCK;
+    const r = await prisma.product.updateMany({ where: { id: { in: ids } }, data: { inventory } });
+    return NextResponse.json({ ok: true, updated: r.count });
   }
 
   const visible = action === 'show';

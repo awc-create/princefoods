@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { getParams } from '@/lib/route-ctx';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -8,6 +9,9 @@ export const dynamic = 'force-dynamic';
 type ReturnResolution = 'RESHIP' | 'REFUND' | 'STORE_CREDIT' | 'CUSTOMER_COLLECT' | 'NO_ACTION';
 
 export async function POST(req: Request, _ctx: unknown) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   const { id } = getParams<{ id: string }>(_ctx);
 
   try {

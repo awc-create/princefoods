@@ -3,12 +3,13 @@ import { deleteOffer, getOfferById, updateOffer } from '@/lib/offers-store';
 import { requireAdmin } from '@/lib/route-ctx';
 import type { OfferAdminForm } from '@/types/offers';
 import { NextResponse } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function authFail(e: unknown) {
-  const msg = e instanceof Error ? e.message : 'UNAUTHENTICATED';
+  const msg = safeErrorMessage(e, '/api/admin/offers/[id]');
   const status = msg === 'FORBIDDEN' ? 403 : 401;
   return NextResponse.json({ error: msg }, { status });
 }
@@ -26,7 +27,7 @@ function getIdFromReq(req: Request): string | null {
 
 export async function GET(req: Request) {
   try {
-    await requireAdmin();
+    await requireAdmin({ allowViewer: true });
 
     const id = getIdFromReq(req);
     if (!id) return NextResponse.json({ error: 'BAD_ID' }, { status: 400 });

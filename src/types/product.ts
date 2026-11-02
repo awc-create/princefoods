@@ -7,6 +7,8 @@ export interface Product {
   slug?: string;
   collection?: string;
   inventory?: number;
+  /** Server-decided availability — see src/lib/stock.ts. */
+  purchasable?: boolean;
   visible?: boolean;
   tag?: '🔥 Best Seller' | '🎉 New Arrival' | string;
   special?: boolean;

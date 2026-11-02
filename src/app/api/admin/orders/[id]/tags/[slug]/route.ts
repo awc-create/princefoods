@@ -3,11 +3,15 @@ import { prisma } from '@/lib/prisma';
 import { getParams } from '@/lib/route-ctx';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function DELETE(_req: NextRequest, _ctx: unknown) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const { id, slug: rawSlug } = getParams<{ id: string; slug: string }>(_ctx);
     const slug = decodeURIComponent(rawSlug);

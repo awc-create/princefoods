@@ -2,12 +2,13 @@
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/route-ctx';
 import { NextResponse } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function authFail(e: unknown) {
-  const msg = e instanceof Error ? e.message : 'UNAUTHENTICATED';
+  const msg = safeErrorMessage(e, '/api/admin/site/home/sections/options/collections');
   const status = msg === 'FORBIDDEN' ? 403 : 401;
   return NextResponse.json({ error: msg }, { status });
 }
@@ -31,7 +32,7 @@ function prettyCollectionPath(full: string) {
 
 export async function GET(req: Request) {
   try {
-    await requireAdmin();
+    await requireAdmin({ allowViewer: true });
 
     const url = new URL(req.url);
     const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();

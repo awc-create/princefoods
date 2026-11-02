@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 type ExceptionType =
   | 'NEEDS_LABEL'
@@ -123,6 +124,9 @@ function extractDatesFromTrackingEvents(trackingEvents: unknown): Date[] {
 }
 
 export async function GET(req: Request) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   const url = new URL(req.url);
 
   const inTransitDays = Number(url.searchParams.get('inTransitDays') ?? 4);

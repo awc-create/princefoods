@@ -1,9 +1,13 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 type Resolution = 'RESHIP' | 'REFUND' | 'STORE_CREDIT' | 'CUSTOMER_COLLECT' | 'NO_ACTION';
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   const { id: orderId } = await ctx.params;
   const body = (await req.json()) as { resolution: Resolution; note?: string };
 

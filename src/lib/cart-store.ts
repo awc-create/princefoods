@@ -115,6 +115,22 @@ export interface CartState {
   // offers sync
   offers: OffersSnapshot;
   refreshOffers: () => Promise<void>;
+
+  /**
+   * Re-sync basket prices + availability with the database.
+   *
+   * The basket is persisted to localStorage, so a line can sit there for weeks
+   * while the admin edits the price. place-order rejects stale prices, so
+   * without this the shopper hits an unfixable error at payment. Returns what
+   * changed so the UI can say so plainly.
+   */
+  syncWithCatalogue: () => Promise<CartSyncResult>;
+}
+
+export interface CartSyncResult {
+  repriced: { name: string; from: number; to: number }[];
+  unavailable: string[];
+  changed: boolean;
 }
 
 /* -------------------------------------------
@@ -462,6 +478,70 @@ const creator: StateCreator<CartState> = (set, get) => ({
       const free = Math.max(0, Math.trunc(i.freeQty ?? 0));
       return n + paid + free;
     }, 0),
+
+  syncWithCatalogue: async (): Promise<CartSyncResult> => {
+    const lines = get().items;
+    const ids = Array.from(
+      new Set(lines.map((l) => l.productId).filter((v): v is string => !!v))
+    );
+
+    const empty: CartSyncResult = { repriced: [], unavailable: [], changed: false };
+    if (ids.length === 0) return empty;
+
+    let payload: {
+      products?: { id: string; name: string; unitPrice: number; purchasable: boolean }[];
+      missing?: string[];
+    };
+    try {
+      const res = await fetch('/api/products/prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+      });
+      if (!res.ok) return empty;
+      payload = await res.json();
+    } catch {
+      // Offline or server down — leave the basket untouched rather than
+      // wiping someone's shopping over a transient error.
+      return empty;
+    }
+
+    const byId = new Map((payload.products ?? []).map((p) => [p.id, p]));
+    const missing = new Set(payload.missing ?? []);
+
+    const repriced: CartSyncResult['repriced'] = [];
+    const unavailable: string[] = [];
+
+    const next = get()
+      .items.filter((l) => {
+        if (!l.productId) return true; // custom lines are left alone
+        if (missing.has(l.productId)) {
+          unavailable.push(l.name);
+          return false; // product deleted — drop it
+        }
+        const p = byId.get(l.productId);
+        if (p && !p.purchasable) {
+          unavailable.push(p.name || l.name);
+          return false; // out of stock — drop it
+        }
+        return true;
+      })
+      .map((l) => {
+        if (!l.productId) return l;
+        const p = byId.get(l.productId);
+        if (!p || p.unitPrice <= 0 || p.unitPrice === l.unitPrice) return l;
+        repriced.push({ name: p.name || l.name, from: l.unitPrice, to: p.unitPrice });
+        return { ...l, unitPrice: p.unitPrice };
+      });
+
+    const changed = repriced.length > 0 || unavailable.length > 0;
+    if (changed) {
+      set({ items: next });
+      void get().refreshOffers();
+    }
+
+    return { repriced, unavailable, changed };
+  },
 
   refreshOffers: async () => {
     const snapshot = get().items;

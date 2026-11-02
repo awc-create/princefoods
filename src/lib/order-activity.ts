@@ -75,8 +75,32 @@ function toMetaJson(v: unknown): MetaJson {
   return String(v);
 }
 
+
+/**
+ * Who is performing the current action, if anyone.
+ *
+ * Returns null for system actions (Stripe webhooks, cron) — those legitimately
+ * have no logged-in actor, and a null actor reads as "system" in the UI.
+ */
+async function currentActor(): Promise<{ id: string | null; email: string | null } | null> {
+  try {
+    const { getServerSession } = await import('next-auth');
+    const { authOptions } = await import('@/lib/auth-options');
+    const session = await getServerSession(authOptions);
+    const u = session?.user as { id?: unknown; email?: unknown } | undefined;
+    if (!u) return null;
+    return {
+      id: typeof u.id === 'string' ? u.id : null,
+      email: typeof u.email === 'string' ? u.email : null
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Best-effort logger. Never blocks main flow.
+ * Automatically records WHICH staff member acted, where there is one.
  */
 export async function logActivity(
   orderId: string,
@@ -94,6 +118,16 @@ export async function logActivity(
     // Only write meta if explicitly provided (including null)
     if (meta !== undefined) {
       data.meta = toMetaJson(meta);
+    }
+
+    // Attribution: stamped centrally so every existing call site gets it.
+    // NOTE: `actorId`/`actorEmail` land with the 20261102000000 migration; the
+    // cast keeps this compiling against a client generated before that runs.
+    const actor = await currentActor();
+    if (actor && (actor.id || actor.email)) {
+      const withActor = data as unknown as Record<string, unknown>;
+      withActor.actorId = actor.id;
+      withActor.actorEmail = actor.email;
     }
 
     await prisma.orderActivity.create({ data });

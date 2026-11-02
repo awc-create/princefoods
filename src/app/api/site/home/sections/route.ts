@@ -10,6 +10,7 @@ import type {
 import type { CampaignKey } from '@/types/homeSettings';
 import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -422,7 +423,7 @@ export async function GET() {
   } catch (e) {
     console.error('GET /api/site/home/sections failed:', e);
     return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : 'FAILED' },
+      { ok: false, error: safeErrorMessage(e, '/api/site/home/sections') },
       { status: 500, headers: { 'Cache-Control': 'no-store' } }
     );
   }

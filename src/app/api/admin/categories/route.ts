@@ -3,6 +3,7 @@ import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
+import { safeErrorMessage } from '@/lib/safe-error';
 
 export const runtime = 'nodejs';
 
@@ -63,7 +64,7 @@ export async function GET() {
       return json(withDefaults);
     }
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'GET categories failed';
+    const message = safeErrorMessage(e, '/api/admin/categories');
     return json({ ok: false, error: message }, { status: 500 });
   }
 }

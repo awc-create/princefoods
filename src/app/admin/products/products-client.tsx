@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from './Products.module.scss';
+import { inventoryLabel } from '@/lib/stock';
 
 interface Row {
   id: string;
@@ -275,7 +276,7 @@ export default function ProductsClient() {
   );
 
   const bulk = useCallback(
-    async (action: 'hide' | 'show' | 'delete') => {
+    async (action: 'hide' | 'show' | 'delete' | 'in-stock' | 'out-of-stock') => {
       if (allMatchingSelected) {
         if (action === 'delete') {
           // Always know the number before deleting across pages.
@@ -335,7 +336,11 @@ export default function ProductsClient() {
       if (res.ok) {
         clearSelection();
         toast.success(
-          action === 'delete'
+          action === 'in-stock'
+            ? `Marked ${ids.length} product${ids.length === 1 ? '' : 's'} in stock.`
+            : action === 'out-of-stock'
+              ? `Marked ${ids.length} product${ids.length === 1 ? '' : 's'} out of stock.`
+              : action === 'delete'
             ? `Deleted ${ids.length} product${ids.length === 1 ? '' : 's'}.`
             : 'Done.'
         );
@@ -474,6 +479,12 @@ export default function ProductsClient() {
           </button>
           <button onClick={() => bulk('show')}>
             <Eye size={16} /> Show
+          </button>
+          <button onClick={() => bulk('in-stock')} title="Mark selected as in stock">
+            <Check size={16} /> In stock
+          </button>
+          <button onClick={() => bulk('out-of-stock')} title="Mark selected as out of stock">
+            <X size={16} /> Out of stock
           </button>
           <button className={styles.danger} onClick={() => bulk('delete')}>
             <Trash2 size={16} /> Delete
@@ -725,7 +736,7 @@ export default function ProductsClient() {
 
                     <td>{r.sku ?? '—'}</td>
                     <td>{r.price != null ? `£${r.price.toFixed(2)}` : '—'}</td>
-                    <td>{r.inventory ?? '—'}</td>
+                    <td>{inventoryLabel(r.inventory)}</td>
 
                     <td>
                       {r.collection ? (

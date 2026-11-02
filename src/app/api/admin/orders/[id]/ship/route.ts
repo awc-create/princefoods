@@ -2,6 +2,8 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
+import { safeErrorMessage } from '@/lib/safe-error';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,6 +23,9 @@ interface ParamsCtx {
 }
 
 export async function POST(req: NextRequest, ctx: ParamsCtx) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const { id: orderId } = await ctx.params; // <- await is required in app routes
 
@@ -86,7 +91,7 @@ export async function POST(req: NextRequest, ctx: ParamsCtx) {
     }
 
     console.error('Manual ship error:', err);
-    const message = err instanceof Error ? err.message : 'Unexpected server error';
+    const message = safeErrorMessage(err, '/api/admin/orders/[id]/ship');
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

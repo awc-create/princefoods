@@ -2,10 +2,14 @@
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 const DEFAULT_LIMIT = 12;
 
 export async function GET(req: NextRequest) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   try {
     const url = new URL(req.url);
 
@@ -211,6 +215,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/products — create a new product from admin create form
 export async function POST(req: NextRequest) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const body = await req.json();
 

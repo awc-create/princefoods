@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import styles from './Admin.module.scss';
 import RecentNotifications from './RecentNotifications';
+import WorkQueue from './WorkQueue';
 
 interface Stats {
   products: number;
@@ -26,12 +27,6 @@ interface ApcHealthResp {
   };
 }
 
-interface Attention {
-  toFulfil: number | null;
-  exceptions: number | null;
-  openReturns: number | null;
-}
-
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsErr, setStatsErr] = useState<string | null>(null);
@@ -41,11 +36,6 @@ export default function AdminDashboard() {
   const [apcHealth, setApcHealth] = useState<ApcHealthResp | null>(null);
   const [apcLoading, setApcLoading] = useState(true);
 
-  const [attention, setAttention] = useState<Attention>({
-    toFulfil: null,
-    exceptions: null,
-    openReturns: null
-  });
 
   useEffect(() => {
     let cancelled = false;
@@ -94,41 +84,6 @@ export default function AdminDashboard() {
     };
   }, [period]);
 
-  // "Needs attention" counters — each fails independently and quietly.
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadAttention() {
-      const [orders, exceptions, returns] = await Promise.allSettled([
-        fetch('/api/admin/orders?status=PAID&archived=active&limit=1', { cache: 'no-store' }).then(
-          (r) => r.json()
-        ),
-        fetch('/api/admin/orders/exceptions', { cache: 'no-store' }).then((r) => r.json()),
-        fetch('/api/admin/returns?status=OPEN', { cache: 'no-store' }).then((r) => r.json())
-      ]);
-      if (cancelled) return;
-
-      setAttention({
-        toFulfil:
-          orders.status === 'fulfilled' && orders.value?.ok
-            ? (orders.value.meta?.total ?? null)
-            : null,
-        exceptions:
-          exceptions.status === 'fulfilled' && exceptions.value?.ok
-            ? (exceptions.value.count ?? exceptions.value.items?.length ?? null)
-            : null,
-        openReturns:
-          returns.status === 'fulfilled' && returns.value?.ok
-            ? (returns.value.items?.length ?? null)
-            : null
-      });
-    }
-
-    loadAttention();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -187,8 +142,11 @@ export default function AdminDashboard() {
 
   return (
     <div>
+      {/* What needs doing — the reason most staff open this page. */}
+      <WorkQueue />
+
       <div className={styles.dashboardHeader}>
-        <h1>Admin Dashboard</h1>
+        <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Business summary</h2>
         <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
           {(['today', 'week', 'month', 'year', 'all'] as const).map((p) => (
             <button
@@ -267,20 +225,6 @@ export default function AdminDashboard() {
         </Link>
       </div>
 
-      {/* ⚠️ Needs attention */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', margin: '14px 0' }}>
-        <AttentionTile
-          label="Paid orders to fulfil"
-          count={attention.toFulfil}
-          href="/admin/orders?status=PAID&archived=active"
-        />
-        <AttentionTile
-          label="Delivery exceptions"
-          count={attention.exceptions}
-          href="/admin/orders/exceptions"
-        />
-        <AttentionTile label="Open returns" count={attention.openReturns} href="/admin/returns" />
-      </div>
 
       {/* ✅ Status bar UNDER the cards (not inside the grid) */}
       <div className={styles.systemRow}>
@@ -330,50 +274,3 @@ export default function AdminDashboard() {
   );
 }
 
-function AttentionTile({
-  label,
-  count,
-  href
-}: {
-  label: string;
-  count: number | null;
-  href: string;
-}) {
-  const urgent = typeof count === 'number' && count > 0;
-  return (
-    <Link
-      href={href}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '10px 14px',
-        borderRadius: 12,
-        textDecoration: 'none',
-        border: `1px solid ${urgent ? '#fde68a' : '#e5e7eb'}`,
-        background: urgent ? '#fffbeb' : '#fff',
-        color: urgent ? '#92400e' : '#6b7280',
-        fontWeight: 700,
-        fontSize: 13
-      }}
-    >
-      <span
-        style={{
-          minWidth: 26,
-          height: 26,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: 999,
-          padding: '0 6px',
-          background: urgent ? '#f59e0b' : '#f3f4f6',
-          color: urgent ? '#fff' : '#6b7280',
-          fontSize: 13
-        }}
-      >
-        {count ?? '–'}
-      </span>
-      {label} →
-    </Link>
-  );
-}

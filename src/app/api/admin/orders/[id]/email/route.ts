@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { getParams } from '@/lib/route-ctx';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,9 @@ function isValidEmail(v: string) {
 }
 
 export async function PATCH(req: NextRequest, _ctx: unknown) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   try {
     const { id: orderId } = getParams(_ctx);
     const body = (await req.json()) as { email?: string | null };
@@ -57,6 +61,9 @@ export async function PATCH(req: NextRequest, _ctx: unknown) {
 }
 
 export async function POST(req: NextRequest, _ctx: unknown) {
+  const guard = await requireAdmin({ write: true });
+  if (!guard.ok) return guard.response;
+
   // forward-call to satisfy validator (no aliasing)
   return PATCH(req, _ctx);
 }

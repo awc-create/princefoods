@@ -193,6 +193,20 @@ function itemKeyOf(x: { productId?: string | null; sku?: string | null; name: st
   return `name:${normNameKey(x.name)}`;
 }
 
+
+/**
+ * Turn a place-order failure into something a shopper can act on.
+ * The server speaks in pence and product ids; this does not.
+ */
+function friendlyOrderError(raw: string): string {
+  if (/price mismatch/i.test(raw)) {
+    return 'Some prices in your basket have changed since you added them. Your basket has been updated — please review the total and try again.';
+  }
+  if (/out of stock/i.test(raw)) return raw; // already written for customers
+  if (/too many/i.test(raw)) return 'Too many attempts just now. Please wait a moment and try again.';
+  return raw || 'Could not place order.';
+}
+
 export default function CheckoutClient({ email }: { email: string | null }) {
   const router = useRouter();
 
@@ -821,7 +835,9 @@ export default function CheckoutClient({ email }: { email: string | null }) {
         `/order-confirmation/${json.orderId}?d=${encodeURIComponent(json.displayId ?? '')}`
       );
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Could not place order.');
+      const raw = e instanceof Error ? e.message : '';
+      if (/price mismatch/i.test(raw)) void cart.syncWithCatalogue();
+      setErr(friendlyOrderError(raw));
     } finally {
       setPlacing(false);
     }
@@ -861,7 +877,9 @@ export default function CheckoutClient({ email }: { email: string | null }) {
           `Payment could not start. Your order has been saved (ref: ${placedOrderId}). Please contact us or try again.`
         );
       } else {
-        setErr(e instanceof Error ? e.message : 'Could not start Stripe Checkout.');
+        const raw = e instanceof Error ? e.message : '';
+        if (/price mismatch/i.test(raw)) void cart.syncWithCatalogue();
+        setErr(friendlyOrderError(raw) || 'Could not start Stripe Checkout.');
       }
     } finally {
       setPlacing(false);
@@ -894,7 +912,8 @@ export default function CheckoutClient({ email }: { email: string | null }) {
       localStorage.removeItem(LS_CONTACT_KEY);
       await payWithStripeTest(json.orderId);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Could not start Stripe TEST Checkout.');
+      const raw = e instanceof Error ? e.message : '';
+      setErr(friendlyOrderError(raw) || 'Could not start Stripe TEST Checkout.');
     } finally {
       setPlacing(false);
     }

@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import styles from './order-detail.module.scss';
+import ReportProblem from './ReportProblem';
 
 export const dynamic = 'force-dynamic';
 
@@ -349,6 +350,9 @@ export default async function AccountOrderPage({
           )}
         </div>
       </section>
+
+      {/* Customer-initiated returns: opens the same ReturnCase staff triage. */}
+      <ReportProblem displayId={order.displayId} />
     </main>
   );
 }
