@@ -5,7 +5,11 @@ import Image from 'next/image';
 import styles from './About.module.scss';
 
 export default function AboutClient({ settings }: { settings: AboutSettingsDTO }) {
-  const { hero, story, stats, values, cta } = settings;
+  const { hero, story, sections, stats, values, cta } = settings;
+
+  // Blank heading = admin chose to hide it, so render the section without one.
+  const valuesHeading = sections?.valuesHeading?.trim();
+  const ctaHeading = sections?.ctaHeading?.trim();
 
   return (
     <main className={styles.page}>
@@ -60,7 +64,7 @@ export default function AboutClient({ settings }: { settings: AboutSettingsDTO }
       {/* Values */}
       <section className={styles.why}>
         <div className={styles.container}>
-          <h2 className={styles.whyTitle}>Why Shop with Prince Foods?</h2>
+          {valuesHeading && <h2 className={styles.whyTitle}>{valuesHeading}</h2>}
           <ul className={styles.whyCards}>
             {values.map((v) => (
               <li key={v.id} className={styles.whyCard}>
@@ -78,8 +82,8 @@ export default function AboutClient({ settings }: { settings: AboutSettingsDTO }
       {/* CTA */}
       <section className={styles.cta}>
         <div className={styles.container}>
-          <h3>Bringing Home Closer — One Meal at a Time.</h3>
-          <a className={styles.button} href={cta.href || '/collections'}>
+          {ctaHeading && <h3>{ctaHeading}</h3>}
+          <a className={styles.button} href={cta.href || '/shop'}>
             {cta.text || 'Browse Our Collections'}
           </a>
         </div>

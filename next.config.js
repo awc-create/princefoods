@@ -33,6 +33,15 @@ const nextConfig = {
     '/**/*': ['./node_modules/bcryptjs/**']
   },
 
+  // /collections never existed as a page, but it shipped as the About CTA's
+  // default link and was offered in the admin link picker, so it may be saved
+  // in content or sitting in someone's bookmarks. Point it at the shop.
+  // Temporary (307) rather than permanent: a real collections page may be
+  // built later, and browsers cache a 308 aggressively.
+  async redirects() {
+    return [{ source: '/collections', destination: '/shop', permanent: false }];
+  },
+
   // Baseline security headers. These are the ones that cannot break a working
   // site — no Content-Security-Policy here on purpose: this site loads Crisp,
   // Stripe, Instagram and Google-hosted images, so a CSP needs to be written

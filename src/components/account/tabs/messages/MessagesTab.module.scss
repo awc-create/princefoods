@@ -1,0 +1,98 @@
+.muted {
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.empty {
+  padding: 32px 24px;
+  border: 1px dashed #e5e7eb;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.item {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+/* A quiet left edge rather than a loud background — this sits among the
+   customer's own account pages, not in an alerts panel. */
+.itemUnread {
+  border-left: 3px solid #c8102e;
+}
+
+.block {
+  padding: 14px 16px;
+}
+
+.reply {
+  background: #f9fafb;
+  border-top: 1px solid #f3f4f6;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.newDot {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #c8102e;
+  color: #fff;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+
+.question,
+.answer {
+  margin: 6px 0 8px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: #111827;
+  /* Answers are typed in a textarea, so newlines are meaningful. */
+  white-space: pre-wrap;
+}
+
+.question {
+  font-weight: 600;
+}
+
+.date {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.pending {
+  margin: 0;
+  padding: 12px 16px;
+  border-top: 1px solid #f3f4f6;
+  background: #f9fafb;
+  color: #6b7280;
+  font-size: 13.5px;
+}

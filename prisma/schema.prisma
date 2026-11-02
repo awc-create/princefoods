@@ -361,6 +361,12 @@ model FaqSettings {
   updatedAt  DateTime @updatedAt
 }
 
+/// A question submitted from the public FAQ page's "ask us" box.
+///
+/// This doubles as the reply thread: there is one row per submission, the
+/// admin's answer lives on the same row, and a logged-in asker reads it back
+/// in their account's Messages tab. A separate messages table would have had
+/// to be kept in step with this one for no gain.
 model FaqQuestion {
   id         String   @id @default(cuid())
   question   String
@@ -368,7 +374,36 @@ model FaqQuestion {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  // ── Who asked ──
+  // All optional: asking is deliberately still possible anonymously, and an
+  // anonymous question is useful for spotting what belongs in the FAQ even
+  // though it can never be replied to.
+  askerEmail  String?
+  askerName   String?
+  askerUserId String?
+
+  // ── The reply ──
+  status          FaqQuestionStatus @default(NEW)
+  answer          String?
+  answeredAt      DateTime?
+  answeredByEmail String?
+  /// Set when the asker opened it in their account — drives the unread badge.
+  readAt          DateTime?
+  /// The public Faq row this was published to, if the admin chose to publish.
+  publishedFaqId  String?
+
   @@index([askedCount, updatedAt])
+  @@index([status, updatedAt])
+  @@index([askerUserId, updatedAt])
+}
+
+enum FaqQuestionStatus {
+  /// Awaiting an admin.
+  NEW
+  /// Answered — emailed, and visible in the asker's Messages tab.
+  ANSWERED
+  /// Dealt with without a reply (spam, duplicate, not a question).
+  DISMISSED
 }
 
 /// *

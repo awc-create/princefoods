@@ -20,7 +20,18 @@ function highlight(text: string, q: string) {
   );
 }
 
-export default function FaqClient({ initial }: { initial: FAQSettingsDTO }) {
+interface SignedInAs {
+  email: string;
+  name: string;
+}
+
+export default function FaqClient({
+  initial,
+  signedInAs = null
+}: {
+  initial: FAQSettingsDTO;
+  signedInAs?: SignedInAs | null;
+}) {
   const [heading] = useState(initial.heading);
   const [subheading] = useState(initial.subheading ?? '');
   const [items] = useState(initial.items);
@@ -36,6 +47,10 @@ export default function FaqClient({ initial }: { initial: FAQSettingsDTO }) {
 
   const [open, setOpen] = useState<OpenKey>('L-0');
   const [query, setQuery] = useState('');
+  const [ask, setAsk] = useState<{
+    state: 'idle' | 'sending' | 'sent' | 'error';
+    message: string;
+  }>({ state: 'idle', message: '' });
   const isOpen = (col: Col, i: number) => open === `${col}-${i}`;
 
   // Deep-link open on load & when hash changes
@@ -113,19 +128,53 @@ export default function FaqClient({ initial }: { initial: FAQSettingsDTO }) {
 
   async function submitQuestion(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     const question = String(fd.get('q') ?? '').trim();
-    if (!question) return;
+
+    if (!question) {
+      setAsk({ state: 'error', message: 'Please type a question first.' });
+      return;
+    }
+
+    const email = String(fd.get('email') ?? '').trim();
+    const name = String(fd.get('name') ?? '').trim();
+
+    setAsk({ state: 'sending', message: '' });
     try {
-      await fetch('/api/faq/question', {
+      const res = await fetch('/api/faq/question', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question })
+        body: JSON.stringify({ question, email, name })
       });
-      (e.currentTarget.elements.namedItem('q') as HTMLInputElement).value = '';
-      alert('Thanks! We’ve received your question.');
+
+      // fetch() does NOT throw on 4xx/5xx — without this check a rejected or
+      // rate-limited question still told the customer it had been received.
+      if (!res.ok) {
+        const msg =
+          res.status === 429
+            ? 'You’ve sent a few questions already. Please try again in a little while.'
+            : res.status === 400
+              ? 'That email address doesn’t look right — please check it, or leave it blank.'
+              : 'Sorry, we couldn’t send that just now. Please try again later.';
+        setAsk({ state: 'error', message: msg });
+        return;
+      }
+
+      const json = (await res.json().catch(() => ({}))) as { willReply?: boolean };
+      form.reset();
+      setAsk({
+        state: 'sent',
+        // Only promise a reply when there's somewhere to send one.
+        message: json.willReply
+          ? 'Thanks — we’ve got your question and we’ll reply by email.'
+          : 'Thanks — we’ve received your question. Add an email next time if you’d like a reply.'
+      });
     } catch {
-      alert('Could not send question. Please try again later.');
+      setAsk({
+        state: 'error',
+        message: 'Sorry, we couldn’t send that just now. Please check your connection.'
+      });
     }
   }
 
@@ -147,6 +196,26 @@ export default function FaqClient({ initial }: { initial: FAQSettingsDTO }) {
             />
           </div>
         </header>
+
+        {items.length === 0 ? (
+          <div className={styles.empty}>
+            <p className={styles.emptyTitle}>No questions published yet</p>
+            <p className={styles.emptyText}>
+              We&rsquo;re still putting this page together. If there&rsquo;s something you&rsquo;d
+              like to know, ask below and we&rsquo;ll get back to you.
+            </p>
+          </div>
+        ) : fl.length + fr.length === 0 ? (
+          <div className={styles.empty}>
+            <p className={styles.emptyTitle}>No questions match &ldquo;{query}&rdquo;</p>
+            <p className={styles.emptyText}>
+              Try a different word, or ask us directly using the box below.
+            </p>
+            <button type="button" className={styles.emptyBtn} onClick={() => setQuery('')}>
+              Clear search
+            </button>
+          </div>
+        ) : null}
 
         <div className={styles.cols}>
           {/* Left column */}
@@ -285,10 +354,60 @@ export default function FaqClient({ initial }: { initial: FAQSettingsDTO }) {
         <form className={styles.ask} onSubmit={submitQuestion}>
           <h3 className={styles.askTitle}>Didn’t find what you need?</h3>
           <div className={styles.askRow}>
-            <input name="q" className={styles.askInput} placeholder="Ask us a question…" />
-            <button className={styles.askBtn}>Send</button>
+            <input
+              name="q"
+              className={styles.askInput}
+              placeholder="Ask us a question…"
+              maxLength={500}
+              disabled={ask.state === 'sending'}
+            />
+            <button className={styles.askBtn} disabled={ask.state === 'sending'}>
+              {ask.state === 'sending' ? 'Sending…' : 'Send'}
+            </button>
           </div>
-          <p className={styles.askHelp}>Popular questions may be added to this page.</p>
+
+          {signedInAs ? (
+            <p className={styles.askHelp}>
+              We’ll reply to <strong>{signedInAs.email}</strong>, and you’ll find the answer in
+              your account under Messages.
+            </p>
+          ) : (
+            <div className={styles.askContact}>
+              <input
+                name="name"
+                className={styles.askInput}
+                placeholder="Your name (optional)"
+                maxLength={80}
+                autoComplete="name"
+                disabled={ask.state === 'sending'}
+              />
+              <input
+                name="email"
+                type="email"
+                className={styles.askInput}
+                placeholder="Your email (optional — for a reply)"
+                maxLength={254}
+                autoComplete="email"
+                disabled={ask.state === 'sending'}
+              />
+            </div>
+          )}
+
+          {ask.message && (
+            <p
+              className={`${styles.askStatus} ${
+                ask.state === 'error' ? styles.askErr : styles.askOk
+              }`}
+              role="status"
+            >
+              {ask.message}
+            </p>
+          )}
+
+          <p className={styles.askHelp}>
+            Leave an email and we’ll answer you directly. Popular questions may also be added to
+            this page.
+          </p>
         </form>
       </div>
     </div>

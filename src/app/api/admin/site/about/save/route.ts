@@ -1,4 +1,5 @@
 // src/app/api/admin/site/about/save/route.ts
+import { aboutRowToDto } from '@/lib/about-defaults';
 import { fromJson, toJson } from '@/lib/json';
 import { prisma } from '@/lib/prisma';
 import type { AboutSettingsDTO } from '@/types/aboutSettings';
@@ -27,6 +28,7 @@ function summarizeAboutChanges(prev: AboutSettingsDTO | null, next: AboutSetting
 
   if (diff(prev?.hero, next.hero)) changed.push('hero');
   if (diff(prev?.story, next.story)) changed.push('story');
+  if (diff(prev?.sections, next.sections)) changed.push('section headings');
   if (diff(prev?.stats, next.stats)) {
     const from = prev?.stats?.length ?? 0;
     const to = next.stats.length;
@@ -51,15 +53,7 @@ export async function POST(req: Request) {
 
     // Load previous value (if any)
     const existing = await prisma.aboutSettings.findUnique({ where: { id: 1 } });
-    const prev: AboutSettingsDTO | null = existing
-      ? {
-          hero: fromJson(existing.hero),
-          story: fromJson(existing.story),
-          stats: fromJson(existing.stats),
-          values: fromJson(existing.values),
-          cta: fromJson(existing.cta)
-        }
-      : null;
+    const prev: AboutSettingsDTO | null = existing ? aboutRowToDto(existing) : null;
 
     // If nothing changed, short-circuit
     if (prev && JSON.stringify(prev) === JSON.stringify(body)) {
@@ -80,14 +74,17 @@ export async function POST(req: Request) {
           story: toJson(body.story),
           stats: toJson(body.stats),
           values: toJson(body.values),
-          cta: toJson(body.cta)
+          cta: toJson(body.cta),
+          // See about-defaults.ts: `media` carries the section headings.
+          media: toJson(body.sections)
         },
         update: {
           hero: toJson(body.hero),
           story: toJson(body.story),
           stats: toJson(body.stats),
           values: toJson(body.values),
-          cta: toJson(body.cta)
+          cta: toJson(body.cta),
+          media: toJson(body.sections)
         }
       });
 

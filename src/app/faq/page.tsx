@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 
+import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import type { FAQSettingsDTO } from '@/types/faqSettings';
+import { getServerSession } from 'next-auth';
 import { unstable_noStore as noStore } from 'next/cache';
 import FaqClient from './FaqClient';
 
@@ -44,5 +46,19 @@ export default async function FaqPage() {
     initial = defaults;
   }
 
-  return <FaqClient initial={initial} />;
+  // Signed-in customers shouldn't have to retype what we already know. The
+  // server still re-derives this on submit — the prefill is a convenience,
+  // not the source of truth.
+  const session = await getServerSession(authOptions);
+
+  return (
+    <FaqClient
+      initial={initial}
+      signedInAs={
+        session?.user?.email
+          ? { email: session.user.email, name: session.user.name ?? '' }
+          : null
+      }
+    />
+  );
 }

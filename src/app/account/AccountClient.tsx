@@ -7,11 +7,12 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 import styles from './TabsAccount.module.scss';
 
 import AddressesTab from '@/components/account/tabs/addresses/AddressesTab';
+import MessagesTab from '@/components/account/tabs/messages/MessagesTab';
 import OrdersTab from '@/components/account/tabs/orders/OrdersTab';
 
-type Tab = 'overview' | 'profile' | 'orders' | 'addresses' | 'security';
+type Tab = 'overview' | 'profile' | 'orders' | 'messages' | 'addresses' | 'security';
 
-const ALL_TABS: Tab[] = ['overview', 'profile', 'orders', 'addresses', 'security'];
+const ALL_TABS: Tab[] = ['overview', 'profile', 'orders', 'messages', 'addresses', 'security'];
 
 // Fix 4: human-friendly status labels
 
@@ -61,6 +62,31 @@ export default function AccountClient({
   }, [cart]);
 
   const [tab, setTab] = useState<Tab>(initialTab);
+
+  // Unread replies, so the customer sees there's something waiting without
+  // having to open the tab. Best-effort: a failure here must not break the
+  // account page, so it fails silently to zero.
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/account/messages', { cache: 'no-store' });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          messages?: Array<{ unread: boolean }>;
+        };
+        if (cancelled || !res.ok || !json.ok) return;
+        setUnreadMessages((json.messages ?? []).filter((m) => m.unread).length);
+      } catch {
+        /* no badge */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [saving, startSaving] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -208,6 +234,11 @@ export default function AccountClient({
             type="button"
           >
             {t[0].toUpperCase() + t.slice(1)}
+            {t === 'messages' && unreadMessages > 0 && (
+              <span className={styles.tabBadge} aria-label={`${unreadMessages} unread`}>
+                {unreadMessages}
+              </span>
+            )}
           </button>
         ))}
       </nav>
@@ -412,6 +443,9 @@ export default function AccountClient({
 
         {/* ORDERS */}
         {tab === 'orders' && <OrdersTab />}
+
+        {/* MESSAGES — answers to questions asked on the FAQ page */}
+        {tab === 'messages' && <MessagesTab onRead={() => setUnreadMessages(0)} />}
 
         {/* ADDRESSES */}
         {tab === 'addresses' && <AddressesTab />}

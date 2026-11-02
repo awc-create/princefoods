@@ -1,0 +1,289 @@
+.wrap {
+  display: grid;
+  gap: 14px;
+}
+
+/* ── Filters ── */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #fff;
+  color: #374151;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background: #f9fafb;
+  }
+}
+
+.filterOn {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+}
+
+.count {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.filterOn .count {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── List ── */
+.empty {
+  padding: 28px;
+  border: 1px dashed #e5e7eb;
+  border-radius: 12px;
+  color: #6b7280;
+  text-align: center;
+  font-size: 14px;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.row {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.rowOpen {
+  border-color: #c7cdd6;
+  box-shadow: 0 6px 20px rgba(2, 6, 23, 0.07);
+}
+
+.head {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: #fafafa;
+  }
+}
+
+.headMain {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.question {
+  font-weight: 700;
+  color: #111827;
+  font-size: 14.5px;
+  line-height: 1.4;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 11.5px;
+}
+
+/* Only the unanswered state is coloured — if everything is highlighted,
+   nothing is. */
+.pillNEW {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.pillANSWERED {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.pillDISMISSED {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.chev {
+  color: #9ca3af;
+  font-size: 12px;
+  flex: 0 0 auto;
+  padding-top: 2px;
+}
+
+/* ── Expanded body ── */
+.body {
+  display: grid;
+  gap: 12px;
+  padding: 0 16px 16px;
+  border-top: 1px solid #f3f4f6;
+  padding-top: 14px;
+}
+
+.note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.hint {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+.input,
+.textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  color: #111827;
+  background: #fff;
+
+  &:focus-visible {
+    outline: 2px solid #111827;
+    outline-offset: -1px;
+  }
+}
+
+.textarea {
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: #374151;
+  cursor: pointer;
+}
+
+/* ── Result + actions ── */
+.result {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.resultOk {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.resultWarn {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.resultErr {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.primary {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: #111827;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.ghost {
+  padding: 10px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #6b7280;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: #f9fafb;
+    color: #374151;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.history {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca3af;
+}

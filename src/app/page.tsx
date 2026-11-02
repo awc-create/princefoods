@@ -75,7 +75,7 @@ const DEFAULT_HERO_SETTINGS: HeroSettings = {
   primaryCtaLabel: 'Shop Best Sellers',
   primaryCtaHref: '/shop',
   secondaryCtaLabel: 'Browse Collections',
-  secondaryCtaHref: '/collections',
+  secondaryCtaHref: '/shop',
   images: [DEFAULT_HERO_IMAGE],
   imageUrl: DEFAULT_HERO_IMAGE
 };
@@ -528,7 +528,7 @@ export default async function Home() {
           heroBase.secondaryCtaLabel || heroBase.secondaryCtaHref
             ? {
                 label: heroBase.secondaryCtaLabel ?? 'Browse Collections',
-                href: heroBase.secondaryCtaHref ?? '/collections'
+                href: heroBase.secondaryCtaHref ?? '/shop'
               }
             : undefined
         }

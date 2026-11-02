@@ -390,3 +390,67 @@ export async function sendOfferEmail(params: {
   if (error) throw error;
   return { id: data?.id ?? null };
 }
+
+/** Escape user-authored text before putting it in an HTML email body. */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Reply to a question asked through the FAQ page's "ask us" box.
+ *
+ * Both the question and the answer are free text typed by a person, so both
+ * are escaped — an unescaped apostrophe is harmless, but an unescaped `<` from
+ * a pasted snippet would mangle the email, and worse from a hostile submitter.
+ */
+export async function sendFaqAnswerEmail(params: {
+  to: string;
+  name?: string | null;
+  question: string;
+  answer: string;
+}) {
+  const greeting = params.name ? `Hi ${escapeHtml(params.name)},` : 'Hi,';
+
+  const html = `
+  <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; line-height:1.6; color:#111; max-width:560px">
+    <p style="margin:0 0 16px">${greeting}</p>
+    <p style="margin:0 0 20px">Thanks for getting in touch — here's the answer to your question.</p>
+
+    <div style="padding:14px 16px; background:#f6f7f9; border-radius:10px; margin:0 0 16px">
+      <div style="font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280; margin-bottom:6px">You asked</div>
+      <div style="font-weight:600">${escapeHtml(params.question)}</div>
+    </div>
+
+    <div style="padding:14px 16px; border:1px solid #e5e7eb; border-radius:10px; margin:0 0 20px">
+      <div style="font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280; margin-bottom:6px">Our answer</div>
+      <div style="white-space:pre-wrap">${escapeHtml(params.answer)}</div>
+    </div>
+
+    <p style="margin:0 0 20px">
+      <a href="${SITE_BASE}/faq" style="color:#c8102e; font-weight:600">See more FAQs</a>
+    </p>
+
+    <p style="margin:0; color:#6b7280; font-size:13px">
+      Still stuck? Just reply to this email and we'll pick it up.
+    </p>
+  </div>`;
+
+  const resend = getResendOrThrow();
+  const { data, error } = await resend.emails.send({
+    from: FROM,
+    to: [params.to],
+    subject: 'Re: your question',
+    html,
+    // Replies should reach support, not a no-reply void.
+    replyTo: DEFAULT_TO,
+    tags: [{ name: 'category', value: 'faq-answer' }]
+  });
+
+  if (error) throw error;
+  return { id: data?.id ?? null };
+}

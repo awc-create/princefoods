@@ -14,7 +14,10 @@ $brand: #c8102e;
 /* ===== Page Wrapper (full bleed black) ===== */
 .page {
   background: $bg;
-  min-height: 100dvh;
+  /* Was 100dvh, which guaranteed a screen-high black void whenever the page
+     was short — most obviously with no FAQs published. A smaller floor still
+     keeps the black reaching the footer without the dead space. */
+  min-height: 60vh;
   width: 100%;
   display: flex;
   justify-content: center;
@@ -305,6 +308,10 @@ $item-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
 }
 
 .askTitle {
+  /* Global.scss sets `h3 { color: var(--text-dark) }`, and a direct rule beats
+     inherited colour — so on this black page the heading was dark-on-dark and
+     effectively invisible. */
+  color: $text;
   margin: 0 0 8px;
   font-weight: 800;
 }
@@ -362,5 +369,73 @@ $item-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
   .shell {
     padding-left: 14px;
     padding-right: 14px;
+  }
+}
+
+/* ===== Empty states =====
+   Without these the page rendered a search box, then nothing at all — both
+   when no FAQs are published and when a search matched none of them. */
+.empty {
+  margin-top: clamp(18px, 3vw, 32px);
+  padding: clamp(24px, 4vw, 40px);
+  border: 1px dashed $hairline;
+  border-radius: 16px;
+  background: $card;
+  text-align: center;
+}
+
+.emptyTitle {
+  color: $text;
+  margin: 0 0 6px;
+  font-size: clamp(16px, 2vw, 19px);
+  font-weight: 800;
+}
+
+.emptyText {
+  margin: 0;
+  color: $muted;
+  font-size: clamp(14px, 1.5vw, 15px);
+  line-height: 1.6;
+}
+
+.emptyBtn {
+  margin-top: 14px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid $hairline;
+  background: transparent;
+  color: $text;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover {
+    background: $card2;
+  }
+}
+
+/* ===== Ask-box status ===== */
+.askStatus {
+  margin: 10px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.askOk {
+  color: #4ade80;
+}
+
+.askErr {
+  color: #fca5a5;
+}
+
+/* Optional name + email on the ask box, shown only to signed-out visitors. */
+.askContact {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
   }
 }

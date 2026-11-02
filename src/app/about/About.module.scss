@@ -97,7 +97,9 @@
   grid-template-columns: 1.3fr 0.9fr;
   align-items: center;
 
-  @media (max-width: 900px) {
+  /* 900px stacked the stats on small laptops where there was still plenty of
+     room for two columns — the container is only 1100px wide. */
+  @media (max-width: 760px) {
     grid-template-columns: 1fr;
     align-items: start;
   }
@@ -156,11 +158,15 @@
   margin: 0 0 2rem 0;
 }
 
+/* Flex rather than grid: the admin can add or remove value cards, and with 5
+   cards in a 3-column grid the last row sat left-aligned with a hole beside it.
+   Wrapping flex items centre the final row whatever the count. */
 .whyCards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
   gap: 1.25rem;
-  justify-items: center;
   padding: 0;
   margin: 0 auto;
   list-style: none;
@@ -170,6 +176,7 @@
 .whyCard {
   display: flex;
   align-items: flex-start;
+  flex: 1 1 260px;
   gap: 0.9rem;
   background: #fff;
   border: 1px solid #e5e7eb;
@@ -221,9 +228,13 @@
   padding: 3rem 0;
 
   h3 {
+    /* Global.scss sets `h3 { color: var(--text-dark) }`, and a direct rule
+       beats inherited colour — so this heading was rendering dark navy on a
+       dark navy band, i.e. invisible. Set it explicitly. */
+    color: #f8fafc;
     font-size: clamp(1.2rem, 0.8vw + 1rem, 1.6rem);
     font-weight: 700;
-    margin: 0 0 1rem 0;
+    margin: 0 0 1.25rem 0;
   }
 }
 

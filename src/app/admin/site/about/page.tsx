@@ -1,64 +1,13 @@
 'use client';
 
 import ImageUploader from '@/components/image/ImageUploader';
+import { ABOUT_DEFAULTS } from '@/lib/about-defaults';
 import type { AboutSettingsDTO, StatItem, ValueCard } from '@/types/aboutSettings';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import s from '../home/HomeClient.module.scss'; // reuse Home editor styles
 
 type Tab = 'hero' | 'story' | 'stats' | 'values' | 'cta';
 
-const DEFAULTS: AboutSettingsDTO = {
-  hero: {
-    title: 'Your Favourite South Asian Grocery — A Reminder of Home',
-    subtitle: 'Quality, value & nostalgia in every bite',
-    imageUrl: '/assets/about.png'
-  },
-  story: {
-    heading: 'Our Story',
-    paragraphs: [
-      'Since 2007, Prince Foods has been proudly connecting South Asian communities...',
-      'From everyday staples like rice, spices, and pulses to frozen delicacies and snacks...'
-    ]
-  },
-  stats: [
-    { id: 's1', title: '2007', subtitle: 'Year founded' },
-    { id: 's2', title: 'UK & IE', subtitle: 'Nationwide delivery' },
-    { id: 's3', title: 'Thousands', subtitle: 'Happy households' }
-  ],
-  values: [
-    {
-      id: 'v1',
-      icon: '🌿',
-      title: 'Authentic Ingredients',
-      text: 'Carefully sourced staples and treats from trusted South Asian suppliers.'
-    },
-    {
-      id: 'v2',
-      icon: '🚚',
-      title: 'Fast, Reliable Delivery',
-      text: 'UK + Ireland-wide delivery with safe, temperature-aware handling.'
-    },
-    {
-      id: 'v3',
-      icon: '💰',
-      title: 'Everyday Low Prices',
-      text: 'Transparent value — no hidden markups, just fair pricing.'
-    },
-    {
-      id: 'v4',
-      icon: '❤️',
-      title: 'Family-Run Since 2007',
-      text: 'A brand built on trust, consistency, and community.'
-    },
-    {
-      id: 'v5',
-      icon: '🛒',
-      title: 'Easy Online Ordering',
-      text: 'Secure checkout and a simple shopping experience on any device.'
-    }
-  ],
-  cta: { text: 'Browse Our Collections', href: '/collections' }
-};
 
 /** ---------- tiny helpers ---------- */
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -124,11 +73,14 @@ function AutoGrowTextarea({
   );
 }
 
-/** Known pages for CTA select */
+/**
+ * Known pages for the CTA select. Every href here must be a route that really
+ * exists — "Collections" (/collections) used to be on this list and was the
+ * saved default, but there is no such page, so the button 404'd.
+ */
 const PAGE_OPTIONS = [
   { label: 'Home', href: '/' },
-  { label: 'Shop', href: '/shop' },
-  { label: 'Collections', href: '/collections' },
+  { label: 'Shop (all collections)', href: '/shop' },
   { label: 'About', href: '/about' },
   { label: 'Contact', href: '/contact' },
   { label: 'Cart', href: '/cart' },
@@ -137,7 +89,7 @@ const PAGE_OPTIONS = [
 
 export default function AboutEditor() {
   const [tab, setTab] = useState<Tab>('hero');
-  const [data, setData] = useState<AboutSettingsDTO>(DEFAULTS);
+  const [data, setData] = useState<AboutSettingsDTO>(ABOUT_DEFAULTS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -477,6 +429,19 @@ export default function AboutEditor() {
                 <h2>VALUE CARDS</h2>
               </div>
               <div className={s.sectionBody}>
+                <Field label="Section heading (leave blank to hide it)">
+                  <input
+                    className={s.input}
+                    value={data.sections.valuesHeading}
+                    placeholder="e.g. Why Shop with Prince Foods?"
+                    onChange={(e) =>
+                      setPatch({
+                        sections: { ...data.sections, valuesHeading: e.target.value }
+                      })
+                    }
+                  />
+                </Field>
+
                 {data.values.map((v, idx) => (
                   <div key={v.id} className={s.card}>
                     <div className={s.grid3}>
@@ -541,6 +506,17 @@ export default function AboutEditor() {
                 <h2>CTA</h2>
               </div>
               <div className={s.sectionBody}>
+                <Field label="Heading above the button (leave blank to hide it)">
+                  <input
+                    className={s.input}
+                    value={data.sections.ctaHeading}
+                    placeholder="e.g. Bringing Home Closer — One Meal at a Time."
+                    onChange={(e) =>
+                      setPatch({ sections: { ...data.sections, ctaHeading: e.target.value } })
+                    }
+                  />
+                </Field>
+
                 <div className={s.grid2}>
                   <Field label="Button Text">
                     <input

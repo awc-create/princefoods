@@ -1,5 +1,6 @@
 'use client';
 
+import FaqInbox from '@/components/admin/faq/FaqInbox';
 import type { FAQInboxItem, FAQItem, FAQSettingsDTO } from '@/types/faqSettings';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import s from '../home/HomeClient.module.scss';
@@ -27,7 +28,31 @@ export default function AdminFaqPage() {
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
-  // Load
+  /**
+   * Re-fetch everything. The inbox calls this after answering or dismissing a
+   * question so statuses and counts stay true without a page refresh.
+   *
+   * Unsaved FAQ edits would be overwritten by a reload, so when the editor is
+   * dirty only the inbox is refreshed and the items in hand are left alone.
+   */
+  const reload = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/site/faq/get', { cache: 'no-store' });
+      const json = (await res.json()) as { ok: boolean; data?: AdminDTO; error?: string };
+      if (!json.ok || !json.data) {
+        setError(json.error ?? 'Failed to load FAQs');
+        return;
+      }
+      const fresh = json.data;
+      setData((prev) => (dirty ? { ...prev, inbox: fresh.inbox } : fresh));
+      if (!dirty) setDirty(false);
+      setError(null);
+    } catch {
+      setError('Failed to load FAQs');
+    }
+  }, [dirty]);
+
+  // Initial load
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -321,30 +346,7 @@ export default function AdminFaqPage() {
                 <h2>Question Inbox</h2>
               </div>
               <div className={s.sectionBody}>
-                {data.inbox && data.inbox.length > 0 ? (
-                  <ul
-                    style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 10 }}
-                  >
-                    {data.inbox.map((q) => (
-                      <li key={q.id} className={s.card}>
-                        <div style={{ display: 'grid', gap: 6 }}>
-                          <div style={{ fontWeight: 800 }}>{q.question}</div>
-                          <div style={{ fontSize: 12, opacity: 0.7, display: 'flex', gap: 10 }}>
-                            <span>Asked: {q.askedCount}</span>
-                            <time>{new Date(q.createdAt).toLocaleString()}</time>
-                          </div>
-                          <div className={s.row}>
-                            <button className={s.secondary} onClick={() => addItem(q.question)}>
-                              + Add to FAQs
-                            </button>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className={s.empty}>No submissions yet.</div>
-                )}
+                <FaqInbox items={data.inbox ?? []} onChanged={reload} />
               </div>
             </section>
           )}

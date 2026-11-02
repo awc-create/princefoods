@@ -16,11 +16,26 @@ export async function GET() {
       select: { id: true, question: true, answer: true, active: true }
     });
 
-    // Optional inbox: show the latest 25 asked questions + counts
+    // Inbox. Unanswered first — those are the ones someone is waiting on —
+    // then by how often asked, then newest.
     const inbox = await prisma.faqQuestion.findMany({
-      orderBy: [{ askedCount: 'desc' }, { updatedAt: 'desc' }],
-      take: 25,
-      select: { id: true, question: true, askedCount: true, createdAt: true, updatedAt: true }
+      orderBy: [{ status: 'asc' }, { askedCount: 'desc' }, { updatedAt: 'desc' }],
+      take: 100,
+      select: {
+        id: true,
+        question: true,
+        askedCount: true,
+        createdAt: true,
+        updatedAt: true,
+        status: true,
+        askerEmail: true,
+        askerName: true,
+        askerUserId: true,
+        answer: true,
+        answeredAt: true,
+        answeredByEmail: true,
+        publishedFaqId: true
+      }
     });
 
     return NextResponse.json({
@@ -39,7 +54,15 @@ export async function GET() {
           question: q.question,
           askedCount: q.askedCount,
           createdAt: q.createdAt.getTime(),
-          updatedAt: q.updatedAt.getTime()
+          updatedAt: q.updatedAt.getTime(),
+          status: q.status,
+          askerEmail: q.askerEmail,
+          askerName: q.askerName,
+          hasAccount: Boolean(q.askerUserId),
+          answer: q.answer,
+          answeredAt: q.answeredAt?.getTime() ?? null,
+          answeredByEmail: q.answeredByEmail,
+          published: Boolean(q.publishedFaqId)
         }))
       }
     });

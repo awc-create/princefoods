@@ -17,7 +17,7 @@ const DEFAULTS: HomeSettingsDTO = {
     primaryCtaLabel: 'Shop Best Sellers',
     primaryCtaHref: '/shop',
     secondaryCtaLabel: 'Browse Collections',
-    secondaryCtaHref: '/collections',
+    secondaryCtaHref: '/shop',
     floatingTag: 'New • Onam Favourites',
     images: ['/assets/96bfc4_3547f98fa8f54128b23c97aa34bf83b9~mv2.avif'],
     imageUrl: '/assets/96bfc4_3547f98fa8f54128b23c97aa34bf83b9~mv2.avif'
